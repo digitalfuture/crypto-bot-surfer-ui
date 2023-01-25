@@ -1,0 +1,131 @@
+---
+---
+
+<main>
+  <div id="tvchart"></div>
+  <div id="legend"></div>
+</main>
+
+<script>
+  import { createChart } from "lightweight-charts";
+  const lines = [
+    {
+      color: "blue",
+      file: "data/bottom-gainer-trailing-stop--btc-gain-filter--3m--used-0",
+    },
+    {
+      color: "green",
+      file: "data/bottom-gainer-trailing-stop--btc-gain-filter--3m--used-3",
+    },
+    {
+      color: "yellow",
+      file: "data/bottom-gainer-trailing-stop--btc-gain-filter--3m--used-5",
+    },
+    {
+      color: "hotpink",
+      file: "data/bottom-gainer-trailing-stop--btc-gain-filter--3m--used-7",
+    },
+    {
+      color: "fuchsia",
+      file: "data/top-gainer-trailing-stop--btc-gain-filter--3m--used-0",
+    },
+    {
+      color: "crimson",
+      file: "data/top-gainer-trailing-stop--btc-gain-filter--3m--used-3",
+    },
+    {
+      color: "aqua",
+      file: "data/top-gainer-trailing-stop--btc-gain-filter--3m--used-5",
+    },
+    {
+      color: "teal",
+      file: "data/top-gainer-trailing-stop--btc-gain-filter--3m--used-7",
+    },
+  ];
+
+  const createLegend = () => {
+    for (const line of lines) {
+      console.log(line);
+      const rowName = line.file;
+
+      const row = document.createElement("div");
+      row.innerHTML = rowName;
+      row.style.color = line.color;
+
+      document.getElementById("legend").appendChild(row);
+    }
+  };
+
+  const getData = async (file) => {
+    const res = await fetch(file);
+
+    const resp = await res.text();
+    //   console.log(resp);
+    const cdata = resp
+      .split("\n")
+      .slice(1)
+      .map((row) => {
+        const [, dateString, , , , , , , , profit] = row.split(",");
+        const dateSplit = dateString.split(" ");
+        const date = dateSplit[0].split("-").reverse().join("-");
+        const time = dateSplit[1];
+        const dateFormat = date + " " + time;
+        // console.log("dateFormat:", dateFormat);
+        return {
+          time: Date.parse(dateFormat) / 1000,
+          value: parseFloat(profit),
+        };
+      });
+    // console.log(cdata);
+    return cdata;
+  };
+
+  const displayChart = async () => {
+    const chartOptions = {
+      width: 1500,
+      height: 600,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+      },
+      rightPriceScale: {
+        visible: true,
+      },
+      leftPriceScale: {
+        visible: true,
+      },
+    };
+    const domElement = document.getElementById("tvchart");
+    const chart = createChart(domElement, chartOptions);
+    for (const line of lines) {
+      const data = await getData(line.file + ".csv");
+      const lineSeries = chart.addLineSeries({
+        color: line.color,
+        priceScaleId: "left",
+      });
+
+      lineSeries.setData(data);
+    }
+
+    chart.timeScale().fitContent();
+  };
+
+  displayChart();
+  createLegend();
+</script>
+
+<style>
+  #tvchart {
+    margin-top: 50px;
+    margin-left: 50px;
+  }
+
+  #legend {
+    margin-top: 50px;
+    margin-left: 50px;
+    font-size: 14px;
+    font-family: sans-serif;
+    line-height: 18px;
+    font-weight: 300;
+  }
+</style>
