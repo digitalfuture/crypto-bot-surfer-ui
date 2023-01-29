@@ -52,21 +52,15 @@ export default {
       },
 
       colors: [
-        "navy",
-        "blue",
-        "teal",
-        "coral",
-        "darkkhaki",
-        "goldenrod",
-        "lightgreen",
-        "lightslategray",
-        "olive",
-        "maroon",
-        "red",
-        "purple",
+        "midnightblue",
         "fuchsia",
-        "green",
-        "lime",
+        "blueviolet",
+        "darkcyan",
+        "mediumseagreen",
+        "chocolate",
+        "red",
+        "steelblue",
+        "burlywood",
       ],
 
       lineSeries: [],
@@ -103,7 +97,7 @@ export default {
         .map((row) => {
           const [, dateString, , , , , , , , profit] = row.split(",");
           const dateSplit = dateString.split(" ");
-          const date = dateSplit[0].split("-").reverse().join("-");
+          const date = dateSplit[0];
           const time = dateSplit[1];
           const dateFormat = date + " " + time;
           // console.log("dateFormat:", dateFormat);
@@ -133,7 +127,7 @@ export default {
         .map((row) => {
           const [, dateString, price, , , , , , ,] = row.split(",");
           const dateSplit = dateString.split(" ");
-          const date = dateSplit[0].split("-").reverse().join("-");
+          const date = dateSplit[0];
           const time = dateSplit[1];
           const dateFormat = date + " " + time;
           // console.log("dateFormat:", dateFormat);
@@ -199,9 +193,7 @@ export default {
     },
 
     async fetchData() {
-      const data = await fetch("http://localhost/files").then((res) =>
-        res.json()
-      );
+      const data = await fetch("/files").then((res) => res.json());
       // console.log(data);
 
       this.lines = data.map((file, index) => ({
