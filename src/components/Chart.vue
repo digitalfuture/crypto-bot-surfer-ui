@@ -61,6 +61,14 @@ export default {
         "red",
         "steelblue",
         "burlywood",
+        "blue",
+        "crimson",
+        "darkviolet",
+        "goldenrod",
+        "lightcoral",
+        "lightsalmon",
+        "lightsteelblue",
+        "mediumpurple",
       ],
 
       lineSeries: [],
@@ -153,8 +161,9 @@ export default {
       for (const line of this.lines) {
         // BTC / USDT
         if (!lineBtc && line.name.includes("btc")) {
-          lineBtc = { name: line.name };
-          const linesDataBtc = await this.getLineDataBtc(lineBtc);
+          lineBtc = line;
+
+          const linesDataBtc = await this.getLineDataBtc(line);
 
           const lineSeriesBtc = this.chart.addLineSeries({
             color: "black",
@@ -193,7 +202,9 @@ export default {
     },
 
     async fetchData() {
-      const data = await fetch("/files").then((res) => res.json());
+      const data = await fetch(`http://${window.location.hostname}/files`).then(
+        (res) => res.json()
+      );
       // console.log(data);
 
       this.lines = data.map((file, index) => ({
