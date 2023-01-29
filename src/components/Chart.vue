@@ -24,6 +24,7 @@
       </div>
 
       <div
+        v-if="lines.filter((line) => !line.disabled).length"
         class="line"
         :style="{ background: !isBtcLineDisabled ? 'black' : none }"
         @click="isBtcLineDisabled = !isBtcLineDisabled"
