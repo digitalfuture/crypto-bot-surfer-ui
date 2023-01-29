@@ -1,5 +1,5 @@
 <template>
-  <div ref="chart" class="chart" />
+  <div class="chart" id="chart-container" />
 
   <template v-if="lines.length && lines.length">
     <input
@@ -12,13 +12,24 @@
 
     <section ref="legend" class="legend">
       <div
-        v-for="line in lines"
-        v-text="line.name"
-        :style="{ color: line.color }"
+        v-for="(line, index) in lines"
+        :key="index"
+        :style="{
+          background: !line.disabled ? line.color : none,
+        }"
         class="line"
-      />
+        @click="line.disabled = !line.disabled"
+      >
+        <span class="line-name">{{ line.name }}</span>
+      </div>
 
-      <div class="line" :style="{ color: 'black' }">BTC / USDT</div>
+      <div
+        class="line"
+        :style="{ background: !isBtcLineDisabled ? 'black' : none }"
+        @click="isBtcLineDisabled = !isBtcLineDisabled"
+      >
+        <span class="line-name">BTC / USDT</span>
+      </div>
     </section>
   </template>
 
@@ -34,6 +45,10 @@ export default {
   data() {
     return {
       lines: [],
+
+      lineSeries: [],
+
+      isBtcLineDisabled: false,
 
       isSummChart: false,
 
@@ -69,37 +84,32 @@ export default {
         "lightsalmon",
         "lightsteelblue",
         "mediumpurple",
+        "olivedrab",
+        "palevioletred",
+        "saddlebrown",
+        "tan",
       ],
-
-      lineSeries: [],
     };
   },
 
-  computed: {
-    chart() {
-      return createChart(this.$refs.chart, this.chartOptions);
-    },
-  },
-
   watch: {
-    lines() {
-      this.updateChart();
+    lines: {
+      deep: true,
+      handler() {
+        this.updateChart();
+      },
+    },
+
+    isBtcLineDisabled: {
+      handler() {
+        this.updateChart();
+      },
     },
   },
 
   methods: {
-    async getLineData(line) {
-      let text;
-
-      if (line.data) {
-        text = line.data;
-      } else {
-        const res = await fetch("data/" + line.name + ".csv");
-        text = await res.text();
-        //   console.log(resp);
-      }
-
-      const cdata = text
+    async getLineData(lineData) {
+      const cdata = lineData
         .split("\n")
         .slice(1)
         .map((row) => {
@@ -118,18 +128,8 @@ export default {
       return cdata;
     },
 
-    async getLineDataBtc(line) {
-      let text;
-
-      if (line.data) {
-        text = line.data;
-      } else {
-        const res = await fetch("data/" + line.name + ".csv");
-        text = await res.text();
-        //   console.log(resp);
-      }
-
-      const cdata = text
+    async getLineDataBtc(lineData) {
+      const cdata = lineData
         .split("\n")
         .slice(1)
         .map((row) => {
@@ -149,43 +149,54 @@ export default {
       return cdata;
     },
 
-    async updateChart() {
-      for (const series of this.lineSeries) {
-        series.setData([]);
-      }
-
+    clearChart() {
       this.lineSeries = [];
+      const chartContainer = document.getElementById("chart-container");
 
-      let lineBtc;
+      chartContainer.innerHTML = "";
 
-      for (const line of this.lines) {
+      const chartElem = document.createElement("div");
+      chartContainer.appendChild(chartElem);
+
+      this.chart = createChart(chartElem, this.chartOptions);
+    },
+
+    async updateChart() {
+      this.clearChart();
+
+      let lineBtcData = "";
+
+      for (const line of this.lines.filter((line) => !line.disabled)) {
         // BTC / USDT
-        if (!lineBtc && line.name.includes("btc")) {
-          lineBtc = line;
-
-          const linesDataBtc = await this.getLineDataBtc(line);
-
-          const lineSeriesBtc = this.chart.addLineSeries({
-            color: "black",
-            priceScaleId: "left",
-          });
-
-          this.lineSeries.push(lineSeriesBtc);
-          lineSeriesBtc.setData(linesDataBtc);
-
-          // console.log("lineSeriesBtc:", lineSeriesBtc);
+        if (line.name.includes("btc")) {
+          lineBtcData =
+            lineBtcData.length < line.data.length ? line.data : lineBtcData;
         }
 
-        const linesData = await this.getLineData(line);
+        // console.log("this.lineSeriesBtc:", this.lineSeriesBtc);
 
         const lineSeries = this.chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
         });
-
+        // console.log("this.lineSeries:", this.lineSeries);
         this.lineSeries.push(lineSeries);
+
+        const linesData = await this.getLineData(line.data);
         lineSeries.setData(linesData);
-        // console.log("lineSeries:", lineSeries);
+
+        // console.log("this.lineSeries:", this.lineSeries);
+      }
+
+      if (!this.isBtcLineDisabled && lineBtcData) {
+        const lineSeriesBtc = this.chart.addLineSeries({
+          color: "black",
+          priceScaleId: "left",
+        });
+        this.lineSeries.push(lineSeriesBtc);
+
+        const linesDataBtc = await this.getLineDataBtc(lineBtcData);
+        lineSeriesBtc.setData(linesDataBtc);
       }
 
       this.chart.timeScale().fitContent();
@@ -195,22 +206,34 @@ export default {
       // console.log(event.target.files);
       const files = [...event.target.files];
 
-      this.lines = files.map((file, index) => ({
-        name: file.name.split(".")[0],
-        color: this.colors[index],
-      }));
+      this.lines = await Promise.all(
+        files.map(async (file, index) => {
+          // console.log("file.text():", await file.text());
+          const fileText = await file.text();
+          const fileName = file.name.split(".")[0];
+
+          return {
+            name: fileName,
+            data: fileText,
+            color: this.colors[index],
+            disabled: false,
+          };
+        })
+      );
     },
 
     async fetchData() {
-      const data = await fetch(`http://${window.location.hostname}/files`).then(
-        (res) => res.json()
-      );
+      const fileData = await fetch(
+        `http://${window.location.hostname}/files`
+      ).then((res) => res.json());
+
       // console.log(data);
 
-      this.lines = data.map((file, index) => ({
+      this.lines = fileData.map((file, index) => ({
         name: file.name.split(".")[0],
         data: file.data,
         color: this.colors[index],
+        disabled: false,
       }));
     },
   },
@@ -231,18 +254,25 @@ export default {
 }
 
 .legend {
-  margin: 40px 50px;
+  margin: 15px 0;
   font-size: 14px;
   font-family: sans-serif;
   line-height: 18px;
   font-weight: 300;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
   text-transform: uppercase;
 
   .line {
-    flex-basis: 30%;
+    flex-basis: 33.3%;
+    cursor: pointer;
+
+    .line-name {
+      display: inline-block;
+      margin: 10px;
+      background: white;
+      padding-inline: 5px;
+    }
   }
 }
 
@@ -255,10 +285,6 @@ export default {
   align-items: center;
   font-weight: bolder;
   font-size: 50px;
-  color: blue;
-}
-
-.input {
-  margin-left: 50px;
+  color: lightgrey;
 }
 </style>
