@@ -1,7 +1,25 @@
 <template>
   <div class="chart" id="chart-container" />
 
-  <template v-if="lines.length && lines.length">
+  <div v-if="isLoading" class="loader-container">
+    <div class="loader">
+      <div>DNA</div>
+      <div>TRADE</div>
+      <img src="/favicon.png" alt="DNATRADE" class="icon" />
+    </div>
+  </div>
+
+  <template v-else>
+    <img
+      src="/favicon.png"
+      alt=""
+      class="full-screen-button"
+      :class="{
+        'full-screen-button--active': isFullScreen,
+      }"
+      @click="isFullScreen = !isFullScreen"
+    />
+
     <input
       type="file"
       multiple
@@ -33,14 +51,6 @@
       </div>
     </section>
   </template>
-
-  <div v-else class="loader-container">
-    <div class="loader">
-      <div>DNA</div>
-      <div>TRADE</div>
-      <img src="/favicon.png" alt="DNATRADE" class="icon" />
-    </div>
-  </div>
 </template>
 
 <script>
@@ -51,6 +61,8 @@ export default {
 
   data() {
     return {
+      isFullScreen: false,
+
       lines: [],
 
       lineSeries: [],
@@ -58,23 +70,6 @@ export default {
       isBtcLineDisabled: false,
 
       isSummChart: false,
-
-      chartOptions: {
-        height: 300,
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: true,
-        },
-        rightPriceScale: {
-          visible: true,
-        },
-        leftPriceScale: {
-          visible: true,
-        },
-        layout: {
-          background: { color: "#f6f6f6" },
-        },
-      },
 
       colors: [
         "steelblue",
@@ -100,7 +95,37 @@ export default {
     };
   },
 
+  computed: {
+    isLoading() {
+      return this.lines.length === 0;
+    },
+
+    chartOptions() {
+      return {
+        height: this.isFullScreen ? window.innerHeight : 340,
+        width: this.isFullScreen ? window.innerWidth - 20 : window.innerWidth,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: true,
+        },
+        rightPriceScale: {
+          visible: true,
+        },
+        leftPriceScale: {
+          visible: true,
+        },
+        layout: {
+          background: { color: "transparent" },
+        },
+      };
+    },
+  },
+
   watch: {
+    isFullScreen() {
+      this.updateChart();
+    },
+
     lines: {
       deep: true,
       handler() {
@@ -169,10 +194,8 @@ export default {
 
       for (const line of this.lines.filter((line) => !line.disabled)) {
         // BTC / USDT
-        if (line.name.includes("btc")) {
-          const isDataLonger = btcData.length < line.data.length;
-          if (isDataLonger) btcData = line.data;
-        }
+        const isDataLonger = btcData.length < line.data.length;
+        if (isDataLonger) btcData = line.data;
 
         const lineSeries = this.chart.addLineSeries({
           color: line.color,
@@ -205,6 +228,8 @@ export default {
     async createLines(event) {
       // console.log(event.target.files);
       const files = [...event.target.files];
+
+      if (!files.length) return;
 
       this.lines = await Promise.all(
         files.map(async (file, index) => {
@@ -249,6 +274,26 @@ export default {
 </script>
 
 <style lang="scss">
+.memory {
+  display: flex;
+  justify-content: flex-end;
+  width: 33.3%;
+}
+
+.full-screen-button {
+  position: absolute;
+  top: 7px;
+  left: 72px;
+  width: 3vw;
+  height: auto;
+  z-index: 9999;
+  cursor: pointer;
+  filter: grayscale(1) brightness(1.4);
+
+  &--active {
+  }
+}
+
 .legend {
   position: relative;
   margin: 7px 0;
@@ -261,13 +306,14 @@ export default {
   text-transform: uppercase;
 
   .line {
-    flex-basis: 33.3%;
+    flex-grow: 1;
+    min-width: 33.3%;
     cursor: pointer;
 
     .line-name {
       display: inline-block;
       margin: 12px;
-      background: white;
+      background: var(--background-color);
       padding-inline: 5px;
     }
 
@@ -316,12 +362,13 @@ export default {
       top: 0;
       left: 0%;
       width: 42px;
+      filter: grayscale(1);
     }
   }
 }
 
 input[type="file"] {
-  background: white;
+  background: var(--background-color);
   position: relative;
   padding: 5px;
   width: 33.3%;
@@ -342,7 +389,7 @@ input[type="file"] {
   &:after {
     content: "OPEN FILES";
     font-weight: bolder;
-    color: white;
+    color: var(--background-color);
     font-size: 7vh;
     line-height: 4.5vh;
     bottom: 0;
