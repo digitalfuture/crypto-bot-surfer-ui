@@ -44,7 +44,7 @@
       <div
         v-if="lines.filter((line) => !line.disabled).length"
         class="line line--btc-usdt"
-        :style="{ background: !isBtcLineDisabled ? 'black' : none }"
+        :style="{ background: !isBtcLineDisabled ? 'black' : 'none' }"
         @click="isBtcLineDisabled = !isBtcLineDisabled"
       >
         <span class="line-name">BTC / USDT</span>
@@ -53,7 +53,7 @@
   </template>
 </template>
 
-<script>
+<script lang="ts">
 import { createChart } from "lightweight-charts";
 
 export default {
@@ -103,7 +103,7 @@ export default {
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 340,
-        width: window.innerWidth - 18,
+        width: window.innerWidth - 20,
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
@@ -261,14 +261,21 @@ export default {
         disabled: false,
       }));
     },
+
+    setupResize() {
+      window.addEventListener("resize", () =>
+        this.chart.resize(
+          window.innerWidth - 20,
+          this.chartOptions.height,
+          true
+        )
+      );
+    },
   },
 
   mounted() {
     this.fetchData();
-
-    window.addEventListener("resize", () =>
-      this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true)
-    );
+    this.setupResize();
   },
 };
 </script>
@@ -289,9 +296,6 @@ export default {
   z-index: 9999;
   cursor: pointer;
   filter: grayscale(1) brightness(1.4);
-
-  &--active {
-  }
 }
 
 .legend {
