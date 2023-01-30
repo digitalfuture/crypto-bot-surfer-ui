@@ -387,12 +387,11 @@ input[type="file"] {
   }
 
   &:after {
-    content: "FILES";
+    content: "OPEN FILES";
     font-weight: bolder;
     color: var(--background-color);
     font-size: 7vh;
-    white-space: nowrap;
-    line-height: 4.5vh;
+    line-height: 10vh;
     bottom: 0;
     right: -0.3vh;
     position: absolute;
