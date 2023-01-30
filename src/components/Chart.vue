@@ -387,7 +387,7 @@ input[type="file"] {
   }
 
   &:after {
-    content: "OPEN FILES";
+    content: "FILES";
     font-weight: bolder;
     color: var(--background-color);
     font-size: 7vh;
