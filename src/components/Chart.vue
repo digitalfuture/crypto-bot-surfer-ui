@@ -68,6 +68,7 @@ export default {
       },
 
       colors: [
+        "steelblue",
         "midnightblue",
         "fuchsia",
         "blueviolet",
@@ -75,7 +76,6 @@ export default {
         "mediumseagreen",
         "chocolate",
         "red",
-        "steelblue",
         "burlywood",
         "blue",
         "crimson",
