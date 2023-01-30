@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-export interface IFile {
+export interface IServerFile {
   name: string;
   data: string;
 }
@@ -162,7 +162,7 @@ export default {
       this.createLinesFromServer(serverFiiles);
     },
 
-    createLinesFromServer(serverFiiles: IFile[]) {
+    createLinesFromServer(serverFiiles: IServerFile[]) {
       this.lines = serverFiiles.map(
         (file, index): ILine => ({
           name: file.name.split(".")[0],
