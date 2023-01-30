@@ -25,7 +25,7 @@
       multiple
       ref="input"
       class="input"
-      @change="createLines"
+      @change="createLinesFromInput"
     />
 
     <section ref="legend" class="legend">
@@ -53,6 +53,20 @@
   </template>
 </template>
 
+<script setup lang="ts">
+export interface IFile {
+  name: string;
+  data: string;
+}
+
+export interface ILine {
+  name: string;
+  data: string;
+  color: string;
+  disabled: boolean;
+}
+</script>
+
 <script lang="ts">
 import { createChart } from "lightweight-charts";
 
@@ -72,25 +86,24 @@ export default {
       isSummChart: false,
 
       colors: [
-        "steelblue",
-        "tan",
         "blueviolet",
+        // "mediumpurple",
+        "mediumslateblue",
+        "steelblue",
         "darkcyan",
         "mediumseagreen",
-        "chocolate",
-        "fuchsia",
-        "brown",
-        "mediumslateblue",
-        "orange",
-        "mediumvioletred",
-        "goldenrod",
-        "lightcoral",
+        // "olivedrab",
+        "tan",
+        // "goldenrod",
+        // "orange",
         "lightsalmon",
-        "lightsteelblue",
-        "mediumpurple",
-        "olivedrab",
-        "palevioletred",
+        // "lightcoral",
+        // "palevioletred",
+        "chocolate",
         "saddlebrown",
+        "brown",
+        "mediumvioletred",
+        "fuchsia",
       ],
     };
   },
@@ -141,6 +154,57 @@ export default {
   },
 
   methods: {
+    async fetchData() {
+      const response = await fetch(`http://${window.location.hostname}/files`);
+      const serverFiiles: string[] = await response.json();
+      // console.log(data);
+
+      this.createLinesFromServer(serverFiiles);
+    },
+
+    createLinesFromServer(serverFiiles: IFile[]) {
+      this.lines = serverFiiles.map(
+        (file, index): ILine => ({
+          name: file.name.split(".")[0],
+          data: file.data,
+          color: this.colors[index],
+          disabled: false,
+        })
+      );
+    },
+
+    async createLinesFromInput(event: Event) {
+      // console.log(event.currentTarget.files);
+      const inputFiles = [...(<HTMLInputElement>event.target).files];
+
+      if (!inputFiles.length) return;
+
+      this.lines = await Promise.all(
+        inputFiles.map(async (file, index): Promise<ILine> => {
+          // console.log("file.text():", await file.text());
+          const lineText = await file.text();
+          const lineName = file.name.split(".")[0];
+
+          return {
+            name: lineText,
+            data: lineName,
+            color: this.colors[index],
+            disabled: false,
+          };
+        })
+      );
+    },
+
+    setupResize() {
+      window.addEventListener("resize", () =>
+        this.chart.resize(
+          window.innerWidth - 20,
+          this.chartOptions.height,
+          true
+        )
+      );
+    },
+
     clearChart() {
       this.lineSeries = [];
       const chartContainer = document.getElementById("chart-container");
@@ -153,12 +217,12 @@ export default {
       this.chart = createChart(chartElem, this.chartOptions);
     },
 
-    async getLineData(lineData) {
-      const cdata = lineData
+    async getLineData(lineData: string) {
+      const data = lineData
         .trim()
         .split("\n")
         .slice(1)
-        .map((row) => {
+        .map((row: string) => {
           const [, dateString, , , , , , , , profit] = row.split(",");
 
           return {
@@ -166,7 +230,7 @@ export default {
             value: parseFloat(profit),
           };
         });
-      return cdata;
+      return data;
     },
 
     async getLineDataBtc(lineData) {
@@ -192,7 +256,7 @@ export default {
 
       let btcData = "";
 
-      for (const line of this.lines.filter((line) => !line.disabled)) {
+      for (const line of this.lines.filter((line: ILine) => !line.disabled)) {
         // BTC / USDT
         const isDataLonger = btcData.length < line.data.length;
         if (isDataLonger) btcData = line.data;
@@ -223,53 +287,6 @@ export default {
       }
 
       this.chart.timeScale().fitContent();
-    },
-
-    async createLines(event) {
-      // console.log(event.target.files);
-      const files = [...event.target.files];
-
-      if (!files.length) return;
-
-      this.lines = await Promise.all(
-        files.map(async (file, index) => {
-          // console.log("file.text():", await file.text());
-          const fileText = await file.text();
-          const fileName = file.name.split(".")[0];
-
-          return {
-            name: fileName,
-            data: fileText,
-            color: this.colors[index],
-            disabled: false,
-          };
-        })
-      );
-    },
-
-    async fetchData() {
-      const fileData = await fetch(
-        `http://${window.location.hostname}/files`
-      ).then((res) => res.json());
-
-      // console.log(data);
-
-      this.lines = fileData.map((file, index) => ({
-        name: file.name.split(".")[0],
-        data: file.data,
-        color: this.colors[index],
-        disabled: false,
-      }));
-    },
-
-    setupResize() {
-      window.addEventListener("resize", () =>
-        this.chart.resize(
-          window.innerWidth - 20,
-          this.chartOptions.height,
-          true
-        )
-      );
     },
   },
 
@@ -401,5 +418,26 @@ input[type="file"] {
     position: absolute;
     z-index: 20;
   }
+}
+
+#color-list {
+  color: blueviolet;
+  // color: mediumpurple;
+  color: mediumslateblue;
+  color: steelblue;
+  color: darkcyan;
+  color: mediumseagreen;
+  // color: olivedrab;
+  color: tan;
+  // color: goldenrod;
+  // color: orange;
+  color: lightsalmon;
+  // color: lightcoral;
+  // color: palevioletred;
+  color: chocolate;
+  color: saddlebrown;
+  color: brown;
+  color: mediumvioletred;
+  color: fuchsia;
 }
 </style>
