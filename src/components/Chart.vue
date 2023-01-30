@@ -15,7 +15,7 @@
         v-for="(line, index) in lines"
         :key="index"
         :style="{
-          background: !line.disabled ? line.color : none,
+          background: !line.disabled ? line.color : 'none',
         }"
         class="line"
         @click="line.disabled = !line.disabled"
@@ -25,7 +25,7 @@
 
       <div
         v-if="lines.filter((line) => !line.disabled).length"
-        class="line"
+        class="line line--btc-usdt"
         :style="{ background: !isBtcLineDisabled ? 'black' : none }"
         @click="isBtcLineDisabled = !isBtcLineDisabled"
       >
@@ -34,7 +34,13 @@
     </section>
   </template>
 
-  <div class="loader" v-else>LOADING</div>
+  <div v-else class="loader-container">
+    <div class="loader">
+      <div>DNA</div>
+      <div>TRADE</div>
+      <img src="/favicon.png" alt="DNATRADE" class="icon" />
+    </div>
+  </div>
 </template>
 
 <script>
@@ -65,21 +71,23 @@ export default {
         leftPriceScale: {
           visible: true,
         },
+        layout: {
+          background: { color: "#f6f6f6" },
+        },
       },
 
       colors: [
         "steelblue",
-        "midnightblue",
-        "fuchsia",
+        "tan",
         "blueviolet",
         "darkcyan",
         "mediumseagreen",
         "chocolate",
-        "red",
-        "burlywood",
-        "blue",
-        "crimson",
-        "darkviolet",
+        "fuchsia",
+        "brown",
+        "mediumslateblue",
+        "orange",
+        "mediumvioletred",
         "goldenrod",
         "lightcoral",
         "lightsalmon",
@@ -88,7 +96,6 @@ export default {
         "olivedrab",
         "palevioletred",
         "saddlebrown",
-        "tan",
       ],
     };
   },
@@ -109,47 +116,6 @@ export default {
   },
 
   methods: {
-    async getLineData(lineData) {
-      const cdata = lineData
-        .split("\n")
-        .slice(1)
-        .map((row) => {
-          const [, dateString, , , , , , , , profit] = row.split(",");
-          const dateSplit = dateString.split(" ");
-          const date = dateSplit[0];
-          const time = dateSplit[1];
-          const dateFormat = date + " " + time;
-          // console.log("dateFormat:", dateFormat);
-          return {
-            time: Date.parse(dateFormat) / 1000,
-            value: parseFloat(profit),
-          };
-        });
-      // console.log(cdata);
-      return cdata;
-    },
-
-    async getLineDataBtc(lineData) {
-      const cdata = lineData
-        .split("\n")
-        .slice(1)
-        .map((row) => {
-          const [, dateString, price, , , , , , ,] = row.split(",");
-          const dateSplit = dateString.split(" ");
-          const date = dateSplit[0];
-          const time = dateSplit[1];
-          const dateFormat = date + " " + time;
-          // console.log("dateFormat:", dateFormat);
-          return {
-            time: Date.parse(dateFormat) / 1000,
-            value: parseFloat(price),
-          };
-        });
-
-      // console.log(cdata);
-      return cdata;
-    },
-
     clearChart() {
       this.lineSeries = [];
       const chartContainer = document.getElementById("chart-container");
@@ -162,25 +128,57 @@ export default {
       this.chart = createChart(chartElem, this.chartOptions);
     },
 
+    async getLineData(lineData) {
+      const cdata = lineData
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map((row) => {
+          const [, dateString, , , , , , , , profit] = row.split(",");
+
+          return {
+            time: Date.parse(dateString) / 1000,
+            value: parseFloat(profit),
+          };
+        });
+      return cdata;
+    },
+
+    async getLineDataBtc(lineData) {
+      const cdata = lineData
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map((row) => {
+          const [, dateString, price, , , , , , ,] = row.split(",");
+
+          return {
+            time: Date.parse(dateString) / 1000,
+            value: parseFloat(price),
+          };
+        });
+
+      // console.log(cdata);
+      return cdata;
+    },
+
     async updateChart() {
       this.clearChart();
 
-      let lineBtcData = "";
+      let btcData = "";
 
       for (const line of this.lines.filter((line) => !line.disabled)) {
         // BTC / USDT
         if (line.name.includes("btc")) {
-          lineBtcData =
-            lineBtcData.length < line.data.length ? line.data : lineBtcData;
+          const isDataLonger = btcData.length < line.data.length;
+          if (isDataLonger) btcData = line.data;
         }
-
-        // console.log("this.lineSeriesBtc:", this.lineSeriesBtc);
 
         const lineSeries = this.chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
+          lineWidth: 2.5,
         });
-        // console.log("this.lineSeries:", this.lineSeries);
         this.lineSeries.push(lineSeries);
 
         const linesData = await this.getLineData(line.data);
@@ -189,14 +187,15 @@ export default {
         // console.log("this.lineSeries:", this.lineSeries);
       }
 
-      if (!this.isBtcLineDisabled && lineBtcData) {
+      if (!this.isBtcLineDisabled && btcData) {
         const lineSeriesBtc = this.chart.addLineSeries({
           color: "black",
           priceScaleId: "left",
+          lineWidth: 2.5,
         });
         this.lineSeries.push(lineSeriesBtc);
 
-        const linesDataBtc = await this.getLineDataBtc(lineBtcData);
+        const linesDataBtc = await this.getLineDataBtc(btcData);
         lineSeriesBtc.setData(linesDataBtc);
       }
 
@@ -243,19 +242,16 @@ export default {
     this.fetchData();
 
     window.addEventListener("resize", () =>
-      this.chart.resize(window.innerWidth - 100, 300, true)
+      this.chart.resize(window.innerWidth, this.chartOptions.height, true)
     );
   },
 };
 </script>
 
 <style lang="scss">
-.chart {
-  margin: 10px;
-}
-
 .legend {
-  margin: 15px 0;
+  position: relative;
+  margin: 7px 0;
   font-size: 14px;
   font-family: sans-serif;
   line-height: 18px;
@@ -270,22 +266,89 @@ export default {
 
     .line-name {
       display: inline-block;
-      margin: 10px;
+      margin: 12px;
       background: white;
       padding-inline: 5px;
+    }
+
+    &--btc-usdt {
+      position: absolute;
+      top: -49px;
+      right: 0px;
+      width: 33.3%;
     }
   }
 }
 
-.loader {
+.loader-container {
   width: 100vw;
   height: 100vh;
   position: fixed;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   font-weight: bolder;
-  font-size: 50px;
-  color: lightgrey;
+  font-family: Arial;
+  margin-left: -3vw;
+  z-index: 999;
+
+  .loader {
+    position: relative;
+    transform: scale(1.3);
+
+    :nth-child(1) {
+      color: lightgrey;
+      font-size: 59px;
+      line-height: 44px;
+      padding-inline-start: 45.9px;
+    }
+
+    :nth-child(2) {
+      font-size: 50.5px;
+      line-height: 44px;
+      color: darkgrey;
+      padding-inline-start: 0px;
+    }
+
+    .icon {
+      position: absolute;
+      top: 0;
+      left: 0%;
+      width: 42px;
+    }
+  }
+}
+
+input[type="file"] {
+  background: white;
+  position: relative;
+  padding: 5px;
+  width: 33.3%;
+  height: 42px;
+  cursor: pointer;
+
+  &:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    background: black;
+  }
+
+  &:after {
+    content: "OPEN FILES";
+    font-weight: bolder;
+    color: white;
+    font-size: 7vh;
+    line-height: 4.5vh;
+    bottom: 0;
+    right: -0.3vh;
+    position: absolute;
+    z-index: 20;
+  }
 }
 </style>
