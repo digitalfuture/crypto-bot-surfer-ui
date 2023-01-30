@@ -175,7 +175,7 @@ export default {
 
     async createLinesFromInput(event: Event) {
       // console.log(event.currentTarget.files);
-      const inputFiles = [...(<HTMLInputElement>event.target).files];
+      const inputFiles = [...(<HTMLInputElement>event.currentTarget).files];
 
       if (!inputFiles.length) return;
 
@@ -233,7 +233,7 @@ export default {
       return data;
     },
 
-    async getLineDataBtc(lineData) {
+    async getLineDataBtc(lineData: string) {
       const cdata = lineData
         .trim()
         .split("\n")
