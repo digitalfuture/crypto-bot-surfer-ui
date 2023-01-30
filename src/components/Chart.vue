@@ -164,7 +164,7 @@ export default {
 
     createLinesFromServer(serverFiiles: IServerFile[]) {
       this.lines = serverFiiles.map(
-        (file, index): ILine => ({
+        (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data,
           color: this.colors[index],
@@ -173,14 +173,14 @@ export default {
       );
     },
 
-    async createLinesFromInput(event: Event) {
+    async createLinesFromInput({ currentTarget }) {
       // console.log(event.currentTarget.files);
-      const inputFiles = [...(<HTMLInputElement>event.currentTarget).files];
+      const inputFiles = [...currentTarget.files];
 
       if (!inputFiles.length) return;
 
-      this.lines = await Promise.all(
-        inputFiles.map(async (file, index): Promise<ILine> => {
+      const lines = await Promise.all(
+        inputFiles.map(async (file: File, index: number): Promise<ILine> => {
           // console.log("file.text():", await file.text());
           const lineText = await file.text();
           const lineName = file.name.split(".")[0];
@@ -193,6 +193,8 @@ export default {
           };
         })
       );
+
+      this.lines = lines;
     },
 
     setupResize() {
