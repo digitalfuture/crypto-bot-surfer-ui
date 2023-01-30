@@ -186,8 +186,8 @@ export default {
           const lineName = file.name.split(".")[0];
 
           return {
-            name: lineText,
-            data: lineName,
+            name: lineName,
+            data: lineText,
             color: this.colors[index],
             disabled: false,
           };
