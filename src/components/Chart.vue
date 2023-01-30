@@ -391,6 +391,7 @@ input[type="file"] {
     font-weight: bolder;
     color: var(--background-color);
     font-size: 7vh;
+    white-space: nowrap;
     line-height: 4.5vh;
     bottom: 0;
     right: -0.3vh;
