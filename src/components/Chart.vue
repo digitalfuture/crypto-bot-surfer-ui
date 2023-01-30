@@ -103,7 +103,7 @@ export default {
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 340,
-        width: this.isFullScreen ? window.innerWidth - 20 : window.innerWidth,
+        width: window.innerWidth - 18,
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
@@ -267,7 +267,7 @@ export default {
     this.fetchData();
 
     window.addEventListener("resize", () =>
-      this.chart.resize(window.innerWidth, this.chartOptions.height, true)
+      this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true)
     );
   },
 };
