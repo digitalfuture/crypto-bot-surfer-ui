@@ -186,12 +186,14 @@ export default {
           const lineText = await file.text();
           const lineName = file.name.split(".")[0];
 
-          return {
+          const line: ILine = {
             name: lineName,
             data: lineText,
             color: this.colors[index],
             disabled: false,
           };
+
+          return line;
         })
       );
 
@@ -410,13 +412,14 @@ input[type="file"] {
 
   &:after {
     content: "OPEN FILES";
+    text-align: right;
     font-weight: bolder;
     white-space: initial;
     color: var(--background-color);
-    font-size: 7vh;
-    line-height: 10vh;
+    font-size: 264%;
+    line-height: 58px;
     bottom: -17px;
-    right: -0.3vh;
+    right: -4px;
     position: absolute;
     z-index: 20;
   }
