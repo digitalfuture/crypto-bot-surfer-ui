@@ -35,11 +35,11 @@
 
       <div
         v-if="lines.filter((line) => !line.disabled).length"
-        class="line clip pointer"
+        class="line clip-right pointer"
         :style="{ background: !isBtcLineDisabled ? 'black' : 'none' }"
         @click="isBtcLineDisabled = !isBtcLineDisabled"
       >
-        <span class="line-name info">BTC / USDT</span>
+        <span class="line__name info">BTC / USDT</span>
       </div>
     </div>
 
@@ -50,10 +50,10 @@
         :style="{
           background: !line.disabled ? line.color : 'none',
         }"
-        class="line pointer clip"
+        class="line clip-right pointer"
         @click="line.disabled = !line.disabled"
       >
-        <span class="line-name">{{ line.name }}</span>
+        <span class="line__name">{{ line.name }}</span>
       </div>
     </section>
   </template>
@@ -330,7 +330,7 @@ export default {
 </script>
 
 <style lang="scss">
-.clip {
+.clip-right {
   clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
 }
 
@@ -395,6 +395,7 @@ export default {
   }
 
   input[type="file"] {
+    flex-grow: 0;
     background: var(--background-color);
     position: relative;
     padding: 5px;
@@ -462,7 +463,7 @@ export default {
   min-width: 33.3%;
   // clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 21px 0%0% 10px);
 
-  .line-name {
+  .line__name {
     display: inline-block;
     margin: 12px;
     background: var(--background-color);
