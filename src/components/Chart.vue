@@ -86,13 +86,9 @@ export default {
       isSummChart: false,
 
       colors: [
-        "blueviolet",
-        // "mediumpurple",
-        "mediumslateblue",
         "steelblue",
         "darkcyan",
         "mediumseagreen",
-        // "olivedrab",
         "tan",
         // "goldenrod",
         // "orange",
@@ -104,6 +100,9 @@ export default {
         "brown",
         "mediumvioletred",
         "fuchsia",
+        "blueviolet",
+        // "mediumpurple",
+        "mediumslateblue",
       ],
     };
   },
@@ -412,6 +411,7 @@ input[type="file"] {
   &:after {
     content: "OPEN FILES";
     font-weight: bolder;
+    white-space: initial;
     color: var(--background-color);
     font-size: 7vh;
     line-height: 10vh;
@@ -423,13 +423,9 @@ input[type="file"] {
 }
 
 #color-list {
-  color: blueviolet;
-  // color: mediumpurple;
-  color: mediumslateblue;
   color: steelblue;
   color: darkcyan;
   color: mediumseagreen;
-  // color: olivedrab;
   color: tan;
   // color: goldenrod;
   // color: orange;
@@ -441,5 +437,8 @@ input[type="file"] {
   color: brown;
   color: mediumvioletred;
   color: fuchsia;
+  color: blueviolet;
+  // color: mediumpurple;
+  color: mediumslateblue;
 }
 </style>
