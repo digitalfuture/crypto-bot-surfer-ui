@@ -336,7 +336,6 @@ export default {
       position: absolute;
       top: -49px;
       right: 0px;
-      width: 33.3%;
     }
 
     .line-name {
