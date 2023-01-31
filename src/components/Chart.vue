@@ -13,20 +13,35 @@
     <img
       src="/favicon.png"
       alt=""
-      class="full-screen-button"
+      class="full-screen-button pointer"
       :class="{
         'full-screen-button--active': isFullScreen,
       }"
       @click="isFullScreen = !isFullScreen"
     />
 
-    <input
-      type="file"
-      multiple
-      ref="input"
-      class="input"
-      @change="createLinesFromInput"
-    />
+    <div class="info-container">
+      <input
+        type="file"
+        multiple
+        ref="input"
+        class="input info pointer"
+        @change="createLinesFromInput"
+      />
+
+      <div class="summary info line pointer">
+        <span class="info__details"> TOTAL: {{ summ }}%</span>
+      </div>
+
+      <div
+        v-if="lines.filter((line) => !line.disabled).length"
+        class="line clip pointer"
+        :style="{ background: !isBtcLineDisabled ? 'black' : 'none' }"
+        @click="isBtcLineDisabled = !isBtcLineDisabled"
+      >
+        <span class="line-name info">BTC / USDT</span>
+      </div>
+    </div>
 
     <section ref="legend" class="legend">
       <div
@@ -35,19 +50,10 @@
         :style="{
           background: !line.disabled ? line.color : 'none',
         }"
-        class="line"
+        class="line pointer clip"
         @click="line.disabled = !line.disabled"
       >
         <span class="line-name">{{ line.name }}</span>
-      </div>
-
-      <div
-        v-if="lines.filter((line) => !line.disabled).length"
-        class="line line--btc-usdt"
-        :style="{ background: !isBtcLineDisabled ? 'black' : 'none' }"
-        @click="isBtcLineDisabled = !isBtcLineDisabled"
-      >
-        <span class="line-name">BTC / USDT</span>
       </div>
     </section>
   </template>
@@ -82,8 +88,6 @@ export default {
       lineSeries: [],
 
       isBtcLineDisabled: false,
-
-      isSummChart: false,
 
       colors: [
         "steelblue",
@@ -130,6 +134,17 @@ export default {
           background: { color: "transparent" },
         },
       };
+    },
+
+    summ() {
+      const result = this.lines
+        .filter((line: ILine) => !line.disabled)
+        .map((line) => line.data.trim())
+        .map((table) => table.split("\n").reverse()[0].split(",").reverse()[0])
+        .reduce((sum: number, value: string) => sum + parseFloat(value), 0)
+        .toFixed(2);
+
+      return parseFloat(result);
     },
   },
 
@@ -250,6 +265,24 @@ export default {
       return cdata;
     },
 
+    async getLineDataTotal(lineData: string) {
+      const cdata = lineData
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map((row) => {
+          const [, dateString, price, , , , , , ,] = row.split(",");
+
+          return {
+            time: Date.parse(dateString) / 1000,
+            value: parseFloat(price),
+          };
+        });
+
+      // console.log(cdata);
+      return cdata;
+    },
+
     async updateChart() {
       this.clearChart();
 
@@ -297,10 +330,8 @@ export default {
 </script>
 
 <style lang="scss">
-.memory {
-  display: flex;
-  justify-content: flex-end;
-  width: 33.3%;
+.clip {
+  clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
 }
 
 .full-screen-button {
@@ -310,41 +341,7 @@ export default {
   width: 32px;
   height: auto;
   z-index: 9999;
-  cursor: pointer;
   filter: grayscale(1) brightness(1.4);
-}
-
-.legend {
-  position: relative;
-  margin: 7px 0;
-  font-size: 14px;
-  font-family: sans-serif;
-  line-height: 18px;
-  font-weight: 300;
-  display: flex;
-  flex-wrap: wrap;
-  text-transform: uppercase;
-
-  .line {
-    flex-grow: 1;
-    min-width: 33.3%;
-    // clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 21px 0%0% 10px);
-    clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
-    cursor: pointer;
-
-    &--btc-usdt {
-      position: absolute;
-      top: -49px;
-      right: 0px;
-    }
-
-    .line-name {
-      display: inline-block;
-      margin: 12px;
-      background: var(--background-color);
-      padding-inline: 5px;
-    }
-  }
 }
 
 .loader-container {
@@ -388,39 +385,88 @@ export default {
   }
 }
 
-input[type="file"] {
-  background: var(--background-color);
-  position: relative;
-  padding: 5px;
-  width: 33.3%;
-  height: 42px;
-  padding-left: 50px;
-  cursor: pointer;
+.info-container {
+  display: flex;
+  flex-wrap: wrap;
 
-  &:before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    z-index: 10;
-    width: 100%;
-    height: 100%;
-    background: black;
-    clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
+  .info {
+    flex-grow: 1;
+    min-width: 33.3%;
   }
 
-  &:after {
-    content: "OPEN FILES";
-    text-align: right;
-    font-weight: bolder;
-    white-space: initial;
-    color: var(--background-color);
-    font-size: 264%;
-    line-height: 58px;
-    bottom: -17px;
-    right: -4px;
-    position: absolute;
-    z-index: 20;
+  input[type="file"] {
+    background: var(--background-color);
+    position: relative;
+    padding: 5px;
+    width: 33.3%;
+    height: 42px;
+    padding-left: 50px;
+
+    &:before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      background: black;
+      clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
+    }
+
+    &:after {
+      content: "OPEN FILES";
+      text-align: right;
+      font-weight: bolder;
+      white-space: initial;
+      color: var(--background-color);
+      font-size: 264%;
+      line-height: 58px;
+      bottom: -17px;
+      right: -1px;
+      position: absolute;
+      z-index: 20;
+    }
+  }
+
+  .summary {
+    text-align: end;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    background: grey;
+    clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
+
+    .info__details {
+      display: inline-block;
+      margin: 12px;
+      background: var(--background-color);
+      padding-inline: 5px;
+    }
+  }
+}
+
+.legend {
+  position: relative;
+  margin: 7px 0;
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 300;
+  display: flex;
+  flex-wrap: wrap;
+  text-transform: uppercase;
+}
+
+.line {
+  flex-grow: 1;
+  min-width: 33.3%;
+  // clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 21px 0%0% 10px);
+
+  .line-name {
+    display: inline-block;
+    margin: 12px;
+    background: var(--background-color);
+    padding-inline: 5px;
   }
 }
 
