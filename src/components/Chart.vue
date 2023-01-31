@@ -115,6 +115,7 @@ export default {
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 340,
+        width: window.innerWidth - 20,
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
