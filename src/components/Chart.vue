@@ -371,8 +371,8 @@ export default {
     }
 
     :nth-child(2) {
-      font-size: 50.5px;
-      line-height: 44px;
+      font-size: 51px;
+      line-height: 47px;
       color: darkgrey;
       padding-inline-start: 0px;
     }
@@ -380,7 +380,7 @@ export default {
     .icon {
       position: absolute;
       top: 0;
-      left: 0%;
+      left: 1px;
       width: 42px;
       filter: grayscale(1);
     }
@@ -415,7 +415,7 @@ input[type="file"] {
     color: var(--background-color);
     font-size: 7vh;
     line-height: 10vh;
-    bottom: -15px;
+    bottom: -17px;
     right: -0.3vh;
     position: absolute;
     z-index: 20;
