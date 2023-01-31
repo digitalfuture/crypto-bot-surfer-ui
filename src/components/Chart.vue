@@ -115,7 +115,6 @@ export default {
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 340,
-        width: window.innerWidth - 20,
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
@@ -196,14 +195,8 @@ export default {
       this.lines = lines;
     },
 
-    setupResize() {
-      window.addEventListener("resize", () =>
-        this.chart.resize(
-          window.innerWidth - 20,
-          this.chartOptions.height,
-          true
-        )
-      );
+    resize() {
+      this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
     },
 
     clearChart() {
@@ -293,7 +286,7 @@ export default {
 
   mounted() {
     this.fetchData();
-    this.setupResize();
+    window.addEventListener("resize", this.resize);
   },
 };
 </script>
@@ -330,20 +323,22 @@ export default {
   .line {
     flex-grow: 1;
     min-width: 33.3%;
+    // clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 21px 0%0% 10px);
+    clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
     cursor: pointer;
-
-    .line-name {
-      display: inline-block;
-      margin: 12px;
-      background: var(--background-color);
-      padding-inline: 5px;
-    }
 
     &--btc-usdt {
       position: absolute;
       top: -49px;
       right: 0px;
       width: 33.3%;
+    }
+
+    .line-name {
+      display: inline-block;
+      margin: 12px;
+      background: var(--background-color);
+      padding-inline: 5px;
     }
   }
 }
@@ -395,6 +390,7 @@ input[type="file"] {
   padding: 5px;
   width: 33.3%;
   height: 42px;
+  padding-left: 50px;
   cursor: pointer;
 
   &:before {
@@ -406,6 +402,7 @@ input[type="file"] {
     width: 100%;
     height: 100%;
     background: black;
+    clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
   }
 
   &:after {
