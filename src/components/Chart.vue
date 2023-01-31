@@ -149,6 +149,7 @@ export default {
     isBtcLineDisabled: {
       handler() {
         this.updateChart();
+        this.resize();
       },
     },
   },
