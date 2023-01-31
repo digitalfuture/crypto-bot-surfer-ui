@@ -142,6 +142,7 @@ export default {
       deep: true,
       handler() {
         this.updateChart();
+        this.resize();
       },
     },
 
