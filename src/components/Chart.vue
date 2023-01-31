@@ -412,7 +412,7 @@ input[type="file"] {
     color: var(--background-color);
     font-size: 7vh;
     line-height: 10vh;
-    bottom: 0;
+    bottom: -15px;
     right: -0.3vh;
     position: absolute;
     z-index: 20;
