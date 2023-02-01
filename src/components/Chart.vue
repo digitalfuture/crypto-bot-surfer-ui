@@ -176,10 +176,6 @@ export default {
   },
 
   watch: {
-    chart() {
-      this.resize();
-    },
-
     isFullScreen() {
       this.updateChart();
     },
@@ -188,18 +184,21 @@ export default {
       deep: true,
       handler() {
         this.updateChart();
+        this.resize();
       },
     },
 
     isLineBtcVisible: {
       handler() {
         this.updateChart();
+        this.resize();
       },
     },
 
     isLineTotalVisible: {
       handler() {
         this.updateChart();
+        this.resize();
       },
     },
   },
