@@ -1,5 +1,5 @@
 <template>
-  <div class="chart" id="chart-container" />
+  <div class="chart pointer" id="chart-container" />
 
   <div v-if="isLoading" class="loader-container">
     <div class="loader">
@@ -159,6 +159,10 @@ export default {
     linesEnabled() {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
+
+    onlyTotal() {
+      return this.linesEnabled.length === 0 && this.isLineTotalVisible;
+    },
   },
 
   watch: {
@@ -198,7 +202,8 @@ export default {
       this.createLinesFromServer(serverFiiles);
     },
 
-    createLinesFromServer(serverFiiles: IServerFile[]) {
+    // Create lines
+    async createLinesFromServer(serverFiiles: IServerFile[]) {
       const lines: ILine[] = serverFiiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
@@ -211,9 +216,9 @@ export default {
       this.lines = lines;
     },
 
-    async createLinesFromInput({ currentTarget }) {
-      // console.log(event.currentTarget.files);
-      const inputFiles = [...currentTarget.files];
+    async createLinesFromInput({ target }) {
+      // console.log(event.target.files);
+      const inputFiles = [...target.files];
 
       if (!inputFiles.length) return;
 
@@ -237,22 +242,7 @@ export default {
       this.lines = lines;
     },
 
-    resize() {
-      this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
-    },
-
-    clearChart() {
-      this.lineSeries = [];
-      const chartContainer = document.getElementById("chart-container");
-
-      chartContainer.innerHTML = "";
-
-      const chartElem = document.createElement("div");
-      chartContainer.appendChild(chartElem);
-
-      this.chart = createChart(chartElem, this.chartOptions);
-    },
-
+    // Update chart
     async updateChart() {
       this.clearChart();
 
@@ -305,42 +295,7 @@ export default {
     async updateChartTotal() {
       if (!this.isLineTotalVisible) return;
 
-      let dataProfitAll = [];
-
-      for (const line of this.linesEnabled) {
-        const seriesDataTotal = await this.getSeriesDataTotal(line.data);
-        dataProfitAll.push(seriesDataTotal);
-      }
-
-      const seriesDataTotal = dataProfitAll
-        .flatMap((seriesData) => seriesData)
-        .sort((a, b) => a.time - b.time)
-        .map((row, index, array) => {
-          if (index === 0) return row;
-
-          row.value = parseFloat(
-            (array[index - 1].value + row.value).toFixed(2)
-          );
-
-          if (row.time === array[index - 1].time) {
-            // console.log(index);
-            array[index - 1].toDelete = true;
-          }
-
-          return row;
-        });
-
-      // console.log("seriesDataTotal.length:", seriesDataTotal.length);
-
-      const indexArray = seriesDataTotal
-        .filter((row) => row.toDelete)
-        .map((row, index) => index);
-
-      // console.log(indexArray);
-
-      for (var i = indexArray.length - 1; i >= 0; i--) {
-        seriesDataTotal.splice(indexArray[i], 1);
-      }
+      const seriesDataTotal = await this.getSeriesDataTotal();
 
       const lineSeriesTotal = await this.chart.addLineSeries({
         color: "aquamarine",
@@ -355,6 +310,7 @@ export default {
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
+    // Get series
     async getSeriesData(lineData: string) {
       const data = lineData
         .trim()
@@ -378,32 +334,85 @@ export default {
         .split("\n")
         .slice(1)
         .map((row) => {
-          const [, dateString, price, , , , , , ,] = row.split(",");
+          const [, dateString, btcPrice, , , , , , ,] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
-            value: parseFloat(price),
+            value: parseFloat(btcPrice),
           };
         });
 
       return data;
     },
 
-    async getSeriesDataTotal(lineData: string) {
-      const data = lineData
-        .trim()
-        .split("\n")
-        .slice(1)
-        .map((row, index) => {
-          const [, dateString, , , , , , , profit] = row.split(",");
+    async getSeriesDataTotal() {
+      const dataProfitAll = this.linesEnabled.map((line: ILine) => {
+        const lineData = line.data
+          .trim()
+          .split("\n")
+          .slice(1)
+          .map((row: string, index: number) => {
+            const [, dateString, , , , , , , profit] = row.split(",");
 
-          return {
-            time: Date.parse(dateString) / 1000,
-            value: parseFloat((+profit / this.linesEnabled.length).toFixed(2)),
-          };
+            return {
+              time: Date.parse(dateString) / 1000,
+              value: parseFloat(
+                (+profit / this.linesEnabled.length).toFixed(2)
+              ),
+            };
+          });
+
+        return lineData;
+      });
+
+      const seriesDataTotal = dataProfitAll
+        .flatMap((seriesData) => seriesData)
+        .sort((a, b) => a.time - b.time)
+        .map((row, index, array) => {
+          if (index === 0) return row;
+
+          row.value = parseFloat(
+            (array[index - 1].value + row.value).toFixed(2)
+          );
+
+          if (row.time === array[index - 1].time) {
+            // console.log(index);
+            array[index - 1].toDelete = true;
+          }
+
+          return row;
         });
 
-      return data;
+      // // console.log("seriesDataTotal.length:", seriesDataTotal.length);
+
+      // const indexArray = seriesDataTotal
+      //   .filter((row) => row.toDelete)
+      //   .map((row, index) => index);
+
+      // // console.log(indexArray);
+
+      // for (var i = indexArray.length - 1; i >= 0; i--) {
+      //   seriesDataTotal.splice(indexArray[i], 1);
+      // }
+
+      return seriesDataTotal;
+    },
+
+    //
+    resize() {
+      this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
+    },
+
+    clearChart() {
+      this.lineSeries = [];
+      const chartContainer = document.getElementById("chart-container");
+
+      chartContainer.innerHTML = "";
+
+      const chartElem = document.createElement("div");
+      chartContainer.appendChild(chartElem);
+
+      this.chart = createChart(chartElem, this.chartOptions);
     },
   },
 
