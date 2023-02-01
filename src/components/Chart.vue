@@ -29,15 +29,20 @@
         @change="createLinesFromInput"
       />
 
-      <div class="summary info line pointer">
+      <div
+        v-if="lines.filter((line) => !line.disabled).length"
+        class="summary info line clip-left pointer"
+        :class="{ 'background-aquamarine': isLineTotalVisible }"
+        @click="isLineTotalVisible = !isLineTotalVisible"
+      >
         <span class="info__details"> TOTAL: {{ summ }}%</span>
       </div>
 
       <div
         v-if="lines.filter((line) => !line.disabled).length"
         class="line clip-right pointer"
-        :style="{ background: !isBtcLineDisabled ? 'black' : 'none' }"
-        @click="isBtcLineDisabled = !isBtcLineDisabled"
+        :class="{ 'background-black': isLineBtcVisible }"
+        @click="isLineBtcVisible = !isLineBtcVisible"
       >
         <span class="line__name info">BTC / USDT</span>
       </div>
@@ -87,7 +92,9 @@ export default {
 
       lineSeries: [],
 
-      isBtcLineDisabled: false,
+      isLineBtcVisible: true,
+
+      isLineTotalVisible: false,
 
       colors: [
         "steelblue",
@@ -118,11 +125,14 @@ export default {
 
     chartOptions() {
       return {
+        offset: false,
         height: this.isFullScreen ? window.innerHeight : 340,
         width: window.innerWidth - 20,
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
+          fixLeftEdge: true,
+          fixRightEdge: true,
         },
         rightPriceScale: {
           visible: true,
@@ -141,10 +151,13 @@ export default {
         .filter((line: ILine) => !line.disabled)
         .map((line) => line.data.trim())
         .map((table) => table.split("\n").reverse()[0].split(",").reverse()[0])
-        .reduce((sum: number, value: string) => sum + parseFloat(value), 0)
-        .toFixed(2);
+        .reduce((sum: number, value: string) => sum + parseFloat(value), 0);
 
-      return parseFloat(result);
+      return parseFloat((result / this.linesEnabled.length).toFixed(2));
+    },
+
+    linesEnabled() {
+      return this.lines.filter((line: ILine) => !line.disabled);
     },
   },
 
@@ -161,7 +174,14 @@ export default {
       },
     },
 
-    isBtcLineDisabled: {
+    isLineBtcVisible: {
+      handler() {
+        this.updateChart();
+        this.resize();
+      },
+    },
+
+    isLineTotalVisible: {
       handler() {
         this.updateChart();
         this.resize();
@@ -179,7 +199,7 @@ export default {
     },
 
     createLinesFromServer(serverFiiles: IServerFile[]) {
-      this.lines = serverFiiles.map(
+      const lines: ILine[] = serverFiiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data,
@@ -187,6 +207,8 @@ export default {
           disabled: false,
         })
       );
+
+      this.lines = lines;
     },
 
     async createLinesFromInput({ currentTarget }) {
@@ -231,7 +253,109 @@ export default {
       this.chart = createChart(chartElem, this.chartOptions);
     },
 
-    async getLineData(lineData: string) {
+    async updateChart() {
+      this.clearChart();
+
+      for (const line of this.linesEnabled) {
+        const lineSeries = await this.chart.addLineSeries({
+          color: line.color,
+          priceScaleId: "right",
+          lineWidth: 2.5,
+        });
+
+        const linesData = await this.getSeriesData(line.data);
+
+        this.lineSeries.push(lineSeries);
+
+        lineSeries.setData(linesData);
+      }
+
+      await this.updateChartTotal();
+      await this.updateChartBtc();
+
+      this.chart.timeScale().fitContent();
+    },
+
+    async updateChartBtc() {
+      if (!this.isLineBtcVisible) return;
+
+      let lineDataBtc = "";
+
+      for (const line of this.linesEnabled) {
+        const isDataLonger = lineDataBtc.length < line.data.length;
+
+        if (isDataLonger) lineDataBtc = line.data;
+      }
+
+      if (lineDataBtc) {
+        const lineSeriesBtc = await this.chart.addLineSeries({
+          color: "black",
+          priceScaleId: "left",
+          lineWidth: 2.5,
+        });
+
+        this.lineSeries.push(lineSeriesBtc);
+
+        const linesSeriesDataBtc = await this.getSeriesDataBtc(lineDataBtc);
+
+        lineSeriesBtc.setData(linesSeriesDataBtc);
+      }
+    },
+
+    async updateChartTotal() {
+      if (!this.isLineTotalVisible) return;
+
+      let dataProfitAll = [];
+
+      for (const line of this.linesEnabled) {
+        const seriesDataTotal = await this.getSeriesDataTotal(line.data);
+        dataProfitAll.push(seriesDataTotal);
+      }
+
+      const seriesDataTotal = dataProfitAll
+        .flatMap((seriesData) => seriesData)
+        .sort((a, b) => a.time - b.time)
+        .map((row, index, array) => {
+          if (index === 0) return row;
+
+          row.value = parseFloat(
+            (array[index - 1].value + row.value).toFixed(2)
+          );
+
+          if (row.time === array[index - 1].time) {
+            // console.log(index);
+            array[index - 1].toDelete = true;
+          }
+
+          return row;
+        });
+
+      // console.log("seriesDataTotal.length:", seriesDataTotal.length);
+
+      const indexArray = seriesDataTotal
+        .filter((row) => row.toDelete)
+        .map((row, index) => index);
+
+      // console.log(indexArray);
+
+      for (var i = indexArray.length - 1; i >= 0; i--) {
+        seriesDataTotal.splice(indexArray[i], 1);
+      }
+
+      const lineSeriesTotal = await this.chart.addLineSeries({
+        color: "aquamarine",
+        priceScaleId: "right",
+        lineWidth: 2.5,
+      });
+      this.lineSeries.push(lineSeriesTotal);
+      // console.log(seriesDataTotal);
+
+      // seriesDataTotal.forEach((row) => console.log(row.time));
+
+      lineSeriesTotal.setData(seriesDataTotal);
+    },
+
+    async getSeriesData(lineData: string) {
       const data = lineData
         .trim()
         .split("\n")
@@ -244,11 +368,12 @@ export default {
             value: parseFloat(profit),
           };
         });
+
       return data;
     },
 
-    async getLineDataBtc(lineData: string) {
-      const cdata = lineData
+    async getSeriesDataBtc(lineData: string) {
+      const data = lineData
         .trim()
         .split("\n")
         .slice(1)
@@ -261,64 +386,24 @@ export default {
           };
         });
 
-      // console.log(cdata);
-      return cdata;
+      return data;
     },
 
-    async getLineDataTotal(lineData: string) {
-      const cdata = lineData
+    async getSeriesDataTotal(lineData: string) {
+      const data = lineData
         .trim()
         .split("\n")
         .slice(1)
-        .map((row) => {
-          const [, dateString, price, , , , , , ,] = row.split(",");
+        .map((row, index) => {
+          const [, dateString, , , , , , , profit] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
-            value: parseFloat(price),
+            value: parseFloat((+profit / this.linesEnabled.length).toFixed(2)),
           };
         });
 
-      // console.log(cdata);
-      return cdata;
-    },
-
-    async updateChart() {
-      this.clearChart();
-
-      let btcData = "";
-
-      for (const line of this.lines.filter((line: ILine) => !line.disabled)) {
-        // BTC / USDT
-        const isDataLonger = btcData.length < line.data.length;
-        if (isDataLonger) btcData = line.data;
-
-        const lineSeries = this.chart.addLineSeries({
-          color: line.color,
-          priceScaleId: "right",
-          lineWidth: 2.5,
-        });
-        this.lineSeries.push(lineSeries);
-
-        const linesData = await this.getLineData(line.data);
-        lineSeries.setData(linesData);
-
-        // console.log("this.lineSeries:", this.lineSeries);
-      }
-
-      if (!this.isBtcLineDisabled && btcData) {
-        const lineSeriesBtc = this.chart.addLineSeries({
-          color: "black",
-          priceScaleId: "left",
-          lineWidth: 2.5,
-        });
-        this.lineSeries.push(lineSeriesBtc);
-
-        const linesDataBtc = await this.getLineDataBtc(btcData);
-        lineSeriesBtc.setData(linesDataBtc);
-      }
-
-      this.chart.timeScale().fitContent();
+      return data;
     },
   },
 
@@ -332,6 +417,10 @@ export default {
 <style lang="scss">
 .clip-right {
   clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
+}
+
+.clip-left {
+  clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
 }
 
 .full-screen-button {
@@ -371,7 +460,7 @@ export default {
     :nth-child(2) {
       font-size: 51px;
       line-height: 47px;
-      color: darkgrey;
+      color: darkgray;
       padding-inline-start: 0px;
     }
 
@@ -423,8 +512,8 @@ export default {
       color: var(--background-color);
       font-size: 264%;
       line-height: 58px;
-      bottom: -17px;
-      right: -1px;
+      bottom: -18px;
+      right: 7px;
       position: absolute;
       z-index: 20;
     }
@@ -435,8 +524,6 @@ export default {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    background: grey;
-    clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
 
     .info__details {
       display: inline-block;
@@ -461,7 +548,6 @@ export default {
 .line {
   flex-grow: 1;
   min-width: 33.3%;
-  // clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 21px 0%0% 10px);
 
   .line__name {
     display: inline-block;
@@ -489,5 +575,13 @@ export default {
   color: blueviolet;
   // color: mediumpurple;
   color: mediumslateblue;
+}
+
+.background-aquamarine {
+  background: aquamarine;
+}
+
+.background-black {
+  background: black;
 }
 </style>
