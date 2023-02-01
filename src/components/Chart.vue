@@ -32,7 +32,9 @@
       <div
         v-if="lines.filter((line) => !line.disabled).length"
         class="summary info line clip-left pointer"
-        :class="{ 'background-aquamarine': isLineTotalVisible }"
+        :class="{
+          'background-aquamarine': isLineTotalVisible,
+        }"
         @click="isLineTotalVisible = !isLineTotalVisible"
       >
         <span class="info__details"> TOTAL: {{ summ }}%</span>
@@ -56,9 +58,10 @@
           background: !line.disabled ? line.color : 'none',
         }"
         class="line clip-right pointer"
+        :class="{ 'line--disabled': isLineTotalonly }"
         @click="line.disabled = !line.disabled"
       >
-        <span class="line__name">{{ line.name }}</span>
+        <span class="line__name" v-text="line.name" />
       </div>
     </section>
   </template>
@@ -79,13 +82,15 @@ export interface ILine {
 </script>
 
 <script lang="ts">
-import { createChart } from "lightweight-charts";
+import { createChart, LineStyle } from "lightweight-charts";
 
 export default {
   name: "Chart",
 
   data() {
     return {
+      isNew: true,
+
       isFullScreen: false,
 
       lineTotal: null,
@@ -96,9 +101,7 @@ export default {
 
       isLineBtcVisible: true,
 
-      isLineTotalVisible: false,
-
-      isOnlyTotal: true,
+      isLineTotalVisible: true,
 
       colors: [
         "steelblue",
@@ -163,9 +166,20 @@ export default {
     linesEnabled() {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
+
+    isLineTotalonly() {
+      return (
+        this.isLineTotalVisible &&
+        this.lines.length === this.linesEnabled.length
+      );
+    },
   },
 
   watch: {
+    chart() {
+      this.resize();
+    },
+
     isFullScreen() {
       this.updateChart();
     },
@@ -174,21 +188,18 @@ export default {
       deep: true,
       handler() {
         this.updateChart();
-        this.resize();
       },
     },
 
     isLineBtcVisible: {
       handler() {
         this.updateChart();
-        this.resize();
       },
     },
 
     isLineTotalVisible: {
       handler() {
         this.updateChart();
-        this.resize();
       },
     },
   },
@@ -203,6 +214,8 @@ export default {
           color: line.color,
           priceScaleId: "right",
           lineWidth: 2.5,
+          priceLineVisible: false,
+          visible: !this.isLineTotalonly,
         });
 
         const linesData = await this.getSeriesData(line.data);
@@ -216,6 +229,7 @@ export default {
       await this.updateChartBtc();
 
       this.chart.timeScale().fitContent();
+      this.isNew = false;
     },
 
     //
@@ -235,6 +249,7 @@ export default {
           color: "black",
           priceScaleId: "left",
           lineWidth: 2.5,
+          priceLineVisible: false,
         });
 
         this.lineSeries.push(lineSeriesBtc);
@@ -254,6 +269,7 @@ export default {
         color: "aquamarine",
         priceScaleId: "right",
         lineWidth: 2.5,
+        priceLineVisible: false,
       });
       this.lineSeries.push(lineSeriesTotal);
       // console.log(seriesDataTotal);
@@ -362,10 +378,6 @@ export default {
           disabled: false,
         })
       );
-
-      const seriesDataTotal = await this.getSeriesDataTotal();
-      console.log(lines);
-      console.log(seriesDataTotal);
 
       this.lines = lines;
     },
@@ -563,6 +575,10 @@ export default {
 .line {
   flex-grow: 1;
   min-width: 33.3%;
+
+  &--disabled {
+    background: lightgrey !important;
+  }
 
   .line__name {
     display: inline-block;
