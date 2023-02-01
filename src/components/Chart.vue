@@ -88,6 +88,8 @@ export default {
     return {
       isFullScreen: false,
 
+      lineTotal: null,
+
       lines: [],
 
       lineSeries: [],
@@ -95,6 +97,8 @@ export default {
       isLineBtcVisible: true,
 
       isLineTotalVisible: false,
+
+      isOnlyTotal: true,
 
       colors: [
         "steelblue",
@@ -159,10 +163,6 @@ export default {
     linesEnabled() {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
-
-    onlyTotal() {
-      return this.linesEnabled.length === 0 && this.isLineTotalVisible;
-    },
   },
 
   watch: {
@@ -194,55 +194,7 @@ export default {
   },
 
   methods: {
-    async fetchData() {
-      const response = await fetch(`http://${window.location.hostname}/files`);
-      const serverFiiles: string[] = await response.json();
-      // console.log(data);
-
-      this.createLinesFromServer(serverFiiles);
-    },
-
-    // Create lines
-    async createLinesFromServer(serverFiiles: IServerFile[]) {
-      const lines: ILine[] = serverFiiles.map(
-        (file: IServerFile, index: number): ILine => ({
-          name: file.name.split(".")[0],
-          data: file.data,
-          color: this.colors[index],
-          disabled: false,
-        })
-      );
-
-      this.lines = lines;
-    },
-
-    async createLinesFromInput({ target }) {
-      // console.log(event.target.files);
-      const inputFiles = [...target.files];
-
-      if (!inputFiles.length) return;
-
-      const lines = await Promise.all(
-        inputFiles.map(async (file: File, index: number): Promise<ILine> => {
-          // console.log("file.text():", await file.text());
-          const lineText = await file.text();
-          const lineName = file.name.split(".")[0];
-
-          const line: ILine = {
-            name: lineName,
-            data: lineText,
-            color: this.colors[index],
-            disabled: false,
-          };
-
-          return line;
-        })
-      );
-
-      this.lines = lines;
-    },
-
-    // Update chart
+    ////
     async updateChart() {
       this.clearChart();
 
@@ -266,6 +218,7 @@ export default {
       this.chart.timeScale().fitContent();
     },
 
+    //
     async updateChartBtc() {
       if (!this.isLineBtcVisible) return;
 
@@ -310,7 +263,7 @@ export default {
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
-    // Get series
+    ////
     async getSeriesData(lineData: string) {
       const data = lineData
         .trim()
@@ -398,7 +351,52 @@ export default {
       return seriesDataTotal;
     },
 
-    //
+    ////
+    // Create lines
+    async createLinesFromServer(serverFiiles: IServerFile[]) {
+      const lines: ILine[] = serverFiiles.map(
+        (file: IServerFile, index: number): ILine => ({
+          name: file.name.split(".")[0],
+          data: file.data,
+          color: this.colors[index],
+          disabled: false,
+        })
+      );
+
+      const seriesDataTotal = await this.getSeriesDataTotal();
+      console.log(lines);
+      console.log(seriesDataTotal);
+
+      this.lines = lines;
+    },
+
+    async createLinesFromInput({ target }) {
+      // console.log(event.target.files);
+      const inputFiles = [...target.files];
+
+      if (!inputFiles.length) return;
+
+      const lines = await Promise.all(
+        inputFiles.map(async (file: File, index: number): Promise<ILine> => {
+          // console.log("file.text():", await file.text());
+          const lineText = await file.text();
+          const lineName = file.name.split(".")[0];
+
+          const line: ILine = {
+            name: lineName,
+            data: lineText,
+            color: this.colors[index],
+            disabled: false,
+          };
+
+          return line;
+        })
+      );
+
+      this.lines = lines;
+    },
+
+    ////
     resize() {
       this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
     },
@@ -413,6 +411,14 @@ export default {
       chartContainer.appendChild(chartElem);
 
       this.chart = createChart(chartElem, this.chartOptions);
+    },
+
+    async fetchData() {
+      const response = await fetch(`http://${window.location.hostname}/files`);
+      const serverFiiles: string[] = await response.json();
+      // console.log(data);
+
+      this.createLinesFromServer(serverFiiles);
     },
   },
 
