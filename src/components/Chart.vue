@@ -502,6 +502,7 @@ export default {
 .info-container {
   display: flex;
   flex-wrap: wrap;
+  margin-bottom: 7px;
 
   .info {
     flex-grow: 1;
@@ -576,6 +577,7 @@ export default {
 }
 
 .legend {
+  margin-top: -7px;
   position: relative;
   font-size: 14px;
   line-height: 18px;
@@ -591,10 +593,6 @@ export default {
 
   &--disabled {
     background: lightgrey !important;
-  }
-
-  &:first-child {
-    margin-top: -7px;
   }
 
   .line__name {
