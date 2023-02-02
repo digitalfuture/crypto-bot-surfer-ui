@@ -804,4 +804,37 @@ export default {
     padding-inline: 5px;
   }
 }
+
+#colors {
+  color: deeppink;
+  color: darkmagenta;
+  color: darkorchid;
+  color: darkviolet;
+  color: blueviolet;
+  color: mediumslateblue;
+  color: mediumpurple;
+  color: mediumorchid;
+  color: magenta;
+  color: fuchsia;
+  color: purple;
+  color: indigo;
+  color: violet;
+  color: navy;
+  color: mediumblue;
+  color: blue;
+  color: dodgerblue;
+  color: deepskyblue;
+  color: powderblue;
+  color: skyblue;
+  color: lightblue;
+  color: aquamarine;
+  color: chartreuse;
+  color: lime;
+  color: greenyellow;
+  color: lightgreen;
+  color: green;
+  color: yellow;
+  color: orange;
+  color: red;
+}
 </style>
