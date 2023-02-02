@@ -143,7 +143,6 @@ export default {
         "mediumslateblue",
         "mediumpurple",
         "mediumorchid",
-        "magenta",
         "fuchsia",
         "purple",
         "indigo",
