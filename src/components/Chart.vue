@@ -30,10 +30,11 @@
       />
 
       <div
-        v-if="lines.filter((line) => !line.disabled).length"
+        v-if="isLineBtcVisible"
         class="summary info line clip-left pointer"
         :class="{
-          'background-aquamarine': isLineTotalVisible,
+          'background-aqua':
+            isLineTotalVisible && this.linesEnabled.length !== 1,
         }"
         @click="isLineTotalVisible = !isLineTotalVisible"
       >
@@ -41,7 +42,6 @@
       </div>
 
       <div
-        v-if="lines.filter((line) => !line.disabled).length"
         class="line clip-right pointer"
         :class="{ 'background-black': isLineBtcVisible }"
         @click="isLineBtcVisible = !isLineBtcVisible"
@@ -58,7 +58,9 @@
           background: !line.disabled ? line.color : 'none',
         }"
         class="line clip-right pointer"
-        :class="{ 'line--disabled': isLineTotalonly }"
+        :class="{
+          'line--disabled': isLineTotalOnly,
+        }"
         @click="line.disabled = !line.disabled"
       >
         <span class="line__name" v-text="line.name" />
@@ -89,11 +91,7 @@ export default {
 
   data() {
     return {
-      isNew: true,
-
       isFullScreen: false,
-
-      lineTotal: null,
 
       lines: [],
 
@@ -154,24 +152,22 @@ export default {
     },
 
     summ() {
-      const result = this.lines
-        .filter((line: ILine) => !line.disabled)
+      const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
+
+      const result = lines
         .map((line) => line.data.trim())
         .map((table) => table.split("\n").reverse()[0].split(",").reverse()[0])
         .reduce((sum: number, value: string) => sum + parseFloat(value), 0);
 
-      return parseFloat((result / this.linesEnabled.length).toFixed(2));
+      return parseFloat((result / lines.length).toFixed(2)) || 0;
     },
 
     linesEnabled() {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
 
-    isLineTotalonly() {
-      return (
-        this.isLineTotalVisible &&
-        this.lines.length === this.linesEnabled.length
-      );
+    isLineTotalOnly() {
+      return this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
   },
 
@@ -182,7 +178,7 @@ export default {
 
     lines: {
       deep: true,
-      handler() {
+      handler(value) {
         this.updateChart();
         this.resize();
       },
@@ -208,13 +204,13 @@ export default {
     async updateChart() {
       this.clearChart();
 
-      for (const line of this.linesEnabled) {
+      for (const line of this.lines) {
         const lineSeries = await this.chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
           lineWidth: 2.5,
           priceLineVisible: false,
-          visible: !this.isLineTotalonly,
+          visible: !this.isLineTotalOnly && !line.disabled,
         });
 
         const linesData = await this.getSeriesData(line.data);
@@ -228,7 +224,6 @@ export default {
       await this.updateChartBtc();
 
       this.chart.timeScale().fitContent();
-      this.isNew = false;
     },
 
     //
@@ -237,7 +232,7 @@ export default {
 
       let lineDataBtc = "";
 
-      for (const line of this.linesEnabled) {
+      for (const line of this.lines) {
         const isDataLonger = lineDataBtc.length < line.data.length;
 
         if (isDataLonger) lineDataBtc = line.data;
@@ -260,21 +255,17 @@ export default {
     },
 
     async updateChartTotal() {
-      if (!this.isLineTotalVisible) return;
-
       const seriesDataTotal = await this.getSeriesDataTotal();
 
       const lineSeriesTotal = await this.chart.addLineSeries({
-        color: "aquamarine",
+        color: "aqua",
         priceScaleId: "right",
         lineWidth: 2.5,
         priceLineVisible: false,
+        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
+
       this.lineSeries.push(lineSeriesTotal);
-      // console.log(seriesDataTotal);
-
-      // seriesDataTotal.forEach((row) => console.log(row.time));
-
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
@@ -314,19 +305,20 @@ export default {
     },
 
     async getSeriesDataTotal() {
-      const dataProfitAll = this.linesEnabled.map((line: ILine) => {
+      const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
+
+      const dataProfitAll = lines.map((line: ILine) => {
         const lineData = line.data
           .trim()
           .split("\n")
           .slice(1)
-          .map((row: string, index: number) => {
+          .map((row: string) => {
             const [, dateString, , , , , , , profit] = row.split(",");
 
             return {
               time: Date.parse(dateString) / 1000,
-              value: parseFloat(
-                (+profit / this.linesEnabled.length).toFixed(2)
-              ),
+              // value: parseFloat((+profit / lines.length).toFixed(2)),
+              value: parseFloat(profit),
             };
           });
 
@@ -348,6 +340,10 @@ export default {
             array[index - 1].toDelete = true;
           }
 
+          return row;
+        })
+        .map((row, index) => {
+          row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
         });
 
@@ -374,7 +370,7 @@ export default {
           name: file.name.split(".")[0],
           data: file.data,
           color: this.colors[index],
-          disabled: false,
+          disabled: true,
         })
       );
 
@@ -607,8 +603,8 @@ export default {
   color: mediumslateblue;
 }
 
-.background-aquamarine {
-  background: aquamarine;
+.background-aqua {
+  background: aqua;
 }
 
 .background-black {
