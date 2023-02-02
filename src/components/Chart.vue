@@ -1,5 +1,5 @@
 <template>
-  <div class="chart cursor--pointer" id="chart-container" />
+  <div class="chart cursor-pointer" id="chart-container" />
 
   <div v-if="isLoading" class="loader-container">
     <div class="loader">
@@ -13,7 +13,7 @@
     <img
       src="/favicon.png"
       alt=""
-      class="full-screen-button cursor--pointer"
+      class="full-screen-button cursor-pointer"
       :class="{
         'full-screen-button--active': isFullScreen,
       }"
@@ -25,7 +25,7 @@
         type="file"
         multiple
         ref="input"
-        class="input info cursor--pointer"
+        class="input info cursor-pointer"
         @change="createLinesFromInput"
       />
 
@@ -33,8 +33,8 @@
         class="summary info line clip-left"
         :class="{
           'summary--disabled': !isLineTotalVisible || linesEnabled.length === 1,
-          'cursor--pointer': linesEnabled.length !== 1,
-          'cursor--default': linesEnabled.length === 1,
+          'cursor-pointer': linesEnabled.length !== 1,
+          'cursor-default': linesEnabled.length === 1,
         }"
         @click="isLineTotalVisible = !isLineTotalVisible"
       >
@@ -42,7 +42,7 @@
       </div>
 
       <div
-        class="line btc clip-right cursor--pointer"
+        class="line btc clip-right cursor-pointer"
         :class="{ 'btc--disabled': !isLineBtcVisible }"
         @click="isLineBtcVisible = !isLineBtcVisible"
       >
@@ -57,7 +57,7 @@
         :style="{
           background: !line.disabled ? line.color : 'none',
         }"
-        class="line clip-right cursor--pointer"
+        class="line clip-right cursor-pointer"
         :class="{
           'line--disabled': isLineTotalOnly,
         }"
