@@ -513,6 +513,7 @@ export default {
     width: 33.3%;
     height: 42px;
     padding-left: 50px;
+    margin-bottom: 7px;
 
     &:before {
       content: "";
@@ -547,6 +548,7 @@ export default {
     justify-content: flex-end;
     align-items: center;
     background: aqua;
+    margin-bottom: 7px;
 
     &--disabled {
       background: none;
@@ -562,6 +564,7 @@ export default {
 
   .btc {
     background: black;
+    margin-bottom: 7px;
 
     &--disabled {
       background: none;
@@ -571,7 +574,6 @@ export default {
 
 .legend {
   position: relative;
-  margin: 7px 0;
   font-size: 14px;
   line-height: 18px;
   font-weight: 300;
@@ -586,6 +588,10 @@ export default {
 
   &--disabled {
     background: lightgrey !important;
+  }
+
+  &:first-child {
+    margin-top: -7px;
   }
 
   .line__name {
