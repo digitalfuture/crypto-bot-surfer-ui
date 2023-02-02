@@ -101,31 +101,248 @@ export default {
 
       isLineTotalVisible: true,
 
+      colorsReversed: [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "lightgreen",
+        "greenyellow",
+        "lime",
+        "chartreuse",
+        "aquamarine",
+        "lightblue",
+        "skyblue",
+        "powderblue",
+        "deepskyblue",
+        "dodgerblue",
+        "blue",
+        "mediumblue",
+        "navy",
+        "violet",
+        "indigo",
+        "purple",
+        "fuchsia",
+        "magenta",
+        "mediumorchid",
+        "mediumpurple",
+        "mediumslateblue",
+        "blueviolet",
+        "darkviolet",
+        "darkorchid",
+        "darkmagenta",
+        "deeppink",
+      ],
+
       colors: [
+        "deeppink",
+        "darkmagenta",
+        "darkorchid",
+        "darkviolet",
+        "blueviolet",
+        "mediumslateblue",
+        "mediumpurple",
+        "mediumorchid",
+        "magenta",
+        "fuchsia",
+        "purple",
+        "indigo",
+        "violet",
+        "navy",
+        "mediumblue",
+        "blue",
+        "dodgerblue",
+        "deepskyblue",
+        "powderblue",
+        "skyblue",
+        "lightblue",
+        "aquamarine",
+        "chartreuse",
+        "lime",
+        "greenyellow",
+        "lightgreen",
+        "green",
+        "yellow",
+        "orange",
+        "red",
+      ],
+
+      colors2: [
+        "fuchsia",
+        "blueviolet",
+        "mediumpurple",
+        "mediumslateblue",
         "steelblue",
+        "blue",
+        "navy",
+        "darkslategray",
         "darkcyan",
         "mediumseagreen",
-        "yellowgreen",
         "olivedrab",
+        "yellowgreen",
+        "gold",
         "goldenrod",
         "orange",
         "lightsalmon",
         "lightcoral",
         "palevioletred",
-        "chocolate",
-        "tan",
-        "saddlebrown",
-        "brown",
         "mediumvioletred",
-        "fuchsia",
-        "blueviolet",
-        "mediumpurple",
-        "mediumslateblue",
-        "blue",
-        "navy",
-        "darkslategray",
-        "mediumseagreen",
-        "mediumturquoise",
+        "chocolate",
+        "saddlebrown",
+        "tan",
+        "brown",
+      ],
+
+      colorsAll: [
+        [
+          "black",
+          "silver",
+          "gray",
+          "white",
+          "maroon",
+          "red",
+          "purple",
+          "fuchsia",
+          "green",
+          "lime",
+          "olive",
+          "yellow",
+          "navy",
+          "blue",
+          "teal",
+          "aqua",
+          "orange",
+          "aliceblue",
+          "antiquewhite",
+          "aquamarine",
+          "azure",
+          "beige",
+          "bisque",
+          "blanchedalmond",
+          "blueviolet",
+          "brown",
+          "burlywood",
+          "cadetblue",
+          "chartreuse",
+          "chocolate",
+          "coral",
+          "cornflowerblue",
+          "cornsilk",
+          "crimson",
+          "darkblue",
+          "darkcyan",
+          "darkgoldenrod",
+          "darkgray",
+          "darkgreen",
+          "darkgrey",
+          "darkkhaki",
+          "darkmagenta",
+          "darkolivegreen",
+          "darkorange",
+          "darkorchid",
+          "darkred",
+          "darksalmon",
+          "darkseagreen",
+          "darkslateblue",
+          "darkslategray",
+          "darkslategrey",
+          "darkturquoise",
+          "darkviolet",
+          "deeppink",
+          "deepskyblue",
+          "dimgray",
+          "dimgrey",
+          "dodgerblue",
+          "firebrick",
+          "floralwhite",
+          "forestgreen",
+          "gainsboro",
+          "ghostwhite",
+          "gold",
+          "goldenrod",
+          "greenyellow",
+          "grey",
+          "honeydew",
+          "hotpink",
+          "indianred",
+          "indigo",
+          "ivory",
+          "khaki",
+          "lavender",
+          "lavenderblush",
+          "lawngreen",
+          "lemonchiffon",
+          "lightblue",
+          "lightcoral",
+          "lightcyan",
+          "lightgoldenrodyellow",
+          "lightgray",
+          "lightgreen",
+          "lightgrey",
+          "lightpink",
+          "lightsalmon",
+          "lightseagreen",
+          "lightskyblue",
+          "lightslategray",
+          "lightslategrey",
+          "lightsteelblue",
+          "lightyellow",
+          "limegreen",
+          "linen",
+          "magenta",
+          "mediumaquamarine",
+          "mediumblue",
+          "mediumorchid",
+          "mediumpurple",
+          "mediumseagreen",
+          "mediumslateblue",
+          "mediumspringgreen",
+          "mediumturquoise",
+          "mediumvioletred",
+          "midnightblue",
+          "mintcream",
+          "mistyrose",
+          "moccasin",
+          "navajowhite",
+          "oldlace",
+          "olivedrab",
+          "orangered",
+          "orchid",
+          "palegoldenrod",
+          "palegreen",
+          "paleturquoise",
+          "palevioletred",
+          "papayawhip",
+          "peachpuff",
+          "peru",
+          "pink",
+          "plum",
+          "powderblue",
+          "rosybrown",
+          "royalblue",
+          "saddlebrown",
+          "salmon",
+          "sandybrown",
+          "seagreen",
+          "seashell",
+          "sienna",
+          "skyblue",
+          "slateblue",
+          "slategray",
+          "slategrey",
+          "snow",
+          "springgreen",
+          "steelblue",
+          "tan",
+          "thistle",
+          "tomato",
+          "transparent",
+          "turquoise",
+          "violet",
+          "wheat",
+          "whitesmoke",
+          "yellowgreen",
+        ],
       ],
     };
   },
@@ -379,7 +596,7 @@ export default {
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data,
-          color: this.colors[index],
+          color: this.getColor(index),
           disabled: true,
         })
       );
@@ -402,7 +619,7 @@ export default {
           const line: ILine = {
             name: lineName,
             data: lineText,
-            color: this.colors[index],
+            color: this.getColors(index),
             disabled: false,
           };
 
@@ -436,6 +653,10 @@ export default {
       // console.log(data);
 
       this.createLinesFromServer(serverFiiles);
+    },
+
+    getColor(index) {
+      return this.colors[index];
     },
   },
 
@@ -611,11 +832,18 @@ export default {
 }
 
 #color-list {
+  color: fuchsia;
+  color: blueviolet;
+  color: mediumpurple;
+  color: mediumslateblue;
   color: steelblue;
+  color: blue;
+  color: navy;
+  color: darkslategray;
   color: darkcyan;
   color: mediumseagreen;
-  color: yellowgreen;
   color: olivedrab;
+  color: yellowgreen;
   color: gold;
   color: goldenrod;
   color: orange;
@@ -627,14 +855,155 @@ export default {
   color: saddlebrown;
   color: brown;
   color: mediumvioletred;
-  color: fuchsia;
-  color: blueviolet;
-  color: mediumpurple;
-  color: mediumslateblue;
-  color: blue;
-  color: navy;
-  color: darkslategray;
-  color: mediumseagreen;
-  color: mediumturquoise;
+}
+
+#list-colors-2 {
+  // black
+  // silver
+  // gray
+  // white
+  // maroon
+  // red
+  // purple
+  // fuchsia
+  // green
+  // lime
+  // olive
+  // yellow
+  // navy
+  // blue
+  // teal
+  // aqua
+  // orange
+  // aliceblue
+  // antiquewhite
+  // aquamarine
+  // azure
+  // beige
+  // bisque
+  // blanchedalmond
+  // blueviolet
+  // brown
+  // burlywood
+  // cadetblue
+  // chartreuse
+  // chocolate
+  // coral
+  // cornflowerblue
+  // cornsilk
+  // crimson
+  // darkblue
+  // darkcyan
+  // darkgoldenrod
+  // darkgray
+  // darkgreen
+  // darkgrey
+  // darkkhaki
+  // darkmagenta
+  // darkolivegreen
+  // darkorange
+  // darkorchid
+  // darkred
+  // darksalmon
+  // darkseagreen
+  // darkslateblue
+  // darkslategray
+  // darkslategrey
+  // darkturquoise
+  // darkviolet
+  // deeppink
+  // deepskyblue
+  // dimgray
+  // dimgrey
+  // dodgerblue
+  // firebrick
+  // floralwhite
+  // forestgreen
+  // gainsboro
+  // ghostwhite
+  // gold
+  // goldenrod
+  // greenyellow
+  // grey
+  // honeydew
+  // hotpink
+  // indianred
+  // indigo
+  // ivory
+  // khaki
+  // lavender
+  // lavenderblush
+  // lawngreen
+  // lemonchiffon
+  // lightblue
+  // lightcoral
+  // lightcyan
+  // lightgoldenrodyellow
+  // lightgray
+  // lightgreen
+  // lightgrey
+  // lightpink
+  // lightsalmon
+  // lightseagreen
+  // lightskyblue
+  // lightslategray
+  // lightslategrey
+  // lightsteelblue
+  // lightyellow
+  // limegreen
+  // linen
+  // magenta
+  // mediumaquamarine
+  // mediumblue
+  // mediumorchid
+  // mediumpurple
+  // mediumseagreen
+  // mediumslateblue
+  // mediumspringgreen
+  // mediumturquoise
+  // mediumvioletred
+  // midnightblue
+  // mintcream
+  // mistyrose
+  // moccasin
+  // navajowhite
+  // oldlace
+  // olivedrab
+  // orangered
+  // orchid
+  // palegoldenrod
+  // palegreen
+  // paleturquoise
+  // palevioletred
+  // papayawhip
+  // peachpuff
+  // peru
+  // pink
+  // plum
+  // powderblue
+  // rosybrown
+  // royalblue
+  // saddlebrown
+  // salmon
+  // sandybrown
+  // seagreen
+  // seashell
+  // sienna
+  // skyblue
+  // slateblue
+  // slategray
+  // slategrey
+  // snow
+  // springgreen
+  // steelblue
+  // tan
+  // thistle
+  // tomato
+  // transparent
+  // turquoise
+  // violet
+  // wheat
+  // whitesmoke
+  // yellowgreen
 }
 </style>
