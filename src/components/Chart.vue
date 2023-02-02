@@ -129,7 +129,7 @@ export default {
     },
 
     lineWidth() {
-      return 2.5;
+      return 2;
     },
 
     chartOptions() {
