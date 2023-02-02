@@ -128,6 +128,10 @@ export default {
       return this.lines.length === 0;
     },
 
+    lineWidth() {
+      return 2.5;
+    },
+
     chartOptions() {
       return {
         offset: false,
@@ -208,7 +212,7 @@ export default {
         const lineSeries = await this.chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
-          lineWidth: 2.5,
+          lineWidth: this.lineWidth,
           priceLineVisible: false,
           visible: !this.isLineTotalOnly && !line.disabled,
         });
@@ -226,7 +230,6 @@ export default {
       this.chart.timeScale().fitContent();
     },
 
-    //
     async updateChartBtc() {
       if (!this.isLineBtcVisible) return;
 
@@ -242,7 +245,7 @@ export default {
         const lineSeriesBtc = await this.chart.addLineSeries({
           color: "black",
           priceScaleId: "left",
-          lineWidth: 2.5,
+          lineWidth: this.lineWidth,
           priceLineVisible: false,
         });
 
@@ -260,7 +263,7 @@ export default {
       const lineSeriesTotal = await this.chart.addLineSeries({
         color: "aqua",
         priceScaleId: "right",
-        lineWidth: 2.5,
+        lineWidth: this.lineWidth,
         priceLineVisible: false,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
