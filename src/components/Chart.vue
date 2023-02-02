@@ -105,20 +105,27 @@ export default {
         "steelblue",
         "darkcyan",
         "mediumseagreen",
-        "tan",
-        // "goldenrod",
-        // "orange",
+        "yellowgreen",
+        "olivedrab",
+        "goldenrod",
+        "orange",
         "lightsalmon",
-        // "lightcoral",
-        // "palevioletred",
+        "lightcoral",
+        "palevioletred",
         "chocolate",
+        "tan",
         "saddlebrown",
         "brown",
         "mediumvioletred",
         "fuchsia",
         "blueviolet",
-        // "mediumpurple",
+        "mediumpurple",
         "mediumslateblue",
+        "blue",
+        "navy",
+        "darkslategray",
+        "mediumseagreen",
+        "mediumturquoise",
       ],
     };
   },
@@ -129,7 +136,7 @@ export default {
     },
 
     lineWidth() {
-      return 2;
+      return 2.5;
     },
 
     chartOptions() {
@@ -540,7 +547,7 @@ export default {
       font-size: 264%;
       line-height: 58px;
       bottom: -18px;
-      right: 7px;
+      right: 12px;
       position: absolute;
       z-index: 20;
     }
@@ -607,19 +614,27 @@ export default {
   color: steelblue;
   color: darkcyan;
   color: mediumseagreen;
-  color: tan;
-  // color: goldenrod;
-  // color: orange;
+  color: yellowgreen;
+  color: olivedrab;
+  color: gold;
+  color: goldenrod;
+  color: orange;
   color: lightsalmon;
-  // color: lightcoral;
-  // color: palevioletred;
+  color: lightcoral;
+  color: palevioletred;
   color: chocolate;
+  color: tan;
   color: saddlebrown;
   color: brown;
   color: mediumvioletred;
   color: fuchsia;
   color: blueviolet;
-  // color: mediumpurple;
+  color: mediumpurple;
   color: mediumslateblue;
+  color: blue;
+  color: navy;
+  color: darkslategray;
+  color: mediumseagreen;
+  color: mediumturquoise;
 }
 </style>
