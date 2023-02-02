@@ -30,11 +30,10 @@
       />
 
       <div
-        v-if="isLineBtcVisible"
         class="summary info line clip-left pointer"
         :class="{
-          'background-aqua':
-            isLineTotalVisible && this.linesEnabled.length !== 1,
+          'summary--disabled':
+            !isLineTotalVisible || this.linesEnabled.length === 1,
         }"
         @click="isLineTotalVisible = !isLineTotalVisible"
       >
@@ -42,8 +41,8 @@
       </div>
 
       <div
-        class="line clip-right pointer"
-        :class="{ 'background-black': isLineBtcVisible }"
+        class="line btc clip-right pointer"
+        :class="{ 'btc--disabled': !isLineBtcVisible }"
         @click="isLineBtcVisible = !isLineBtcVisible"
       >
         <span class="line__name info">BTC / USDT</span>
@@ -546,12 +545,25 @@ export default {
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    background: aqua;
+
+    &--disabled {
+      background: none;
+    }
 
     .info__details {
       display: inline-block;
       margin: 12px;
       background: var(--background-color);
       padding-inline: 5px;
+    }
+  }
+
+  .btc {
+    background: black;
+
+    &--disabled {
+      background: none;
     }
   }
 }
@@ -601,10 +613,6 @@ export default {
   color: blueviolet;
   // color: mediumpurple;
   color: mediumslateblue;
-}
-
-.background-aqua {
-  background: aqua;
 }
 
 .background-black {
