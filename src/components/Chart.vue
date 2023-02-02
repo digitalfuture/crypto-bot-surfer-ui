@@ -135,32 +135,32 @@ export default {
       ],
 
       colors: [
-        "deeppink",
-        "darkmagenta",
-        "darkorchid",
-        "darkviolet",
-        "blueviolet",
-        "mediumslateblue",
-        "mediumpurple",
-        "mediumorchid",
-        "magenta",
-        "fuchsia",
-        "purple",
-        "indigo",
-        "violet",
-        "navy",
-        "mediumblue",
-        "blue",
-        "dodgerblue",
-        "deepskyblue",
-        "powderblue",
-        "skyblue",
-        "lightblue",
-        "aquamarine",
-        "chartreuse",
-        "lime",
-        "greenyellow",
-        "lightgreen",
+        // "deeppink",
+        // "darkmagenta",
+        // "darkorchid",
+        // "darkviolet",
+        // "blueviolet",
+        // "mediumslateblue",
+        // "mediumpurple",
+        // "mediumorchid",
+        // "magenta",
+        // "fuchsia",
+        // "purple",
+        // "indigo",
+        // "violet",
+        // "navy",
+        // "mediumblue",
+        // "blue",
+        // "dodgerblue",
+        // "deepskyblue",
+        // "powderblue",
+        // "skyblue",
+        // "lightblue",
+        // "aquamarine",
+        // "chartreuse",
+        // "lime",
+        // "greenyellow",
+        // "lightgreen",
         "green",
         "yellow",
         "orange",
@@ -406,6 +406,8 @@ export default {
     async updateChart() {
       this.clearChart();
 
+      await this.updateChartBtc();
+
       for (const line of this.lines) {
         const lineSeries = await this.chart.addLineSeries({
           color: line.color,
@@ -423,7 +425,6 @@ export default {
       }
 
       await this.updateChartTotal();
-      await this.updateChartBtc();
 
       this.chart.timeScale().fitContent();
     },
@@ -593,7 +594,7 @@ export default {
           const line: ILine = {
             name: lineName,
             data: lineText,
-            color: this.getColors(index),
+            color: this.getColor(index),
             disabled: false,
           };
 
@@ -629,8 +630,16 @@ export default {
       this.createLinesFromServer(serverFiiles);
     },
 
-    getColor(index) {
-      return this.colors[index];
+    getColor(index: number): string {
+      const newIndex = index % this.colors.length;
+
+      console.log(index, this.colors.length, newIndex);
+
+      if (index < this.colors.length) {
+        return this.colors[index];
+      }
+
+      return this.colors[newIndex];
     },
   },
 
