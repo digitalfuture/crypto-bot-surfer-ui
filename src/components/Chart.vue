@@ -614,8 +614,4 @@ export default {
   // color: mediumpurple;
   color: mediumslateblue;
 }
-
-.background-black {
-  background: black;
-}
 </style>
