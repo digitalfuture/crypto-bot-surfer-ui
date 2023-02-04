@@ -71,7 +71,6 @@
 
 <script setup lang="ts">
 import { createChart } from "lightweight-charts";
-import { map } from "zod";
 
 export interface IServerFile {
   name: string;
@@ -97,6 +96,8 @@ export default {
 
   data() {
     return {
+      lineMaxNumber: 1000,
+
       chart: null,
 
       isFullScreen: false,
