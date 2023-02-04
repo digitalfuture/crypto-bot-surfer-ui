@@ -240,8 +240,12 @@ export default {
   },
 
   watch: {
-    isFullScreen() {
-      this.updateChart();
+    isFullScreen(isFullscreen) {
+      if (isFullscreen) {
+        this.chart.applyOptions({ height: window.innerHeight });
+      } else {
+        this.chart.applyOptions({ height: this.chartOptions.height });
+      }
     },
 
     isLineBtcVisible(value) {
@@ -255,15 +259,7 @@ export default {
 
   methods: {
     ////
-    async updateChart() {
-      if (!this.chart) return;
-
-      await this.updateChartBtc({ isNew: false });
-      await this.updateChartIndicators({ isNew: false });
-      await this.updateChartTotal({ isNew: false });
-    },
-
-    async updateChartIndicators() {
+    async setupChartIndicators() {
       for (const line of this.lines) {
         const lineSeries = await this.chart.addLineSeries({
           color: line.color,
@@ -281,7 +277,7 @@ export default {
       }
     },
 
-    async updateChartBtc() {
+    async setupChartBtc() {
       let lineDataBtc = "";
 
       for (const line of this.lines) {
@@ -303,7 +299,7 @@ export default {
       this.lineSeriesBtc.setData(seriesDataBtc);
     },
 
-    async updateChartTotal() {
+    async setupChartTotal() {
       const seriesDataTotal = await this.getSeriesDataTotal();
 
       this.lineSeriesTotal = await this.chart.addLineSeries({
@@ -461,9 +457,9 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       this.chart = createChart(chartContainer, this.chartOptions);
 
-      await this.updateChartBtc({ isNew: true });
-      await this.updateChartIndicators({ isNew: true });
-      await this.updateChartTotal({ isNew: true });
+      await this.setupChartBtc();
+      await this.setupChartIndicators();
+      await this.setupChartTotal();
 
       await this.chart.timeScale().fitContent();
     },
