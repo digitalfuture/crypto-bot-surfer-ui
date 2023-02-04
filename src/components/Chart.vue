@@ -291,7 +291,7 @@ export default {
       this.lineSeriesBtc = await this.chart.addLineSeries({
         color: "black",
         priceScaleId: "left",
-        lineWidth: 1.5,
+        lineWidth: this.lineWidth / 2,
         priceLineVisible: false,
         visible: this.isLineBtcVisible,
       });
@@ -305,7 +305,7 @@ export default {
       this.lineSeriesTotal = await this.chart.addLineSeries({
         color: "white",
         priceScaleId: "right",
-        lineWidth: 5,
+        lineWidth: this.lineWidth * 2,
         priceLineVisible: false,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
@@ -390,18 +390,6 @@ export default {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
         });
-
-      // // console.log("seriesDataTotal.length:", seriesDataTotal.length);
-
-      // const indexArray = seriesDataTotal
-      //   .filter((row) => row.toDelete)
-      //   .map((row, index) => index);
-
-      // // console.log(indexArray);
-
-      // for (var i = indexArray.length - 1; i >= 0; i--) {
-      //   seriesDataTotal.splice(indexArray[i], 1);
-      // }
 
       return seriesDataTotal;
     },
