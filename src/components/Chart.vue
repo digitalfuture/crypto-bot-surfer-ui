@@ -465,13 +465,21 @@ export default {
     },
 
     ////
-    updateLineVisibility(index: number) {
+    async updateLineVisibility(index: number) {
       const line = this.lines[index];
 
       line.disabled = !line.disabled;
       this.lineSeries[index].applyOptions({
         visible: !line.disabled,
       });
+
+      const seriesDataTotal = await this.getSeriesDataTotal();
+
+      this.lineSeriesTotal.applyOptions({
+        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
+      });
+
+      this.lineSeriesTotal.setData(seriesDataTotal);
     },
 
     setResizeListener() {
