@@ -71,6 +71,7 @@
 
 <script setup lang="ts">
 import { createChart } from "lightweight-charts";
+import { map } from "zod";
 
 export interface IServerFile {
   name: string;
@@ -79,9 +80,14 @@ export interface IServerFile {
 
 export interface ILine {
   name: string;
-  data: string;
+  data: string[];
   color: string;
   disabled: boolean;
+}
+
+export interface ISeries {
+  time: number;
+  value: number;
 }
 </script>
 
@@ -222,9 +228,9 @@ export default {
     summ() {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
+      // const result = JSON.parse(JSON.stringify(lines))
       const result = lines
-        .map((line) => line.data.trim())
-        .map((table) => table.split("\n").reverse()[0].split(",").reverse()[0])
+        .map((line) => line.data[0].split(",").reverse()[0])
         .reduce((sum: number, value: string) => sum + parseFloat(value), 0);
 
       return parseFloat((result / lines.length).toFixed(2)) || 0;
@@ -259,7 +265,7 @@ export default {
 
   methods: {
     ////
-    async setupChartIndicators() {
+    async setupChartLines() {
       for (const line of this.lines) {
         const lineSeries = await this.chart.addLineSeries({
           color: line.color,
@@ -314,36 +320,28 @@ export default {
     },
 
     ////
-    async getSeriesData(lineData: string) {
-      const data = lineData
-        .trim()
-        .split("\n")
-        .slice(1)
-        .map((row: string) => {
-          const [, dateString, , , , , , , , profit] = row.split(",");
+    async getSeriesData(lineData: string[]) {
+      const data = lineData.map((row: string): ISeries => {
+        const [, dateString, , , , , , , , profit] = row.split(",");
 
-          return {
-            time: Date.parse(dateString) / 1000,
-            value: parseFloat(profit),
-          };
-        });
+        return {
+          time: Date.parse(dateString) / 1000,
+          value: parseFloat(profit),
+        };
+      });
 
       return data;
     },
 
-    async getSeriesDataBtc(lineData: string) {
-      const data = lineData
-        .trim()
-        .split("\n")
-        .slice(1)
-        .map((row) => {
-          const [, dateString, btcPrice, , , , , , ,] = row.split(",");
+    async getSeriesDataBtc(lineData: string[]) {
+      const data = lineData.map((row) => {
+        const [, dateString, btcPrice, , , , , , ,] = row.split(",");
 
-          return {
-            time: Date.parse(dateString) / 1000,
-            value: parseFloat(btcPrice),
-          };
-        });
+        return {
+          time: Date.parse(dateString) / 1000,
+          value: parseFloat(btcPrice),
+        };
+      });
 
       return data;
     },
@@ -352,19 +350,15 @@ export default {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
       const dataProfitAll = lines.map((line: ILine) => {
-        const lineData = line.data
-          .trim()
-          .split("\n")
-          .slice(1)
-          .map((row: string) => {
-            const [, dateString, , , , , , , profit] = row.split(",");
+        const lineData = line.data.map((row: string) => {
+          const [, dateString, , , , , , , profit] = row.split(",");
 
-            return {
-              time: Date.parse(dateString) / 1000,
-              // value: parseFloat((+profit / lines.length).toFixed(2)),
-              value: parseFloat(profit),
-            };
-          });
+          return {
+            time: Date.parse(dateString) / 1000,
+            // value: parseFloat((+profit / lines.length).toFixed(2)),
+            value: parseFloat(profit),
+          };
+        });
 
         return lineData;
       });
@@ -400,7 +394,7 @@ export default {
       const lines: ILine[] = serverFiiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
-          data: file.data,
+          data: file.data.trim().split("\n").slice(1),
           color: this.getColor(index),
           disabled: true,
         })
@@ -423,7 +417,7 @@ export default {
 
           const line: ILine = {
             name: lineName,
-            data: lineText,
+            data: lineText.trim().split("\n").slice(1),
             color: this.getColor(index),
             disabled: false,
           };
@@ -446,7 +440,7 @@ export default {
       this.chart = createChart(chartContainer, this.chartOptions);
 
       await this.setupChartBtc();
-      await this.setupChartIndicators();
+      await this.setupChartLines();
       await this.setupChartTotal();
 
       await this.chart.timeScale().fitContent();

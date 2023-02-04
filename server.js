@@ -47,8 +47,10 @@ function readFiles() {
         encoding: "utf8",
       });
 
+      const data = fileData;
+
       // console.log("file;", file);
-      fileList.push({ name: fileName, data: fileData });
+      fileList.push({ name: fileName, data });
     }
 
     // console.log(fileList);
