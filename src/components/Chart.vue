@@ -12,7 +12,7 @@
   <template v-else>
     <img
       src="/favicon.png"
-      alt=""
+      alt="DNATRADE"
       class="full-screen-button cursor-pointer"
       :class="{
         'full-screen-button--active': isFullScreen,
@@ -55,13 +55,13 @@
         v-for="(line, index) in lines"
         :key="index"
         :style="{
-          background: !line.disabled ? line.color : 'none',
+          background: !line.disabled ? line.color : 'transparent',
         }"
         class="line clip-right cursor-pointer"
         :class="{
           'line--disabled': isLineTotalOnly,
         }"
-        @click="line.disabled = !line.disabled"
+        @click="updateLineVisibility(index)"
       >
         <span class="line__name" v-text="line.name" />
       </div>
@@ -70,6 +70,8 @@
 </template>
 
 <script setup lang="ts">
+import { createChart } from "lightweight-charts";
+
 export interface IServerFile {
   name: string;
   data: string;
@@ -84,57 +86,25 @@ export interface ILine {
 </script>
 
 <script lang="ts">
-import { createChart, LineStyle } from "lightweight-charts";
-
 export default {
   name: "Chart",
 
   data() {
     return {
+      chart: null,
+
       isFullScreen: false,
 
       lines: [],
 
       lineSeries: [],
+      lineSeriesBtc: [],
+      lineSeriesTotal: [],
 
       isLineBtcVisible: true,
-
       isLineTotalVisible: true,
 
-      colorsReversed: [
-        "red",
-        "orange",
-        "yellow",
-        "green",
-        "lightgreen",
-        "greenyellow",
-        "lime",
-        "chartreuse",
-        "aquamarine",
-        "lightblue",
-        "skyblue",
-        "powderblue",
-        "deepskyblue",
-        "dodgerblue",
-        "blue",
-        "mediumblue",
-        "navy",
-        "violet",
-        "indigo",
-        "purple",
-        "fuchsia",
-        "magenta",
-        "mediumorchid",
-        "mediumpurple",
-        "mediumslateblue",
-        "blueviolet",
-        "darkviolet",
-        "darkorchid",
-        "darkmagenta",
-        "deeppink",
-      ],
-
-      colors: [
+      colorsBasic: [
         "deeppink",
         "darkmagenta",
         "darkorchid",
@@ -165,7 +135,6 @@ export default {
         "orange",
         "red",
       ],
-
       colorsAll: [
         [
           "black",
@@ -218,7 +187,6 @@ export default {
           "darkseagreen",
           "darkslateblue",
           "darkslategray",
-          "darkslategrey",
           "darkturquoise",
           "darkviolet",
           "deeppink",
@@ -257,7 +225,6 @@ export default {
           "lightseagreen",
           "lightskyblue",
           "lightslategray",
-          "lightslategrey",
           "lightsteelblue",
           "lightyellow",
           "limegreen",
@@ -317,6 +284,86 @@ export default {
           "yellowgreen",
         ],
       ],
+      colors: [
+        "maroon",
+        "purple",
+        "navy",
+        "teal",
+        "orange",
+        "blueviolet",
+        "brown",
+        "burlywood",
+        "cadetblue",
+        "chocolate",
+        "coral",
+        "cornflowerblue",
+        "crimson",
+        "darkcyan",
+        "darkgoldenrod",
+        "darkkhaki",
+        "darkmagenta",
+        "darkolivegreen",
+        "darkorange",
+        "darkorchid",
+        "darkred",
+        "darksalmon",
+        "darkseagreen",
+        "darkslateblue",
+        "darkslategray",
+        "darkturquoise",
+        "darkviolet",
+        "deeppink",
+        "deepskyblue",
+        "dimgray",
+        "dimgray",
+        "dodgerblue",
+        "firebrick",
+        "goldenrod",
+        "hotpink",
+        "indianred",
+        "indigo",
+        "lightcoral",
+        "lightpink",
+        "lightsalmon",
+        "lightseagreen",
+        "lightskyblue",
+        "lightsteelblue",
+        "magenta",
+        "mediumaquamarine",
+        "mediumblue",
+        "mediumorchid",
+        "mediumpurple",
+        "mediumseagreen",
+        "mediumspringgreen",
+        "mediumturquoise",
+        "mediumvioletred",
+        "midnightblue",
+        "olivedrab",
+        "orangered",
+        "orchid",
+        "palevioletred",
+        "peru",
+        "plum",
+        "rosybrown",
+        "royalblue",
+        "saddlebrown",
+        "salmon",
+        "sandybrown",
+        "seagreen",
+        "sienna",
+        "skyblue",
+        "slateblue",
+        "slategray",
+        "steelblue",
+        "tan",
+        "tomato",
+        "transparent",
+        "turquoise",
+        "violet",
+        "wheat",
+        "whitesmoke",
+        "yellowgreen",
+      ],
     };
   },
 
@@ -326,7 +373,7 @@ export default {
     },
 
     lineWidth() {
-      return 2.5;
+      return 2;
     },
 
     chartOptions() {
@@ -377,36 +424,26 @@ export default {
       this.updateChart();
     },
 
-    lines: {
-      deep: true,
-      handler(value) {
-        this.updateChart();
-        this.resize();
-      },
+    isLineBtcVisible(value) {
+      this.lineSeriesBtc.applyOptions({ visible: value });
     },
 
-    isLineBtcVisible: {
-      handler() {
-        this.updateChart();
-        this.resize();
-      },
-    },
-
-    isLineTotalVisible: {
-      handler() {
-        this.updateChart();
-        this.resize();
-      },
+    isLineTotalVisible(value) {
+      this.lineSeriesTotal.applyOptions({ visible: value });
     },
   },
 
   methods: {
     ////
     async updateChart() {
-      this.clearChart();
+      if (!this.chart) return;
 
-      await this.updateChartBtc();
+      await this.updateChartBtc({ isNew: false });
+      await this.updateChartIndicators({ isNew: false });
+      await this.updateChartTotal({ isNew: false });
+    },
 
+    async updateChartIndicators() {
       for (const line of this.lines) {
         const lineSeries = await this.chart.addLineSeries({
           color: line.color,
@@ -422,15 +459,9 @@ export default {
 
         lineSeries.setData(linesData);
       }
-
-      await this.updateChartTotal();
-
-      this.chart.timeScale().fitContent();
     },
 
     async updateChartBtc() {
-      if (!this.isLineBtcVisible) return;
-
       let lineDataBtc = "";
 
       for (const line of this.lines) {
@@ -439,35 +470,31 @@ export default {
         if (isDataLonger) lineDataBtc = line.data;
       }
 
-      if (lineDataBtc) {
-        const lineSeriesBtc = await this.chart.addLineSeries({
-          color: "black",
-          priceScaleId: "left",
-          lineWidth: this.lineWidth,
-          priceLineVisible: false,
-        });
+      const seriesDataBtc = await this.getSeriesDataBtc(lineDataBtc);
 
-        this.lineSeries.push(lineSeriesBtc);
+      this.lineSeriesBtc = await this.chart.addLineSeries({
+        color: "black",
+        priceScaleId: "left",
+        lineWidth: this.lineWidth,
+        priceLineVisible: false,
+        visible: this.isLineBtcVisible,
+      });
 
-        const linesSeriesDataBtc = await this.getSeriesDataBtc(lineDataBtc);
-
-        lineSeriesBtc.setData(linesSeriesDataBtc);
-      }
+      this.lineSeriesBtc.setData(seriesDataBtc);
     },
 
     async updateChartTotal() {
       const seriesDataTotal = await this.getSeriesDataTotal();
 
-      const lineSeriesTotal = await this.chart.addLineSeries({
-        color: "aqua",
+      this.lineSeriesTotal = await this.chart.addLineSeries({
+        color: "white",
         priceScaleId: "right",
         lineWidth: this.lineWidth,
         priceLineVisible: false,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
-      this.lineSeries.push(lineSeriesTotal);
-      lineSeriesTotal.setData(seriesDataTotal);
+      this.lineSeriesTotal.setData(seriesDataTotal);
     },
 
     ////
@@ -604,35 +631,46 @@ export default {
       this.lines = lines;
     },
 
-    ////
-    resize() {
-      this.chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
-    },
-
-    clearChart() {
-      this.lineSeries = [];
-      const chartContainer = document.getElementById("chart-container");
-
-      chartContainer.innerHTML = "";
-
-      const chartElem = document.createElement("div");
-      chartContainer.appendChild(chartElem);
-
-      this.chart = createChart(chartElem, this.chartOptions);
-    },
-
-    async fetchData() {
+    async initChart() {
       const response = await fetch(`http://${window.location.hostname}/files`);
       const serverFiiles: string[] = await response.json();
       // console.log(data);
 
       this.createLinesFromServer(serverFiiles);
+
+      const chartContainer = document.getElementById("chart-container");
+      this.chart = createChart(chartContainer, this.chartOptions);
+
+      await this.updateChartBtc({ isNew: true });
+      await this.updateChartIndicators({ isNew: true });
+      await this.updateChartTotal({ isNew: true });
+
+      await this.chart.timeScale().fitContent();
+    },
+
+    ////
+    updateLineVisibility(index: number) {
+      const line = this.lines[index];
+
+      line.disabled = !line.disabled;
+      this.lineSeries[index].applyOptions({
+        visible: !line.disabled,
+      });
+    },
+
+    setResizeListener() {
+      const handler = () =>
+        this.chart.resize(
+          window.innerWidth - 20,
+          this.chartOptions.height,
+          true
+        );
+
+      window.addEventListener("resize", handler);
     },
 
     getColor(index: number): string {
       const newIndex = index % this.colors.length;
-
-      console.log(index, this.colors.length, newIndex);
 
       if (index < this.colors.length) {
         return this.colors[index];
@@ -642,9 +680,16 @@ export default {
     },
   },
 
-  mounted() {
-    this.fetchData();
-    window.addEventListener("resize", this.resize);
+  async mounted() {
+    await this.initChart();
+    this.setResizeListener();
+  },
+
+  unmounted() {
+    if (this.chart) {
+      this.chart.remove();
+      this.chart = null;
+    }
   },
 };
 </script>
@@ -761,7 +806,7 @@ export default {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    background: aqua;
+    background: white;
     margin-bottom: 7px;
 
     &--disabled {
