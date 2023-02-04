@@ -291,7 +291,7 @@ export default {
       this.lineSeriesBtc = await this.chart.addLineSeries({
         color: "black",
         priceScaleId: "left",
-        lineWidth: this.lineWidth,
+        lineWidth: 1.5,
         priceLineVisible: false,
         visible: this.isLineBtcVisible,
       });
@@ -305,7 +305,7 @@ export default {
       this.lineSeriesTotal = await this.chart.addLineSeries({
         color: "white",
         priceScaleId: "right",
-        lineWidth: this.lineWidth,
+        lineWidth: 5,
         priceLineVisible: false,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
