@@ -473,13 +473,17 @@ export default {
         visible: !line.disabled,
       });
 
+      this.updateLineTota();
+    },
+
+    async updateLineTota() {
       const seriesDataTotal = await this.getSeriesDataTotal();
 
-      this.lineSeriesTotal.applyOptions({
+      await this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
-      this.lineSeriesTotal.setData(seriesDataTotal);
+      await this.lineSeriesTotal.setData(seriesDataTotal);
     },
 
     setResizeListener() {
@@ -494,13 +498,11 @@ export default {
     },
 
     getColor(index: number): string {
-      const newIndex = index % this.colors.length;
-
       if (index < this.colors.length) {
         return this.colors[index];
       }
 
-      return this.colors[newIndex];
+      return this.colors[index % this.colors.length];
     },
   },
 
