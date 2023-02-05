@@ -272,30 +272,30 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       this.chart = createChart(chartContainer, this.chartOptions);
 
-      await this.setupChartBtc();
-      await this.setupChartLines();
-      await this.setupChartTotal();
+      this.setupChartBtc();
+      this.setupChartLines();
+      this.setupChartTotal();
 
-      await this.chart.timeScale().fitContent();
+      this.chart.timeScale().fitContent();
     },
 
-    async setupChartLines() {
+    setupChartLines() {
       for (const line of this.lines) {
-        const lineSeries = await this.chart.addLineSeries({
+        const lineSeries = this.chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
           lineWidth: this.lineWidth,
           visible: !this.isLineTotalOnly && !line.disabled,
         });
 
-        const linesData = await this.getSeriesData(line.data);
+        const linesData = this.getSeriesData(line.data);
 
         this.lineSeries.push(lineSeries);
         lineSeries.setData(linesData);
       }
     },
 
-    async setupChartBtc() {
+    setupChartBtc() {
       let lineDataBtc = "";
 
       for (const line of this.lines) {
@@ -304,9 +304,9 @@ export default {
         if (isDataLonger) lineDataBtc = line.data;
       }
 
-      const seriesDataBtc = await this.getSeriesDataBtc(lineDataBtc);
+      const seriesDataBtc = this.getSeriesDataBtc(lineDataBtc);
 
-      this.lineSeriesBtc = await this.chart.addLineSeries({
+      this.lineSeriesBtc = this.chart.addLineSeries({
         color: "black",
         priceScaleId: "left",
         lineWidth: this.lineWidth,
@@ -317,10 +317,10 @@ export default {
       this.lineSeriesBtc.setData(seriesDataBtc);
     },
 
-    async setupChartTotal() {
-      const seriesDataTotal = await this.getSeriesDataTotal();
+    setupChartTotal() {
+      const seriesDataTotal = this.getSeriesDataTotal();
 
-      this.lineSeriesTotal = await this.chart.addLineSeries({
+      this.lineSeriesTotal = this.chart.addLineSeries({
         color: "white",
         priceScaleId: "right",
         lineWidth: this.lineWidth * 2,
@@ -331,7 +331,7 @@ export default {
     },
 
     ////
-    async getSeriesData(lineData: string[]) {
+    getSeriesData(lineData: string[]) {
       const data = lineData
         .map((row: string) => {
           const [, dateString, , , , , , , , profit] = row.split(",");
@@ -346,7 +346,7 @@ export default {
       return data;
     },
 
-    async getSeriesDataBtc(lineData: string[]) {
+    getSeriesDataBtc(lineData: string[]) {
       const data = lineData
         .map((row: string) => {
           const [, dateString, btcPrice, , , , , , ,] = row.split(",");
@@ -361,7 +361,7 @@ export default {
       return data;
     },
 
-    async getSeriesDataTotal() {
+    getSeriesDataTotal() {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
       const seriesDataTotal = lines
@@ -400,7 +400,7 @@ export default {
 
     ////
     // Create lines
-    async createLinesFromServer(serverFiiles: IServerFile[]) {
+    createLinesFromServer(serverFiiles: IServerFile[]) {
       const lines: ILine[] = serverFiiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
@@ -440,7 +440,7 @@ export default {
     },
 
     ////
-    async updateLineVisibility(index: number) {
+    updateLineVisibility(index: number) {
       const line = this.lines[index];
 
       line.disabled = !line.disabled;
@@ -448,18 +448,18 @@ export default {
         visible: !line.disabled,
       });
 
-      await this.updateLineTotal();
-      await this.chart.timeScale().fitContent();
+      this.updateLineTotal();
+      this.chart.timeScale().fitContent();
     },
 
-    async updateLineTotal() {
-      const seriesDataTotal = await this.getSeriesDataTotal();
+    updateLineTotal() {
+      const seriesDataTotal = this.getSeriesDataTotal();
 
-      await this.lineSeriesTotal.applyOptions({
+      this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
-      await this.lineSeriesTotal.setData(seriesDataTotal);
+      this.lineSeriesTotal.setData(seriesDataTotal);
     },
 
     ////
