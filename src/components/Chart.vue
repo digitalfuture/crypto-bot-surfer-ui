@@ -374,8 +374,13 @@ export default {
         .map((row) => {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
+        })
+        .filter((series, index, array) => {
+          const step = Math.round(array.length / this.lineMaxLength);
+          return index % step === 0;
         });
 
+      console.log(seriesDataTotal.length);
       return seriesDataTotal;
     },
 
@@ -450,6 +455,8 @@ export default {
 
     async updateLineTotal() {
       const seriesDataTotal = await this.getSeriesDataTotal();
+
+      console.log(seriesDataTotal.length);
 
       await this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
