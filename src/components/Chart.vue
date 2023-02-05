@@ -96,7 +96,7 @@ export default {
 
   data() {
     return {
-      lineMaxLength: 1000,
+      lineMaxLength: 500,
 
       chart: null,
 
@@ -230,8 +230,10 @@ export default {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
       const result = lines
-        .map((line) => line.data[0].split(",").reverse()[0])
-        .reduce((sum: number, value: string) => sum + parseFloat(value), 0);
+        .map((line) => line.data[line.data.length - 1].split(",").reverse()[0])
+        .reduce((sum: number, value: string) => {
+          return sum + parseFloat(value);
+        }, 0);
 
       return parseFloat((result / lines.length).toFixed(2)) || 0;
     },
@@ -319,31 +321,37 @@ export default {
 
     ////
     async getSeriesData(lineData: string[]) {
-      const data = [];
+      const data = lineData
+        .map((row: string) => {
+          const [, dateString, , , , , , , , profit] = row.split(",");
 
-      for (let i = 0; i < lineData.length; i++) {
-        const [, dateString, , , , , , , , profit] = lineData[i].split(",");
-
-        data.push({
-          time: Date.parse(dateString) / 1000,
-          value: parseFloat(profit),
+          return {
+            time: Date.parse(dateString) / 1000,
+            value: parseFloat(profit),
+          };
+        })
+        .filter((_, index, array) => {
+          const step = Math.round(array.length / this.lineMaxLength);
+          return index % step === 0 || index === array.length - 1;
         });
-      }
 
       return data;
     },
 
     async getSeriesDataBtc(lineData: string[]) {
-      const data = [];
+      const data = lineData
+        .map((row: string) => {
+          const [, dateString, btcPrice, , , , , , ,] = row.split(",");
 
-      for (let i = 0; i < lineData.length; i++) {
-        const [, dateString, btcPrice, , , , , , ,] = lineData[i].split(",");
-
-        data.push({
-          time: Date.parse(dateString) / 1000,
-          value: parseFloat(btcPrice),
+          return {
+            time: Date.parse(dateString) / 1000,
+            value: parseFloat(btcPrice),
+          };
+        })
+        .filter((_, index, array) => {
+          const step = Math.round(array.length / this.lineMaxLength);
+          return index % step === 0 || index === array.length - 1;
         });
-      }
 
       return data;
     },
@@ -375,12 +383,11 @@ export default {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
         })
-        .filter((series, index, array) => {
+        .filter((_, index, array) => {
           const step = Math.round(array.length / this.lineMaxLength);
-          return index % step === 0;
+          return index % step === 0 || index === array.length - 1;
         });
 
-      console.log(seriesDataTotal.length);
       return seriesDataTotal;
     },
 
@@ -455,8 +462,6 @@ export default {
 
     async updateLineTotal() {
       const seriesDataTotal = await this.getSeriesDataTotal();
-
-      console.log(seriesDataTotal.length);
 
       await this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
