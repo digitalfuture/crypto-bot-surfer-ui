@@ -96,7 +96,8 @@ export default {
 
   data() {
     return {
-      lineMaxLength: 500,
+      seriesMaxLength: 300,
+      lineWidth: 3,
 
       chart: null,
 
@@ -199,10 +200,6 @@ export default {
       return this.lines.length === 0;
     },
 
-    lineWidth() {
-      return 2;
-    },
-
     chartOptions() {
       return {
         offset: false,
@@ -279,7 +276,6 @@ export default {
         const linesData = await this.getSeriesData(line.data);
 
         this.lineSeries.push(lineSeries);
-
         lineSeries.setData(linesData);
       }
     },
@@ -298,7 +294,7 @@ export default {
       this.lineSeriesBtc = await this.chart.addLineSeries({
         color: "black",
         priceScaleId: "left",
-        lineWidth: this.lineWidth / 2,
+        lineWidth: this.lineWidth,
         visible: this.isLineBtcVisible,
         axisLabelVisible: true,
       });
@@ -331,7 +327,7 @@ export default {
           };
         })
         .filter((_, index, array) => {
-          const step = Math.round(array.length / this.lineMaxLength);
+          const step = Math.round(array.length / this.seriesMaxLength);
           return index % step === 0 || index === array.length - 1;
         });
 
@@ -349,7 +345,7 @@ export default {
           };
         })
         .filter((_, index, array) => {
-          const step = Math.round(array.length / this.lineMaxLength);
+          const step = Math.round(array.length / this.seriesMaxLength);
           return index % step === 0 || index === array.length - 1;
         });
 
@@ -384,7 +380,7 @@ export default {
           return row;
         })
         .filter((_, index, array) => {
-          const step = Math.round(array.length / this.lineMaxLength);
+          const step = Math.round(array.length / this.seriesMaxLength);
           return index % step === 0 || index === array.length - 1;
         });
 
@@ -457,7 +453,8 @@ export default {
         visible: !line.disabled,
       });
 
-      this.updateLineTotal();
+      await this.updateLineTotal();
+      await this.chart.timeScale().fitContent();
     },
 
     async updateLineTotal() {
