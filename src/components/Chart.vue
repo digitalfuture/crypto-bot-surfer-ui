@@ -96,7 +96,7 @@ export default {
 
   data() {
     return {
-      lineMaxNumber: 1000,
+      lineMaxLength: 1000,
 
       chart: null,
 
@@ -229,7 +229,6 @@ export default {
     summ() {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
-      // const result = JSON.parse(JSON.stringify(lines))
       const result = lines
         .map((line) => line.data[0].split(",").reverse()[0])
         .reduce((sum: number, value: string) => sum + parseFloat(value), 0);
@@ -272,7 +271,6 @@ export default {
           color: line.color,
           priceScaleId: "right",
           lineWidth: this.lineWidth,
-          priceLineVisible: false,
           visible: !this.isLineTotalOnly && !line.disabled,
         });
 
@@ -299,8 +297,8 @@ export default {
         color: "black",
         priceScaleId: "left",
         lineWidth: this.lineWidth / 2,
-        priceLineVisible: false,
         visible: this.isLineBtcVisible,
+        axisLabelVisible: true,
       });
 
       this.lineSeriesBtc.setData(seriesDataBtc);
@@ -313,7 +311,6 @@ export default {
         color: "white",
         priceScaleId: "right",
         lineWidth: this.lineWidth * 2,
-        priceLineVisible: false,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
@@ -322,27 +319,31 @@ export default {
 
     ////
     async getSeriesData(lineData: string[]) {
-      const data = lineData.map((row: string): ISeries => {
-        const [, dateString, , , , , , , , profit] = row.split(",");
+      const data = [];
 
-        return {
+      for (let i = 0; i < lineData.length; i++) {
+        const [, dateString, , , , , , , , profit] = lineData[i].split(",");
+
+        data.push({
           time: Date.parse(dateString) / 1000,
           value: parseFloat(profit),
-        };
-      });
+        });
+      }
 
       return data;
     },
 
     async getSeriesDataBtc(lineData: string[]) {
-      const data = lineData.map((row) => {
-        const [, dateString, btcPrice, , , , , , ,] = row.split(",");
+      const data = [];
 
-        return {
+      for (let i = 0; i < lineData.length; i++) {
+        const [, dateString, btcPrice, , , , , , ,] = lineData[i].split(",");
+
+        data.push({
           time: Date.parse(dateString) / 1000,
           value: parseFloat(btcPrice),
-        };
-      });
+        });
+      }
 
       return data;
     },
@@ -350,22 +351,16 @@ export default {
     async getSeriesDataTotal() {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
-      const dataProfitAll = lines.map((line: ILine) => {
-        const lineData = line.data.map((row: string) => {
+      const seriesDataTotal = lines
+        .flatMap((line: ILine): string[] => line.data)
+        .map((row: string): ISeries => {
           const [, dateString, , , , , , , profit] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
-            // value: parseFloat((+profit / lines.length).toFixed(2)),
             value: parseFloat(profit),
           };
-        });
-
-        return lineData;
-      });
-
-      const seriesDataTotal = dataProfitAll
-        .flatMap((seriesData) => seriesData)
+        })
         .sort((a, b) => a.time - b.time)
         .map((row, index, array) => {
           if (index === 0) return row;
@@ -374,14 +369,9 @@ export default {
             (array[index - 1].value + row.value).toFixed(2)
           );
 
-          if (row.time === array[index - 1].time) {
-            // console.log(index);
-            array[index - 1].toDelete = true;
-          }
-
           return row;
         })
-        .map((row, index) => {
+        .map((row) => {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
         });
@@ -433,7 +423,6 @@ export default {
     async initChart() {
       const response = await fetch(`http://${window.location.hostname}/files`);
       const serverFiiles: string[] = await response.json();
-      // console.log(data);
 
       this.createLinesFromServer(serverFiiles);
 
@@ -456,10 +445,10 @@ export default {
         visible: !line.disabled,
       });
 
-      this.updateLineTota();
+      this.updateLineTotal();
     },
 
-    async updateLineTota() {
+    async updateLineTotal() {
       const seriesDataTotal = await this.getSeriesDataTotal();
 
       await this.lineSeriesTotal.applyOptions({
