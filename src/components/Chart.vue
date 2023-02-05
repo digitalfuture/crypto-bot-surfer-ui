@@ -202,7 +202,6 @@ export default {
 
     chartOptions() {
       return {
-        offset: false,
         height: this.isFullScreen ? window.innerHeight : 340,
         width: window.innerWidth - 20,
         timeScale: {
@@ -264,6 +263,22 @@ export default {
 
   methods: {
     ////
+    async initChart() {
+      const response = await fetch(`http://${window.location.hostname}/files`);
+      const serverFiiles: string[] = await response.json();
+
+      this.createLinesFromServer(serverFiiles);
+
+      const chartContainer = document.getElementById("chart-container");
+      this.chart = createChart(chartContainer, this.chartOptions);
+
+      await this.setupChartBtc();
+      await this.setupChartLines();
+      await this.setupChartTotal();
+
+      await this.chart.timeScale().fitContent();
+    },
+
     async setupChartLines() {
       for (const line of this.lines) {
         const lineSeries = await this.chart.addLineSeries({
@@ -326,10 +341,7 @@ export default {
             value: parseFloat(profit),
           };
         })
-        .filter((_, index, array) => {
-          const step = Math.round(array.length / this.seriesMaxLength);
-          return index % step === 0 || index === array.length - 1;
-        });
+        .filter(this.maxLengthFilter);
 
       return data;
     },
@@ -344,10 +356,7 @@ export default {
             value: parseFloat(btcPrice),
           };
         })
-        .filter((_, index, array) => {
-          const step = Math.round(array.length / this.seriesMaxLength);
-          return index % step === 0 || index === array.length - 1;
-        });
+        .filter(this.maxLengthFilter);
 
       return data;
     },
@@ -379,12 +388,14 @@ export default {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
         })
-        .filter((_, index, array) => {
-          const step = Math.round(array.length / this.seriesMaxLength);
-          return index % step === 0 || index === array.length - 1;
-        });
+        .filter(this.maxLengthFilter);
 
       return seriesDataTotal;
+    },
+
+    maxLengthFilter(_, index, array) {
+      const step = Math.round(array.length / this.seriesMaxLength);
+      return index % step === 0 || index === array.length - 1;
     },
 
     ////
@@ -428,22 +439,6 @@ export default {
       this.lines = lines;
     },
 
-    async initChart() {
-      const response = await fetch(`http://${window.location.hostname}/files`);
-      const serverFiiles: string[] = await response.json();
-
-      this.createLinesFromServer(serverFiiles);
-
-      const chartContainer = document.getElementById("chart-container");
-      this.chart = createChart(chartContainer, this.chartOptions);
-
-      await this.setupChartBtc();
-      await this.setupChartLines();
-      await this.setupChartTotal();
-
-      await this.chart.timeScale().fitContent();
-    },
-
     ////
     async updateLineVisibility(index: number) {
       const line = this.lines[index];
@@ -467,6 +462,7 @@ export default {
       await this.lineSeriesTotal.setData(seriesDataTotal);
     },
 
+    ////
     setResizeListener() {
       const handler = () =>
         this.chart.resize(
