@@ -82,11 +82,13 @@ export interface ILine {
   data: string[];
   color: string;
   disabled: boolean;
+  marked?: boolean;
 }
 
 export interface ISeries {
   time: number;
   value: number;
+  trade?: string;
 }
 </script>
 
@@ -192,6 +194,10 @@ export default {
         "whitesmoke",
         "yellowgreen",
       ],
+
+      zoom: null,
+
+      lineSeriesMarked: null,
     };
   },
 
@@ -259,6 +265,35 @@ export default {
     isLineTotalVisible(value) {
       this.lineSeriesTotal.applyOptions({ visible: value });
     },
+
+    zoom(value) {
+      // const diffMs = value.to - value.from;
+      // const lineMarked = this.lines.find((line: ILine) => line.marked);
+      // console.log(lineMarked);
+      // condition: if (diffMs < 20000 && this.linesEnabled.length === 1) {
+      //   if (lineMarked) break condition;
+      //   const line = this.lines.find((line: ILine) => !line.disabled);
+      //   const index = this.lines.indexOf(line);
+      //   const lineData = this.getSeriesData(line.data);
+      //   const markers = lineData
+      //     .filter(({ trade }) => trade)
+      //     .map(({ trade, time }) => ({
+      //       time,
+      //       position: trade === "BUY" ? "belowBar" : "aboveBar",
+      //       color: trade === "BUY" ? "green" : "red",
+      //       shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+      //       id: `${time}-${trade}`,
+      //     }));
+      //   console.log(markers.slice(0, 2));
+      //   this.lineSeriesMarked = this.lineSeries[index];
+      //   this.lineSeriesMarked.setMarkers(markers);
+      // } else if (lineMarked) {
+      //   console.log("lineMarked");
+      //   this.lineSeriesMarked.setMarkers([]);
+      //   this.lineSeriesMarked = null;
+      //   lineMarked.marked = false;
+      // }
+    },
   },
 
   methods: {
@@ -277,6 +312,8 @@ export default {
       this.setupChartTotal();
 
       this.chart.timeScale().fitContent();
+
+      this.setZoomListener();
     },
 
     setupChartLines() {
@@ -331,14 +368,15 @@ export default {
     },
 
     ////
-    getSeriesData(lineData: string[]) {
+    getSeriesData(lineData: string[]): ISeries[] {
       const data = lineData
         .map((row: string) => {
-          const [, dateString, , , , , , , , profit] = row.split(",");
+          const [, dateString, , , , trade, , , , profit] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
             value: parseFloat(profit),
+            trade,
           };
         })
         .filter(this.maxLengthFilter);
@@ -393,7 +431,8 @@ export default {
       return seriesDataTotal;
     },
 
-    maxLengthFilter(_, index, array) {
+    maxLengthFilter(_: ISeries, index: number, array: []) {
+      if (this.linesEnabled.length === 1) return true;
       const step = Math.round(array.length / this.seriesMaxLength);
       return index % step === 0 || index === array.length - 1;
     },
@@ -448,11 +487,12 @@ export default {
         visible: !line.disabled,
       });
 
-      this.updateLineTotal();
+      this.updateLines(index);
       this.chart.timeScale().fitContent();
     },
 
-    updateLineTotal() {
+    updateLines(index: number) {
+      // Total
       const seriesDataTotal = this.getSeriesDataTotal();
 
       this.lineSeriesTotal.applyOptions({
@@ -460,6 +500,14 @@ export default {
       });
 
       this.lineSeriesTotal.setData(seriesDataTotal);
+
+      if (this.linesEnabled.length === 1) {
+        const line = this.lines[index];
+
+        // BTC / USDT
+        const seriesDataBtc = this.getSeriesDataBtc(line.data);
+        this.lineSeriesBtc.update(seriesDataBtc);
+      }
     },
 
     ////
@@ -474,6 +522,20 @@ export default {
       window.addEventListener("resize", handler);
     },
 
+    async setZoomListener() {
+      const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange) => {
+        if (newVisibleTimeRange === null) {
+          // handle null
+        }
+
+        this.zoom = newVisibleTimeRange;
+      };
+
+      await this.chart
+        .timeScale()
+        .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
+    },
+
     getColor(index: number): string {
       if (index < this.colors.length) {
         return this.colors[index];
@@ -483,8 +545,8 @@ export default {
     },
   },
 
-  async mounted() {
-    await this.initChart();
+  mounted() {
+    this.initChart();
     this.setResizeListener();
   },
 
