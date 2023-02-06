@@ -506,7 +506,7 @@ export default {
 
         // BTC / USDT
         const seriesDataBtc = this.getSeriesDataBtc(line.data);
-        this.lineSeriesBtc.update(seriesDataBtc);
+        this.lineSeriesBtc.setData(seriesDataBtc);
       }
     },
 
