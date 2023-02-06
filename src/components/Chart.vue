@@ -30,11 +30,9 @@
       />
 
       <div
-        class="summary info line clip-left"
+        class="summary info line clip-left cursor-pointer"
         :class="{
           'summary--disabled': !isLineTotalVisible || linesEnabled.length === 1,
-          'cursor-pointer': linesEnabled.length !== 1,
-          'cursor-default': linesEnabled.length === 1,
         }"
         @click="isLineTotalVisible = !isLineTotalVisible"
       >
