@@ -305,9 +305,9 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       this.chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartBtc();
+      // this.setupChartBtc();
       this.setupChartLines();
-      this.setupChartTotal();
+      // this.setupChartTotal();
 
       this.chart.timeScale().fitContent();
 
@@ -321,6 +321,7 @@ export default {
           priceScaleId: "right",
           lineWidth: this.lineWidth,
           visible: !this.isLineTotalOnly && !line.disabled,
+          priceLineVisible: false,
         });
 
         const linesData = this.getSeriesData(line.data);
