@@ -257,12 +257,16 @@ export default {
     },
 
     isLineBtcVisible(value) {
-      this.lineSeriesBtc.applyOptions({ visible: value });
+      this.updateLineBtc();
     },
 
-    isLineTotalVisible(value) {
-      this.lineSeriesTotal.applyOptions({ visible: value });
+    isLineTotalVisible() {
       this.updateLineTotal();
+    },
+
+    linesEnabled() {
+      this.updateLineTotal();
+      this.updateLineBtc();
     },
 
     zoom(value) {
@@ -488,31 +492,29 @@ export default {
         visible: !line.disabled,
       });
 
-      this.updateLines(index);
-      // this.chart.timeScale().fitContent();
-    },
-
-    updateChart() {},
-
-    updateLines(index: number) {
       // Total
-      const seriesDataTotal = this.getSeriesDataTotal();
-      this.lineSeriesTotal.applyOptions({
-        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
-      });
-      this.lineSeriesTotal.setData(seriesDataTotal);
+      this.updateLineTotal();
 
       // BTC / USDT
-      if (this.linesEnabled.length === 1) {
-        const line = this.lines[index];
-        const seriesDataBtc = this.getSeriesDataBtc(line.data);
-        this.lineSeriesBtc.setData(seriesDataBtc);
-      }
+      this.updateLineBtc(index);
     },
 
     updateLineTotal() {
+      this.lineSeriesTotal.applyOptions({
+        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
+      });
+
       const seriesDataTotal = this.getSeriesDataTotal();
       this.lineSeriesTotal.setData(seriesDataTotal);
+    },
+
+    updateLineBtc() {
+      this.lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
+
+      if (this.linesEnabled.length === 1) {
+        const seriesDataBtc = this.getSeriesDataBtc(this.linesEnabled[0].data);
+        this.lineSeriesBtc.setData(seriesDataBtc);
+      }
     },
 
     ////

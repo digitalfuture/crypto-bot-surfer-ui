@@ -48,7 +48,7 @@ function readFiles() {
       });
 
       // console.log("file;", file);
-      fileList.push({ name: fileName, data });
+      fileList.push({ name: fileName, data: fileData });
     }
 
     // console.log(fileList);
