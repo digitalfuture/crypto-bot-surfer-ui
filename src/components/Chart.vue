@@ -497,7 +497,6 @@ export default {
     updateLines(index: number) {
       // Total
       const seriesDataTotal = this.getSeriesDataTotal();
-      console.log(this.isLineTotalVisible);
       this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
