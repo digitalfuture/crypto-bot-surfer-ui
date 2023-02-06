@@ -486,7 +486,7 @@ export default {
       });
 
       this.updateLines(index);
-      this.chart.timeScale().fitContent();
+      // this.chart.timeScale().fitContent();
     },
 
     updateLines(index: number) {
