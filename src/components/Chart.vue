@@ -262,6 +262,7 @@ export default {
 
     isLineTotalVisible(value) {
       this.lineSeriesTotal.applyOptions({ visible: value });
+      this.updateLineTotal();
     },
 
     zoom(value) {
@@ -305,9 +306,9 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       this.chart = createChart(chartContainer, this.chartOptions);
 
-      // this.setupChartBtc();
+      this.setupChartBtc();
       this.setupChartLines();
-      // this.setupChartTotal();
+      this.setupChartTotal();
 
       this.chart.timeScale().fitContent();
 
@@ -347,7 +348,7 @@ export default {
         priceScaleId: "left",
         lineWidth: this.lineWidth,
         visible: this.isLineBtcVisible,
-        axisLabelVisible: true,
+        priceLineVisible: false,
       });
 
       this.lineSeriesBtc.setData(seriesDataBtc);
@@ -361,6 +362,7 @@ export default {
         priceScaleId: "right",
         lineWidth: this.lineWidth * 2,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
+        priceLineVisible: false,
       });
 
       this.lineSeriesTotal.setData(seriesDataTotal);
@@ -490,23 +492,28 @@ export default {
       // this.chart.timeScale().fitContent();
     },
 
+    updateChart() {},
+
     updateLines(index: number) {
       // Total
       const seriesDataTotal = this.getSeriesDataTotal();
-
+      console.log(this.isLineTotalVisible);
       this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
-
       this.lineSeriesTotal.setData(seriesDataTotal);
 
+      // BTC / USDT
       if (this.linesEnabled.length === 1) {
         const line = this.lines[index];
-
-        // BTC / USDT
         const seriesDataBtc = this.getSeriesDataBtc(line.data);
         this.lineSeriesBtc.setData(seriesDataBtc);
       }
+    },
+
+    updateLineTotal() {
+      const seriesDataTotal = this.getSeriesDataTotal();
+      this.lineSeriesTotal.setData(seriesDataTotal);
     },
 
     ////
