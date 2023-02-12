@@ -231,6 +231,7 @@ export default {
         },
         rightPriceScale: {
           visible: true,
+          autoScale: true,
         },
         leftPriceScale: {
           visible: true,
@@ -516,31 +517,32 @@ export default {
 
     ////
     updateLineVisibility(index: number) {
+      // Total line
+      this.updateLineTotal();
+
+      // BTC / USDT line
+      this.updateLineBtc(index);
+
       const line = this.lines[index];
 
+      // Line
       line.disabled = !line.disabled;
       this.lineSeries[index].applyOptions({
         visible: !line.disabled,
       });
-
-      // Total
-      this.updateLineTotal();
-
-      // BTC / USDT
-      this.updateLineBtc(index);
     },
 
     updateLineTotal() {
       const islastLine = this.linesEnabled.length === 1;
 
-      if (!islastLine) {
-        this.lineSeriesTotal.applyOptions({
-          visible: this.isLineTotalVisible,
-        });
+      this.lineSeriesTotal.applyOptions({
+        visible: this.isLineTotalVisible && !islastLine,
+      });
 
-        const seriesDataTotal = this.getSeriesDataTotal();
-        this.lineSeriesTotal.setData(seriesDataTotal);
-      }
+      const seriesDataTotal = this.getSeriesDataTotal();
+      this.lineSeriesTotal.setData(seriesDataTotal);
+
+      this.chart.timeScale().fitContent();
     },
 
     updateLineBtc() {
