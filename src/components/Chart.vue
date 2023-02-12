@@ -500,12 +500,16 @@ export default {
     },
 
     updateLineTotal() {
-      this.lineSeriesTotal.applyOptions({
-        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
-      });
+      const islastLine = this.linesEnabled.length === 1;
 
-      const seriesDataTotal = this.getSeriesDataTotal();
-      this.lineSeriesTotal.setData(seriesDataTotal);
+      if (!islastLine) {
+        this.lineSeriesTotal.applyOptions({
+          visible: this.isLineTotalVisible,
+        });
+
+        const seriesDataTotal = this.getSeriesDataTotal();
+        this.lineSeriesTotal.setData(seriesDataTotal);
+      }
     },
 
     updateLineBtc() {
