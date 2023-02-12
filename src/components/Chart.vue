@@ -234,6 +234,7 @@ export default {
           autoScale: true,
         },
         leftPriceScale: {
+          autoScale: true,
           visible: true,
         },
         layout: {
@@ -518,6 +519,7 @@ export default {
       this.lines = lines;
     },
 
+    ////
     updatelineTotalVisibility() {
       const isLastLine = this.linesEnabled.length === 1;
 
@@ -526,8 +528,13 @@ export default {
       }
     },
 
-    ////
     updateLineVisibility(index: number) {
+      // BTC / USDT line
+      this.updateLineBtc(index);
+
+      // Total line
+      this.updateLineTotal();
+
       // Line
       const line = this.lines[index];
 
@@ -535,12 +542,6 @@ export default {
       this.lineSeries[index].applyOptions({
         visible: !line.disabled,
       });
-
-      // BTC / USDT line
-      this.updateLineBtc(index);
-
-      // Total line
-      this.updateLineTotal();
     },
 
     updateLineTotal() {
