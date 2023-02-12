@@ -342,7 +342,7 @@ export default {
 
       this.chart.timeScale().fitContent();
 
-      this.setZoomListener();
+      // this.setZoomListener();
     },
 
     setupChartLines() {
@@ -355,6 +355,7 @@ export default {
           lineWidth: this.lineWidth,
           visible: !this.isLineTotalOnly && !line.disabled,
           priceLineVisible: false,
+          lastValueVisible: true,
         });
 
         const lineData = this.getSeriesData(line.data);
@@ -383,6 +384,7 @@ export default {
         lineWidth: this.lineWidth,
         visible: this.isLineBtcVisible,
         priceLineVisible: false,
+        lastValueVisible: true,
       });
 
       this.lineSeriesBtc.setData(seriesDataBtc);
@@ -397,6 +399,7 @@ export default {
         lineWidth: this.lineWidth * 2,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
         priceLineVisible: false,
+        lastValueVisible: true,
       });
 
       this.lineSeriesTotal.setData(seriesDataTotal);
@@ -517,23 +520,24 @@ export default {
 
     ////
     updateLineVisibility(index: number) {
-      // Total line
-      this.updateLineTotal();
-
-      // BTC / USDT line
-      this.updateLineBtc(index);
-
+      // Line
       const line = this.lines[index];
 
-      // Line
       line.disabled = !line.disabled;
       this.lineSeries[index].applyOptions({
         visible: !line.disabled,
       });
+
+      // BTC / USDT line
+      this.updateLineBtc(index);
+
+      // Total line
+      this.updateLineTotal();
     },
 
     updateLineTotal() {
       const islastLine = this.linesEnabled.length === 1;
+      const isNoLine = this.linesEnabled.length === 0;
 
       this.lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && !islastLine,
@@ -542,7 +546,10 @@ export default {
       const seriesDataTotal = this.getSeriesDataTotal();
       this.lineSeriesTotal.setData(seriesDataTotal);
 
-      this.chart.timeScale().fitContent();
+      this.lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
+
+      if (isNoLine && this.isLineBtcVisible)
+        this.chart.timeScale().fitContent();
     },
 
     updateLineBtc() {
@@ -766,12 +773,13 @@ export default {
     padding-inline: 5px;
     flex-wrap: nowrap;
 
-    .line__name {
+    .line__name,
+    .line__last-value {
       background: var(--background-color);
+      padding-inline: 7px;
     }
 
     .line__last-value {
-      background: var(--background-color);
       margin-left: 7px;
       font-weight: bold;
     }
