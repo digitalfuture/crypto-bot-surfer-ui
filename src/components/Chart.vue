@@ -36,7 +36,10 @@
         }"
         @click="isLineTotalVisible = !isLineTotalVisible"
       >
-        <span class="info__details"> TOTAL: {{ summ }}%</span>
+        <div class="line__details info">
+          <span class="line__name">TOTAL</span>
+          <span class="line__last-value"> {{ summ }}%</span>
+        </div>
       </div>
 
       <div
@@ -44,7 +47,10 @@
         :class="{ 'btc--disabled': !isLineBtcVisible }"
         @click="isLineBtcVisible = !isLineBtcVisible"
       >
-        <span class="line__name info">BTC / USDT</span>
+        <div class="line__details info">
+          <span class="line__name">BTC / USDT</span>
+          <span class="line__last-value"> {{ btcTotalProfit }}% </span>
+        </div>
       </div>
     </div>
 
@@ -61,7 +67,13 @@
         }"
         @click="updateLineVisibility(index)"
       >
-        <span class="line__name" v-text="line.name" />
+        <div class="line__details">
+          <span class="line__name" v-text="line.name" />
+          <span
+            class="line__last-value"
+            v-text="linesData[index][linesData[index].length - 1].value"
+          />
+        </div>
       </div>
     </section>
   </template>
@@ -97,13 +109,16 @@ export default {
   data() {
     return {
       seriesMaxLength: 300,
-      lineWidth: 3,
+      lineWidth: 2.5,
 
       chart: null,
 
       isFullScreen: false,
 
       lines: [],
+      linesData: [],
+
+      lineDataBtc: null,
 
       lineSeries: [],
       lineSeriesBtc: [],
@@ -245,6 +260,16 @@ export default {
     isLineTotalOnly() {
       return this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
+
+    btcTotalProfit() {
+      const firstValue = this.lineDataBtc[0]?.value;
+      const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1]?.value;
+      const diff = lastValue - firstValue;
+      const onePercent = firstValue / 100;
+      const profit = diff / onePercent;
+
+      return profit.toFixed(2);
+    },
   },
 
   watch: {
@@ -320,6 +345,8 @@ export default {
     },
 
     setupChartLines() {
+      this.linesData = [];
+
       for (const line of this.lines) {
         const lineSeries = this.chart.addLineSeries({
           color: line.color,
@@ -329,15 +356,17 @@ export default {
           priceLineVisible: false,
         });
 
-        const linesData = this.getSeriesData(line.data);
+        const lineData = this.getSeriesData(line.data);
 
         this.lineSeries.push(lineSeries);
-        lineSeries.setData(linesData);
+        lineSeries.setData(lineData);
+
+        this.linesData.push(lineData);
       }
     },
 
     setupChartBtc() {
-      let lineDataBtc = "";
+      let lineDataBtc = [];
 
       for (const line of this.lines) {
         const isDataLonger = lineDataBtc.length < line.data.length;
@@ -400,6 +429,8 @@ export default {
           };
         })
         .filter(this.maxLengthFilter);
+
+      this.lineDataBtc = data;
 
       return data;
     },
@@ -726,11 +757,22 @@ export default {
     background: lightgrey !important;
   }
 
-  .line__name {
-    display: inline-block;
+  .line__details {
+    display: flex;
+    justify-content: space-between;
     margin: 12px;
-    background: var(--background-color);
     padding-inline: 5px;
+    flex-wrap: nowrap;
+
+    .line__name {
+      background: var(--background-color);
+    }
+
+    .line__last-value {
+      background: var(--background-color);
+      margin-left: 7px;
+      font-weight: bold;
+    }
   }
 }
 
