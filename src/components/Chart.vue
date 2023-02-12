@@ -34,7 +34,7 @@
         :class="{
           'summary--disabled': !isLineTotalVisible || linesEnabled.length === 1,
         }"
-        @click="isLineTotalVisible = !isLineTotalVisible"
+        @click="updatelineTotalVisibility"
       >
         <div class="line__details info">
           <span class="line__name">TOTAL</span>
@@ -516,6 +516,14 @@ export default {
       );
 
       this.lines = lines;
+    },
+
+    updatelineTotalVisibility() {
+      const isLastLine = this.linesEnabled.length === 1;
+
+      if (!isLastLine) {
+        this.isLineTotalVisible = !this.isLineTotalVisible;
+      }
     },
 
     ////
