@@ -92,7 +92,6 @@ export interface ILine {
   data: string[];
   color: string;
   disabled: boolean;
-  marked?: boolean;
 }
 
 export interface ISeries {
@@ -115,9 +114,8 @@ export default {
     return {
       seriesMaxLength: 300,
       lineWidth: 2.5,
-
       isFullScreen: false,
-
+      isLineMarked: false,
       lines: [],
       linesData: [],
 
@@ -210,6 +208,8 @@ export default {
       zoom: null,
 
       lineSeriesMarked: null,
+
+      zoomCondition: false,
     };
   },
 
@@ -291,32 +291,27 @@ export default {
     },
 
     zoom(value) {
-      // const diffMs = value.to - value.from;
-      // const lineMarked = this.lines.find((line: ILine) => line.marked);
-      // console.log(lineMarked);
-      // condition: if (diffMs < 20000 && this.linesEnabled.length === 1) {
-      //   if (lineMarked) break condition;
-      //   const line = this.lines.find((line: ILine) => !line.disabled);
-      //   const index = this.lines.indexOf(line);
-      //   const lineData = this.getSeriesData(line.data);
-      //   const markers = lineData
-      //     .filter(({ trade }) => trade)
-      //     .map(({ trade, time }) => ({
-      //       time,
-      //       position: trade === "BUY" ? "belowBar" : "aboveBar",
-      //       color: trade === "BUY" ? "green" : "red",
-      //       shape: trade === "BUY" ? "arrowUp" : "arrowDown",
-      //       id: `${time}-${trade}`,
-      //     }));
-      //   console.log(markers.slice(0, 2));
-      //   lineSeriesMarked = lineSeries[index];
-      //   lineSeriesMarked.setMarkers(markers);
-      // } else if (lineMarked) {
-      //   console.log("lineMarked");
-      //   lineSeriesMarked.setMarkers([]);
-      //   lineSeriesMarked = null;
-      //   lineMarked.marked = false;
-      // }
+      const diffMs = value.to - value.from;
+      const zoomCondition = diffMs < 20000;
+
+      this.zoomCondition = zoomCondition;
+
+      if (this.zoomCondition) {
+        this.setMarks();
+      } else {
+        this.clearMarks();
+      }
+    },
+
+    linesEnabled(lines) {
+      if (lines.length > 1) {
+        this.clearMarks();
+      } else {
+        if (this.zoomCondition) this.setMarks();
+      }
+
+      this.updateLineTotal();
+      this.updateLineBtc();
     },
   },
 
@@ -337,7 +332,7 @@ export default {
 
       chart.timeScale().fitContent();
 
-      // this.setZoomListener();
+      this.setupZoomListener();
     },
 
     setupChartLines() {
@@ -467,6 +462,8 @@ export default {
     },
 
     maxLengthFilter(_: ISeries, index: number, array: []) {
+      return true;
+
       if (this.linesEnabled.length === 1) return true;
       if (array.length < this.seriesMaxLength) return true;
 
@@ -570,14 +567,14 @@ export default {
     },
 
     ////
-    setResizeListener() {
+    setupResizeListener() {
       const handler = () =>
         chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
 
       window.addEventListener("resize", handler);
     },
 
-    async setZoomListener() {
+    async setupZoomListener() {
       const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange) => {
         if (newVisibleTimeRange === null) {
           // handle null
@@ -586,7 +583,7 @@ export default {
         this.zoom = newVisibleTimeRange;
       };
 
-      await this.chart
+      await chart
         .timeScale()
         .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
     },
@@ -598,11 +595,37 @@ export default {
 
       return this.colors[index % this.colors.length];
     },
+
+    setMarks() {
+      if (this.linesEnabled.length === 1) {
+        const line = this.lines.find((line: ILine) => !line.disabled);
+        const index = this.lines.indexOf(line);
+        const lineData = this.getSeriesData(line.data);
+        const markers = lineData
+          .filter(({ trade }) => trade)
+          .map(({ trade, time }) => ({
+            time,
+            position: trade === "BUY" ? "belowBar" : "aboveBar",
+            color: trade === "BUY" ? "green" : "red",
+            shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+            id: `${time}-${trade}`,
+          }));
+
+        this.lineSeriesMarked = lineSeries[index];
+        this.lineSeriesMarked.setMarkers(markers);
+        this.lineMarked = true;
+      }
+    },
+
+    clearMarks() {
+      this.lineSeriesMarked?.setMarkers([]);
+      this.lineSeriesMarked = null;
+    },
   },
 
   mounted() {
     this.initChart();
-    this.setResizeListener();
+    this.setupResizeListener();
   },
 
   unmounted() {
