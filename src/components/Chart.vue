@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { createChart } from "lightweight-charts";
+import Chart, { createChart } from "lightweight-charts";
 
 export interface IServerFile {
   name: string;
@@ -103,7 +103,10 @@ export interface ISeries {
 </script>
 
 <script lang="ts">
-let chart;
+let chart = null;
+let lineSeries = [];
+let lineSeriesBtc = null;
+let lineSeriesTotal = null;
 
 export default {
   name: "Chart",
@@ -113,18 +116,12 @@ export default {
       seriesMaxLength: 300,
       lineWidth: 2.5,
 
-      chart: null,
-
       isFullScreen: false,
 
       lines: [],
       linesData: [],
 
       lineDataBtc: null,
-
-      lineSeries: [],
-      lineSeriesBtc: [],
-      lineSeriesTotal: [],
 
       isLineBtcVisible: true,
       isLineTotalVisible: true,
@@ -312,12 +309,12 @@ export default {
       //       id: `${time}-${trade}`,
       //     }));
       //   console.log(markers.slice(0, 2));
-      //   this.lineSeriesMarked = this.lineSeries[index];
-      //   this.lineSeriesMarked.setMarkers(markers);
+      //   lineSeriesMarked = lineSeries[index];
+      //   lineSeriesMarked.setMarkers(markers);
       // } else if (lineMarked) {
       //   console.log("lineMarked");
-      //   this.lineSeriesMarked.setMarkers([]);
-      //   this.lineSeriesMarked = null;
+      //   lineSeriesMarked.setMarkers([]);
+      //   lineSeriesMarked = null;
       //   lineMarked.marked = false;
       // }
     },
@@ -347,7 +344,7 @@ export default {
       this.linesData = [];
 
       for (const line of this.lines) {
-        const lineSeries = chart.addLineSeries({
+        const newLineSeries = chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
           lineWidth: this.lineWidth,
@@ -358,8 +355,8 @@ export default {
 
         const lineData = this.getSeriesData(line.data);
 
-        this.lineSeries.push(lineSeries);
-        lineSeries.setData(lineData);
+        lineSeries.push(newLineSeries);
+        newLineSeries.setData(lineData);
 
         this.linesData.push(lineData);
       }
@@ -376,7 +373,7 @@ export default {
 
       const seriesDataBtc = this.getSeriesDataBtc(lineDataBtc);
 
-      this.lineSeriesBtc = chart.addLineSeries({
+      lineSeriesBtc = chart.addLineSeries({
         color: "black",
         priceScaleId: "left",
         lineWidth: this.lineWidth,
@@ -385,13 +382,13 @@ export default {
         lastValueVisible: true,
       });
 
-      this.lineSeriesBtc.setData(seriesDataBtc);
+      lineSeriesBtc.setData(seriesDataBtc);
     },
 
     setupChartTotal() {
       const seriesDataTotal = this.getSeriesDataTotal();
 
-      this.lineSeriesTotal = chart.addLineSeries({
+      lineSeriesTotal = chart.addLineSeries({
         color: "white",
         priceScaleId: "right",
         lineWidth: this.lineWidth * 2,
@@ -400,7 +397,7 @@ export default {
         lastValueVisible: true,
       });
 
-      this.lineSeriesTotal.setData(seriesDataTotal);
+      lineSeriesTotal.setData(seriesDataTotal);
     },
 
     ////
@@ -542,7 +539,7 @@ export default {
       const line = this.lines[index];
 
       line.disabled = !line.disabled;
-      this.lineSeries[index].applyOptions({
+      lineSeries[index].applyOptions({
         visible: !line.disabled,
       });
     },
@@ -551,24 +548,24 @@ export default {
       const islastLine = this.linesEnabled.length === 1;
       const isNoLine = this.linesEnabled.length === 0;
 
-      this.lineSeriesTotal.applyOptions({
+      lineSeriesTotal.applyOptions({
         visible: this.isLineTotalVisible && !islastLine,
       });
 
       const seriesDataTotal = this.getSeriesDataTotal();
-      this.lineSeriesTotal.setData(seriesDataTotal);
+      lineSeriesTotal.setData(seriesDataTotal);
 
-      this.lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
+      lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
       if (isNoLine && this.isLineBtcVisible) chart.timeScale().fitContent();
     },
 
     updateLineBtc() {
-      this.lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
+      lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
       if (this.linesEnabled.length === 1) {
         const seriesDataBtc = this.getSeriesDataBtc(this.linesEnabled[0].data);
-        this.lineSeriesBtc.setData(seriesDataBtc);
+        lineSeriesBtc.setData(seriesDataBtc);
       }
     },
 
@@ -609,10 +606,8 @@ export default {
   },
 
   unmounted() {
-    if (this.chart) {
-      chart.remove();
-      chart = null;
-    }
+    chart.remove();
+    chart = null;
   },
 };
 </script>
