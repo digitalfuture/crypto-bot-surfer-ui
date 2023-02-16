@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import Chart, { createChart } from "lightweight-charts";
+import { createChart } from "lightweight-charts";
 
 export interface IServerFile {
   name: string;
