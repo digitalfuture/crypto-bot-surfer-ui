@@ -414,7 +414,7 @@ export default {
 
           return {
             time: Date.parse(dateString) / 1000,
-            value: parseFloat(profit),
+            value: parseFloat(parseFloat(profit).toFixed(2)),
             trade,
           };
         })
