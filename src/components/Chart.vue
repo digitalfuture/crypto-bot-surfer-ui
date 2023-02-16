@@ -21,13 +21,16 @@
     />
 
     <div class="info-container">
-      <input
-        type="file"
-        multiple
-        ref="input"
-        class="input info cursor-pointer"
-        @change="createLinesFromInput"
-      />
+      <div
+        class="line btc clip-right cursor-pointer"
+        :class="{ 'btc--disabled': !isLineBtcVisible }"
+        @click="isLineBtcVisible = !isLineBtcVisible"
+      >
+        <div class="line__details info">
+          <span class="line__name">BTC / USDT</span>
+          <span class="line__last-value"> {{ btcTotalProfit }}% </span>
+        </div>
+      </div>
 
       <div
         class="summary info line clip-left cursor-pointer"
@@ -42,16 +45,13 @@
         </div>
       </div>
 
-      <div
-        class="line btc clip-right cursor-pointer"
-        :class="{ 'btc--disabled': !isLineBtcVisible }"
-        @click="isLineBtcVisible = !isLineBtcVisible"
-      >
-        <div class="line__details info">
-          <span class="line__name">BTC / USDT</span>
-          <span class="line__last-value"> {{ btcTotalProfit }}% </span>
-        </div>
-      </div>
+      <input
+        type="file"
+        multiple
+        ref="input"
+        class="input info cursor-pointer"
+        @change="createLinesFromInput"
+      />
     </div>
 
     <section ref="legend" class="legend">
@@ -692,7 +692,6 @@ export default {
   }
 
   input[type="file"] {
-    flex-grow: 0;
     background: var(--background-color);
     position: relative;
     padding: 5px;
