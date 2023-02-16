@@ -33,7 +33,7 @@
       </div>
 
       <div
-        class="summary info line clip-left cursor-pointer"
+        class="summary info line clip-right cursor-pointer"
         :class="{
           'summary--disabled': !isLineTotalVisible || linesEnabled.length === 1,
         }"
@@ -49,7 +49,7 @@
         type="file"
         multiple
         ref="input"
-        class="input info cursor-pointer"
+        class="input info clip-left cursor-pointer"
         @change="createLinesFromInput"
       />
     </div>
@@ -622,11 +622,13 @@ export default {
 </script>
 
 <style lang="scss">
-.clip-right {
+.clip-right,
+.clip-right:before {
   clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
 }
 
-.clip-left {
+.clip-left,
+.clip-left:before {
   clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
 }
 
@@ -691,7 +693,7 @@ export default {
     min-width: 33.3%;
   }
 
-  input[type="file"] {
+  .input {
     background: var(--background-color);
     position: relative;
     padding: 5px;
@@ -709,7 +711,6 @@ export default {
       width: 100%;
       height: 100%;
       background: black;
-      clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
     }
 
     &:after {
