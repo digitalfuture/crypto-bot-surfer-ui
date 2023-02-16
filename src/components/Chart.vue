@@ -103,6 +103,8 @@ export interface ISeries {
 </script>
 
 <script lang="ts">
+let chart;
+
 export default {
   name: "Chart",
 
@@ -277,9 +279,9 @@ export default {
   watch: {
     isFullScreen(isFullscreen) {
       if (isFullscreen) {
-        this.chart.applyOptions({ height: window.innerHeight });
+        chart.applyOptions({ height: window.innerHeight });
       } else {
-        this.chart.applyOptions({ height: this.chartOptions.height });
+        chart.applyOptions({ height: this.chartOptions.height });
       }
     },
 
@@ -330,13 +332,13 @@ export default {
       this.createLinesFromServer(serverFiiles);
 
       const chartContainer = document.getElementById("chart-container");
-      this.chart = createChart(chartContainer, this.chartOptions);
+      chart = createChart(chartContainer, this.chartOptions);
 
       this.setupChartBtc();
       this.setupChartLines();
       this.setupChartTotal();
 
-      this.chart.timeScale().fitContent();
+      chart.timeScale().fitContent();
 
       // this.setZoomListener();
     },
@@ -345,7 +347,7 @@ export default {
       this.linesData = [];
 
       for (const line of this.lines) {
-        const lineSeries = this.chart.addLineSeries({
+        const lineSeries = chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
           lineWidth: this.lineWidth,
@@ -374,7 +376,7 @@ export default {
 
       const seriesDataBtc = this.getSeriesDataBtc(lineDataBtc);
 
-      this.lineSeriesBtc = this.chart.addLineSeries({
+      this.lineSeriesBtc = chart.addLineSeries({
         color: "black",
         priceScaleId: "left",
         lineWidth: this.lineWidth,
@@ -389,7 +391,7 @@ export default {
     setupChartTotal() {
       const seriesDataTotal = this.getSeriesDataTotal();
 
-      this.lineSeriesTotal = this.chart.addLineSeries({
+      this.lineSeriesTotal = chart.addLineSeries({
         color: "white",
         priceScaleId: "right",
         lineWidth: this.lineWidth * 2,
@@ -558,8 +560,7 @@ export default {
 
       this.lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
-      if (isNoLine && this.isLineBtcVisible)
-        this.chart.timeScale().fitContent();
+      if (isNoLine && this.isLineBtcVisible) chart.timeScale().fitContent();
     },
 
     updateLineBtc() {
@@ -574,11 +575,7 @@ export default {
     ////
     setResizeListener() {
       const handler = () =>
-        this.chart.resize(
-          window.innerWidth - 20,
-          this.chartOptions.height,
-          true
-        );
+        chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
 
       window.addEventListener("resize", handler);
     },
@@ -613,8 +610,8 @@ export default {
 
   unmounted() {
     if (this.chart) {
-      this.chart.remove();
-      this.chart = null;
+      chart.remove();
+      chart = null;
     }
   },
 };
