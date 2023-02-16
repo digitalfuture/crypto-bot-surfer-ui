@@ -474,6 +474,8 @@ export default {
 
     maxLengthFilter(_: ISeries, index: number, array: []) {
       if (this.linesEnabled.length === 1) return true;
+      if (array.length < this.seriesMaxLength) return true;
+
       const step = Math.round(array.length / this.seriesMaxLength);
       return index % step === 0 || index === array.length - 1;
     },
