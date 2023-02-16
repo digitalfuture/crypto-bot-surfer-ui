@@ -33,9 +33,9 @@
       </div>
 
       <div
-        class="summary info line clip-right cursor-pointer"
+        class="total info line clip-right cursor-pointer"
         :class="{
-          'summary--disabled': !isLineTotalVisible || linesEnabled.length === 1,
+          'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
         }"
         @click="updatelineTotalVisibility"
       >
@@ -728,7 +728,7 @@ export default {
     }
   }
 
-  .summary {
+  .total {
     text-align: end;
     display: flex;
     justify-content: flex-end;
