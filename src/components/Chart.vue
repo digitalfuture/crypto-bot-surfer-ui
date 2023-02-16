@@ -24,7 +24,7 @@
       <div
         class="line btc clip-right cursor-pointer"
         :class="{ 'btc--disabled': !isLineBtcVisible }"
-        @click="isLineBtcVisible = !isLineBtcVisible"
+        @click="updateLineBtcVisibility"
       >
         <div class="line__details info">
           <span class="line__name">BTC / USDT</span>
@@ -41,7 +41,7 @@
       >
         <div class="line__details info">
           <span class="line__name">TOTAL</span>
-          <span class="line__last-value"> {{ summ }}%</span>
+          <span class="line__last-value"> {{ total }}%</span>
         </div>
       </div>
 
@@ -243,7 +243,7 @@ export default {
       };
     },
 
-    summ() {
+    total() {
       const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
 
       const result = lines
@@ -291,11 +291,6 @@ export default {
       this.updateLineTotal();
     },
 
-    linesEnabled() {
-      this.updateLineTotal();
-      this.updateLineBtc();
-    },
-
     zoom(value) {
       // const diffMs = value.to - value.from;
       // const lineMarked = this.lines.find((line: ILine) => line.marked);
@@ -330,7 +325,7 @@ export default {
     ////
     async initChart() {
       const response = await fetch(`http://${window.location.hostname}/files`);
-      const serverFiiles: string[] = await response.json();
+      const serverFiiles: IServerFile[] = await response.json();
 
       this.createLinesFromServer(serverFiiles);
 
@@ -522,6 +517,10 @@ export default {
     },
 
     ////
+    updateLineBtcVisibility() {
+      this.isLineBtcVisible = !this.isLineBtcVisible;
+    },
+
     updatelineTotalVisibility() {
       const isLastLine = this.linesEnabled.length === 1;
 
