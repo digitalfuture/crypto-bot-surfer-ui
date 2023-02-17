@@ -295,12 +295,6 @@ export default {
       const zoomCondition = diffMs < 20000;
 
       this.zoomCondition = zoomCondition;
-
-      if (this.zoomCondition) {
-        this.setMarks();
-      } else {
-        this.clearMarks();
-      }
     },
 
     zoomCondition() {
@@ -347,7 +341,7 @@ export default {
     },
 
     setupChartLines() {
-      this.linesData = [];
+      const linesData = [];
 
       for (const line of this.lines) {
         const newLineSeries = chart.addLineSeries({
@@ -359,13 +353,15 @@ export default {
           lastValueVisible: true,
         });
 
-        const lineData = this.getSeriesData(line.data);
+        const seriesData = this.getSeriesData(line.data);
 
         lineSeries.push(newLineSeries);
-        newLineSeries.setData(lineData);
+        newLineSeries.setData(seriesData);
 
-        this.linesData.push(lineData);
+        linesData.push(seriesData);
       }
+
+      this.linesData = linesData;
     },
 
     setupChartBtc() {
@@ -392,8 +388,6 @@ export default {
     },
 
     setupChartTotal() {
-      const seriesDataTotal = this.getSeriesDataTotal();
-
       lineSeriesTotal = chart.addLineSeries({
         color: "white",
         priceScaleId: "right",
@@ -403,6 +397,7 @@ export default {
         lastValueVisible: true,
       });
 
+      const seriesDataTotal = this.getSeriesDataTotal();
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
@@ -552,6 +547,8 @@ export default {
       });
     },
 
+    updateLines() {},
+
     updateLineTotal() {
       const islastLine = this.linesEnabled.length === 1;
       const isNoLine = this.linesEnabled.length === 0;
@@ -608,7 +605,7 @@ export default {
     },
 
     setMarks() {
-      const line = this.lines.find((line: ILine) => !line.disabled);
+      const line = this.linesEnabled[0];
       const index = this.lines.indexOf(line);
       const lineData = this.getSeriesData(line.data);
       const markers = lineData
