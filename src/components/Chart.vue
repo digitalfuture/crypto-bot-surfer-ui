@@ -303,11 +303,22 @@ export default {
       }
     },
 
-    linesEnabled(lines) {
-      if (lines.length > 1) {
-        this.clearMarks();
-      } else {
+    zoomCondition() {
+      if (this.linesEnabled.length === 1) {
         if (this.zoomCondition) this.setMarks();
+      } else {
+        this.clearMarks();
+      }
+
+      this.updateLineTotal();
+      this.updateLineBtc();
+    },
+
+    linesEnabled() {
+      if (this.linesEnabled.length === 1) {
+        if (this.zoomCondition) this.setMarks();
+      } else {
+        this.clearMarks();
       }
 
       this.updateLineTotal();
@@ -597,24 +608,22 @@ export default {
     },
 
     setMarks() {
-      if (this.linesEnabled.length === 1) {
-        const line = this.lines.find((line: ILine) => !line.disabled);
-        const index = this.lines.indexOf(line);
-        const lineData = this.getSeriesData(line.data);
-        const markers = lineData
-          .filter(({ trade }) => trade)
-          .map(({ trade, time }) => ({
-            time,
-            position: trade === "BUY" ? "belowBar" : "aboveBar",
-            color: trade === "BUY" ? "green" : "red",
-            shape: trade === "BUY" ? "arrowUp" : "arrowDown",
-            id: `${time}-${trade}`,
-          }));
+      const line = this.lines.find((line: ILine) => !line.disabled);
+      const index = this.lines.indexOf(line);
+      const lineData = this.getSeriesData(line.data);
+      const markers = lineData
+        .filter(({ trade }) => trade)
+        .map(({ trade, time }) => ({
+          time,
+          position: trade === "BUY" ? "belowBar" : "aboveBar",
+          color: trade === "BUY" ? "green" : "red",
+          shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+          id: `${time}-${trade}`,
+        }));
 
-        this.lineSeriesMarked = lineSeries[index];
-        this.lineSeriesMarked.setMarkers(markers);
-        this.lineMarked = true;
-      }
+      this.lineSeriesMarked = lineSeries[index];
+      this.lineSeriesMarked.setMarkers(markers);
+      this.lineMarked = true;
     },
 
     clearMarks() {
