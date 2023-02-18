@@ -112,6 +112,9 @@ export default {
 
   data() {
     return {
+      serverFiiles: [],
+      updateTimeout: 1000 * 60 * 3,
+      updateInterval: null,
       seriesMaxLength: 300,
       lineWidth: 2.5,
       isFullScreen: false,
@@ -323,10 +326,7 @@ export default {
   methods: {
     ////
     async initChart() {
-      const response = await fetch(`http://${window.location.hostname}/files`);
-      const serverFiiles: IServerFile[] = await response.json();
-
-      this.createLinesFromServer(serverFiiles);
+      this.createLinesFromServer();
 
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
@@ -479,8 +479,8 @@ export default {
 
     ////
     // Create lines
-    createLinesFromServer(serverFiiles: IServerFile[]) {
-      const lines: ILine[] = serverFiiles.map(
+    createLinesFromServer() {
+      const lines: ILine[] = this.serverFiiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data.trim().split("\n").slice(1),
@@ -547,7 +547,17 @@ export default {
       });
     },
 
-    updateLines() {},
+    updateLines() {
+      const linesData = [];
+
+      for (const [index, line] of this.lines.entries()) {
+        const seriesData = this.getSeriesData(line.data);
+        lineSeries[index].setData(seriesData);
+        linesData.push(seriesData);
+      }
+
+      this.linesData = linesData;
+    },
 
     updateLineTotal() {
       const islastLine = this.linesEnabled.length === 1;
@@ -580,6 +590,14 @@ export default {
         chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
 
       window.addEventListener("resize", handler);
+    },
+
+    setupChartUpdate() {
+      this.updateInterval = setInterval(async () => {
+        await this.fetchData();
+        this.createLinesFromServer();
+        this.updateLines();
+      }, this.updateTimeout);
     },
 
     async setupZoomListener() {
@@ -627,16 +645,25 @@ export default {
       this.lineSeriesMarked?.setMarkers([]);
       this.lineSeriesMarked = null;
     },
+
+    async fetchData() {
+      const response = await fetch(`http://${window.location.hostname}/files`);
+      const serverFiiles: IServerFile[] = await response.json();
+      this.serverFiiles = serverFiiles;
+    },
   },
 
-  mounted() {
+  async mounted() {
+    await this.fetchData();
     this.initChart();
     this.setupResizeListener();
+    this.setupChartUpdate();
   },
 
   unmounted() {
     chart.remove();
     chart = null;
+    clearInterval(this.updateInterval);
   },
 };
 </script>
