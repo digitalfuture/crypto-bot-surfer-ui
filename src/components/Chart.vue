@@ -301,6 +301,8 @@ export default {
     },
 
     zoomCondition() {
+      if (this.linesEnabled.length === 0) return;
+
       if (this.linesEnabled.length === 1) {
         if (this.zoomCondition) this.setMarks();
       } else {
