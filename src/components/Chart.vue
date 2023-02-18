@@ -328,7 +328,7 @@ export default {
   methods: {
     ////
     async initChart() {
-      this.createLinesFromServer();
+      this.createLinesFromServer({ isUpdate: false });
 
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
@@ -472,22 +472,22 @@ export default {
     maxLengthFilter(_: ISeries, index: number, array: []) {
       return true;
 
-      if (this.linesEnabled.length === 1) return true;
-      if (array.length < this.seriesMaxLength) return true;
+      // if (this.linesEnabled.length === 1) return true;
+      // if (array.length < this.seriesMaxLength) return true;
 
-      const step = Math.round(array.length / this.seriesMaxLength);
-      return index % step === 0 || index === array.length - 1;
+      // const step = Math.round(array.length / this.seriesMaxLength);
+      // return index % step === 0 || index === array.length - 1;
     },
 
     ////
     // Create lines
-    createLinesFromServer() {
+    createLinesFromServer({ isUpdate }) {
       const lines: ILine[] = this.serverFiiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data.trim().split("\n").slice(1),
           color: this.getColor(index),
-          disabled: true,
+          disabled: isUpdate ? this.lines[index].disabled : true,
         })
       );
 
@@ -597,7 +597,7 @@ export default {
     setupChartUpdate() {
       this.updateInterval = setInterval(async () => {
         await this.fetchData();
-        this.createLinesFromServer();
+        this.createLinesFromServer({ isUpdate: true });
         this.updateLines();
         this.updateLineTotal();
         this.updateLineBtc();
