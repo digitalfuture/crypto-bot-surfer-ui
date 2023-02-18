@@ -597,6 +597,8 @@ export default {
         await this.fetchData();
         this.createLinesFromServer();
         this.updateLines();
+        this.updateLineTotal();
+        this.updateLineBtc();
       }, this.updateTimeout);
     },
 
