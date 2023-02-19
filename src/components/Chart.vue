@@ -98,6 +98,7 @@ export interface ISeries {
   time: number;
   value: number;
   trade?: string;
+  btcValue?: number;
 }
 </script>
 
@@ -336,9 +337,9 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartBtc();
       this.setupChartLines();
       this.setupChartTotal();
+      this.setupChartBtc();
 
       chart.timeScale().fitContent();
 
@@ -370,15 +371,7 @@ export default {
     },
 
     setupChartBtc() {
-      let lineDataBtc = [];
-
-      for (const line of this.lines) {
-        const isDataLonger = lineDataBtc.length < line.data.length;
-
-        if (isDataLonger) lineDataBtc = line.data;
-      }
-
-      const seriesDataBtc = this.getSeriesDataBtc(lineDataBtc);
+      const seriesDataBtc = this.getSeriesDataBtc();
 
       lineSeriesBtc = chart.addLineSeries({
         color: "black",
@@ -422,13 +415,11 @@ export default {
       return data;
     },
 
-    getSeriesDataBtc(lineData: string[]) {
-      const data = lineData.map((row: string) => {
-        const [, dateString, btcPrice, , , , , , ,] = row.split(",");
-
+    getSeriesDataBtc() {
+      const data = this.seriesDataTotal.map(({ time, btcValue }) => {
         return {
-          time: Date.parse(dateString) / 1000,
-          value: parseFloat(btcPrice),
+          time,
+          value: btcValue,
         };
       });
 
@@ -443,18 +434,19 @@ export default {
       const seriesDataTotal = lines
         .flatMap((line: ILine): string[] => line.data)
         .map((row: string): ISeries => {
-          const [, dateString, , , , , , , profit] = row.split(",");
+          const [, dateString, btcValue, , , , , , profit] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
             value: parseFloat(profit),
+            btcValue: parseFloat(btcValue),
           };
         })
-        .sort((a, b) => a.time - b.time)
+        .sort((a: ISeries, b: ISeries) => a.time - b.time)
         .filter((line: ISeries, index: number, array: ISeries[]) => {
           return line.time !== array[index + 1]?.time;
         })
-        .map((row, index, array) => {
+        .map((row: ISeries, index, array) => {
           if (index === 0) return row;
 
           row.value = parseFloat(
@@ -463,10 +455,12 @@ export default {
 
           return row;
         })
-        .map((row) => {
+        .map((row: ISeries) => {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
         });
+
+      this.seriesDataTotal = seriesDataTotal;
 
       return seriesDataTotal;
     },
@@ -560,24 +554,12 @@ export default {
 
       const seriesDataTotal = this.getSeriesDataTotal();
       lineSeriesTotal.setData(seriesDataTotal);
-
-      lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
     },
 
     updateLineBtc() {
       lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
-      const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
-
-      let lineDataBtc = [];
-
-      for (const line of lines) {
-        const isDataLonger = lineDataBtc.length < line.data.length;
-
-        if (isDataLonger) lineDataBtc = line.data;
-      }
-
-      const seriesDataBtc = this.getSeriesDataBtc(lineDataBtc);
+      const seriesDataBtc = this.getSeriesDataBtc();
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
