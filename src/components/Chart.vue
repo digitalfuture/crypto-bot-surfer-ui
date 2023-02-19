@@ -115,7 +115,6 @@ export default {
       serverFiiles: [],
       updateTimeout: 1000 * 60 * 3,
       updateInterval: null,
-      seriesMaxLength: 300,
       lineWidth: 2.5,
       isFullScreen: false,
       isLineMarked: false,
@@ -301,10 +300,14 @@ export default {
     },
 
     zoomCondition() {
-      if (this.linesEnabled.length === 0) return;
+      if (this.isLineTotalOnly) return;
 
       if (this.linesEnabled.length === 1) {
-        if (this.zoomCondition) this.setMarks();
+        if (this.zoomCondition) {
+          this.setMarks();
+        } else {
+          this.clearMarks();
+        }
       } else {
         this.clearMarks();
       }
@@ -400,37 +403,34 @@ export default {
       });
 
       const seriesDataTotal = this.getSeriesDataTotal();
+
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
     ////
     getSeriesData(lineData: string[]): ISeries[] {
-      const data = lineData
-        .map((row: string) => {
-          const [, dateString, , , , trade, , , , profit] = row.split(",");
+      const data = lineData.map((row: string) => {
+        const [, dateString, , , , trade, , , , profit] = row.split(",");
 
-          return {
-            time: Date.parse(dateString) / 1000,
-            value: parseFloat(parseFloat(profit).toFixed(2)),
-            trade,
-          };
-        })
-        .filter(this.maxLengthFilter);
+        return {
+          time: Date.parse(dateString) / 1000,
+          value: parseFloat(parseFloat(profit).toFixed(2)),
+          trade,
+        };
+      });
 
       return data;
     },
 
     getSeriesDataBtc(lineData: string[]) {
-      const data = lineData
-        .map((row: string) => {
-          const [, dateString, btcPrice, , , , , , ,] = row.split(",");
+      const data = lineData.map((row: string) => {
+        const [, dateString, btcPrice, , , , , , ,] = row.split(",");
 
-          return {
-            time: Date.parse(dateString) / 1000,
-            value: parseFloat(btcPrice),
-          };
-        })
-        .filter(this.maxLengthFilter);
+        return {
+          time: Date.parse(dateString) / 1000,
+          value: parseFloat(btcPrice),
+        };
+      });
 
       this.lineDataBtc = data;
 
@@ -451,6 +451,9 @@ export default {
           };
         })
         .sort((a, b) => a.time - b.time)
+        .filter((line: ISeries, index: number, array: ISeries[]) => {
+          return line.time !== array[index + 1]?.time;
+        })
         .map((row, index, array) => {
           if (index === 0) return row;
 
@@ -463,20 +466,9 @@ export default {
         .map((row) => {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
-        })
-        .filter(this.maxLengthFilter);
+        });
 
       return seriesDataTotal;
-    },
-
-    maxLengthFilter(_: ISeries, index: number, array: []) {
-      return true;
-
-      // if (this.linesEnabled.length === 1) return true;
-      // if (array.length < this.seriesMaxLength) return true;
-
-      // const step = Math.round(array.length / this.seriesMaxLength);
-      // return index % step === 0 || index === array.length - 1;
     },
 
     ////
@@ -562,28 +554,31 @@ export default {
     },
 
     updateLineTotal() {
-      const islastLine = this.linesEnabled.length === 1;
-      const isNoLine = this.linesEnabled.length === 0;
-
       lineSeriesTotal.applyOptions({
-        visible: this.isLineTotalVisible && !islastLine,
+        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
       const seriesDataTotal = this.getSeriesDataTotal();
       lineSeriesTotal.setData(seriesDataTotal);
 
       lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
-
-      if (isNoLine && this.isLineBtcVisible) chart.timeScale().fitContent();
     },
 
     updateLineBtc() {
       lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
-      if (this.linesEnabled.length === 1) {
-        const seriesDataBtc = this.getSeriesDataBtc(this.linesEnabled[0].data);
-        lineSeriesBtc.setData(seriesDataBtc);
+      const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
+
+      let lineDataBtc = [];
+
+      for (const line of lines) {
+        const isDataLonger = lineDataBtc.length < line.data.length;
+
+        if (isDataLonger) lineDataBtc = line.data;
       }
+
+      const seriesDataBtc = this.getSeriesDataBtc(lineDataBtc);
+      lineSeriesBtc.setData(seriesDataBtc);
     },
 
     ////
