@@ -28,7 +28,7 @@
       >
         <div class="line__details info">
           <span class="line__name">BTC / USDT</span>
-          <span class="line__last-value"> {{ btcTotalProfit }}% </span>
+          <span class="line__last-value"> {{ btcProfit }}% </span>
         </div>
       </div>
 
@@ -41,7 +41,7 @@
       >
         <div class="line__details info">
           <span class="line__name">TOTAL</span>
-          <span class="line__last-value"> {{ total }}%</span>
+          <span class="line__last-value"> {{ totalProfit }}%</span>
         </div>
       </div>
 
@@ -63,7 +63,7 @@
         }"
         class="line clip-right cursor-pointer"
         :class="{
-          'line--disabled': isLineTotalOnly,
+          'line--disabled': hasLineTotalOnly,
         }"
         @click="updateLineVisibility(index)"
       >
@@ -124,7 +124,7 @@ export default {
 
       linesData: [],
       lineDataBtc: [],
-      lineDataTotal: [],
+      linesDataTotal: [],
 
       isLineBtcVisible: true,
       isLineTotalVisible: true,
@@ -245,26 +245,30 @@ export default {
       };
     },
 
-    total() {
-      return this.lineDataTotal[this.lineDataTotal.length - 1].value;
+    totalProfit() {
+      return this.linesDataTotal[this.linesDataTotal.length - 1]?.value || 0;
+    },
+
+    btcProfit() {
+      const firstValue = this.lineDataBtc[0].value;
+      const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1].value;
+      const diff = lastValue - firstValue;
+      const onePercent = firstValue / 100;
+      const profit = diff / onePercent;
+
+      return profit?.toFixed(2);
     },
 
     linesEnabled() {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
 
-    isLineTotalOnly() {
+    hasLineTotalOnly() {
       return this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
 
-    btcTotalProfit() {
-      const firstValue = this.lineDataBtc[0]?.value;
-      const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1]?.value;
-      const diff = lastValue - firstValue;
-      const onePercent = firstValue / 100;
-      const profit = diff / onePercent;
-
-      return profit.toFixed(2);
+    hasNoLines() {
+      return !this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
   },
 
@@ -293,7 +297,7 @@ export default {
     },
 
     zoomCondition() {
-      if (this.isLineTotalOnly) return;
+      if (this.hasLineTotalOnly) return;
 
       if (this.linesEnabled.length === 1) {
         if (this.zoomCondition) {
@@ -346,7 +350,7 @@ export default {
           color: line.color,
           priceScaleId: "right",
           lineWidth: this.lineWidth,
-          visible: !this.isLineTotalOnly && !line.disabled,
+          visible: !this.hasLineTotalOnly && !line.disabled,
           priceLineVisible: false,
           lastValueVisible: true,
         });
@@ -408,7 +412,7 @@ export default {
     },
 
     getSeriesDataBtc() {
-      const data = this.lineDataTotal.map(({ time, btcValue }) => {
+      const data = this.linesDataTotal.map(({ time, btcValue }) => {
         return {
           time,
           value: btcValue,
@@ -421,9 +425,12 @@ export default {
     },
 
     getSeriesDataTotal() {
-      const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
+      const lines =
+        this.hasLineTotalOnly || this.hasNoLines
+          ? this.lines
+          : this.linesEnabled;
 
-      const seriesDataTotal = lines
+      const linesDataTotal = lines
         .flatMap((line: ILine): string[] => line.data)
         .map((row: string): ISeries => {
           const [, dateString, btcValue, , , , , , profit] = row.split(",");
@@ -452,9 +459,9 @@ export default {
           return line.time !== array[index + 1]?.time;
         });
 
-      this.lineDataTotal = seriesDataTotal;
+      this.linesDataTotal = linesDataTotal;
 
-      return seriesDataTotal;
+      return linesDataTotal;
     },
 
     ////
