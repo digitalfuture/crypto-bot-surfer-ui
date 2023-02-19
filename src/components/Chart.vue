@@ -119,10 +119,12 @@ export default {
       lineWidth: 2.5,
       isFullScreen: false,
       isLineMarked: false,
-      lines: [],
-      linesData: [],
 
-      lineDataBtc: null,
+      lines: [],
+
+      linesData: [],
+      lineDataBtc: [],
+      lineDataTotal: [],
 
       isLineBtcVisible: true,
       isLineTotalVisible: true,
@@ -209,10 +211,8 @@ export default {
       ],
 
       zoom: null,
-
-      lineSeriesMarked: null,
-
       zoomCondition: false,
+      lineSeriesMarked: null,
     };
   },
 
@@ -246,15 +246,7 @@ export default {
     },
 
     total() {
-      const lines = this.isLineTotalOnly ? this.lines : this.linesEnabled;
-
-      const result = lines
-        .map((line) => line.data[line.data.length - 1].split(",").reverse()[0])
-        .reduce((sum: number, value: string) => {
-          return sum + parseFloat(value);
-        }, 0);
-
-      return parseFloat((result / lines.length).toFixed(2)) || 0;
+      return this.lineDataTotal[this.lineDataTotal.length - 1].value;
     },
 
     linesEnabled() {
@@ -416,7 +408,7 @@ export default {
     },
 
     getSeriesDataBtc() {
-      const data = this.seriesDataTotal.map(({ time, btcValue }) => {
+      const data = this.lineDataTotal.map(({ time, btcValue }) => {
         return {
           time,
           value: btcValue,
@@ -443,10 +435,7 @@ export default {
           };
         })
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
-        .filter((line: ISeries, index: number, array: ISeries[]) => {
-          return line.time !== array[index + 1]?.time;
-        })
-        .map((row: ISeries, index, array) => {
+        .map((row: ISeries, index: number, array: ISeries[]) => {
           if (index === 0) return row;
 
           row.value = parseFloat(
@@ -458,9 +447,12 @@ export default {
         .map((row: ISeries) => {
           row.value = parseFloat((row.value / lines.length).toFixed(2));
           return row;
+        })
+        .filter((line: ISeries, index: number, array: ISeries[]) => {
+          return line.time !== array[index + 1]?.time;
         });
 
-      this.seriesDataTotal = seriesDataTotal;
+      this.lineDataTotal = seriesDataTotal;
 
       return seriesDataTotal;
     },
