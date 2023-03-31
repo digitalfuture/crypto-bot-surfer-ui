@@ -355,7 +355,7 @@ export default {
           lastValueVisible: true,
         });
 
-        const seriesData = this.getSeriesData(line.data);
+        const seriesData = this.prepareSeriesData(line.data);
 
         lineSeries.push(newLineSeries);
         newLineSeries.setData(seriesData);
@@ -367,7 +367,7 @@ export default {
     },
 
     setupChartBtc() {
-      const seriesDataBtc = this.getSeriesDataBtc();
+      const seriesDataBtc = this.prepareSeriesDataBtc();
 
       lineSeriesBtc = chart.addLineSeries({
         color: "black",
@@ -391,13 +391,13 @@ export default {
         lastValueVisible: true,
       });
 
-      const seriesDataTotal = this.getSeriesDataTotal();
+      const seriesDataTotal = this.prepareSeriesDataTotal();
 
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
     ////
-    getSeriesData(lineData: string[]): ISeries[] {
+    prepareSeriesData(lineData: string[]): ISeries[] {
       const data = lineData.map((row: string) => {
         const [, dateString, , , , trade, , , , profit] = row.split(",");
 
@@ -411,7 +411,7 @@ export default {
       return data;
     },
 
-    getSeriesDataBtc() {
+    prepareSeriesDataBtc() {
       const data = this.linesDataTotal.map(({ time, btcValue }) => {
         return {
           time,
@@ -424,7 +424,7 @@ export default {
       return data;
     },
 
-    getSeriesDataTotal() {
+    prepareSeriesDataTotal() {
       const lines =
         this.hasLineTotalOnly || this.hasNoLines
           ? this.lines
@@ -538,7 +538,7 @@ export default {
       const linesData = [];
 
       for (const [index, line] of this.lines.entries()) {
-        const seriesData = this.getSeriesData(line.data);
+        const seriesData = this.prepareSeriesData(line.data);
         lineSeries[index].setData(seriesData);
         linesData.push(seriesData);
       }
@@ -551,14 +551,14 @@ export default {
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
-      const seriesDataTotal = this.getSeriesDataTotal();
+      const seriesDataTotal = this.prepareSeriesDataTotal();
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
     updateLineBtc() {
       lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
-      const seriesDataBtc = this.getSeriesDataBtc();
+      const seriesDataBtc = this.prepareSeriesDataBtc();
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
@@ -573,6 +573,7 @@ export default {
     setupChartUpdate() {
       this.updateInterval = setInterval(async () => {
         await this.fetchData();
+
         this.createLinesFromServer({ isUpdate: true });
         this.updateLines();
         this.updateLineTotal();
@@ -605,7 +606,7 @@ export default {
     setMarks() {
       const line = this.linesEnabled[0];
       const index = this.lines.indexOf(line);
-      const lineData = this.getSeriesData(line.data);
+      const lineData = this.prepareSeriesData(line.data);
       const markers = lineData
         .filter(({ trade }) => trade)
         .map(({ trade, time }) => ({
@@ -807,7 +808,7 @@ export default {
 
 .line {
   flex-grow: 1;
-  min-width: 33.3%;
+  min-width: calc(33.3% - 1px);
 
   &--disabled {
     background: lightgrey !important;

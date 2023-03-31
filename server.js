@@ -6,23 +6,27 @@ import { handler as ssrHandler } from "./dist/server/entry.mjs";
 
 const port = 80;
 const hostName = "localhost";
-
 const app = express();
 
 // Middlewares
 app.use(express.static("dist/client/"));
 app.use(ssrHandler);
 
-app.use(async (req, res, next) => {
-  const data = await readFiles();
-  req.files = data;
-  next();
-});
-
-app.get("/files", (req, res) => {
+app.get("/lines", async (req, res) => {
   res.statusCode = 200;
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Content-Type", "text/plain");
+
+  const data = await readFiles();
+
+  res.end(JSON.stringify(data));
+});
+
+app.post("/lines/update", (req, res) => {
+  res.statusCode = 200;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Content-Type", "text/plain");
+
   res.end(JSON.stringify(req.files));
 });
 
