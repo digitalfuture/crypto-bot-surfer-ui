@@ -82,7 +82,7 @@
 <script setup lang="ts">
 import { createChart } from "lightweight-charts";
 
-export interface IServerFile {
+export interface IServerLine {
   name: string;
   data: string;
 }
@@ -113,7 +113,7 @@ export default {
 
   data() {
     return {
-      serverFiles: [],
+      serverLines: [],
       updateTimeout: 1000 * 60 * 3,
       updateInterval: null,
       lineWidth: 2.5,
@@ -467,8 +467,8 @@ export default {
     ////
     // Create lines
     createLinesFromServer({ isUpdate }) {
-      const lines: ILine[] = this.serverFiles.map(
-        (file: IServerFile, index: number): ILine => ({
+      const lines: ILine[] = this.serverLines.map(
+        (file: IServerLine, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data.trim().split("\n").slice(1),
           color: this.getColor(index),
@@ -627,9 +627,17 @@ export default {
     },
 
     async fetchData() {
-      const response = await fetch(`http://${window.location.hostname}/files`);
-      const serverFiles: IServerFile[] = await response.json();
-      this.serverFiles = serverFiles;
+      const response = await fetch(`http://${window.location.hostname}/lines`);
+      const serverLines: IServerLine[] = await response.json();
+      this.serverLines = serverLines;
+    },
+
+    async fetchUpdateData() {
+      const response = await fetch(
+        `http://${window.location.hostname}/lines/update`
+      );
+      const serverLines: IServerLine[] = await response.json();
+      this.serverLines = serverLines;
     },
   },
 
