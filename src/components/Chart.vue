@@ -794,6 +794,7 @@ export default {
   display: flex;
   flex-wrap: wrap;
   text-transform: uppercase;
+  gap: 1px;
 }
 
 .line {
