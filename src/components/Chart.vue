@@ -808,7 +808,7 @@ export default {
 
 .line {
   flex-grow: 1;
-  min-width: calc(33.3% - 1px);
+  min-width: calc(100% / 3 - 1px);
 
   &--disabled {
     background: lightgrey !important;
