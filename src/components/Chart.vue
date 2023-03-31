@@ -113,7 +113,7 @@ export default {
 
   data() {
     return {
-      serverFiiles: [],
+      serverFiles: [],
       updateTimeout: 1000 * 60 * 3,
       updateInterval: null,
       lineWidth: 2.5,
@@ -467,7 +467,7 @@ export default {
     ////
     // Create lines
     createLinesFromServer({ isUpdate }) {
-      const lines: ILine[] = this.serverFiiles.map(
+      const lines: ILine[] = this.serverFiles.map(
         (file: IServerFile, index: number): ILine => ({
           name: file.name.split(".")[0],
           data: file.data.trim().split("\n").slice(1),
@@ -628,8 +628,8 @@ export default {
 
     async fetchData() {
       const response = await fetch(`http://${window.location.hostname}/files`);
-      const serverFiiles: IServerFile[] = await response.json();
-      this.serverFiiles = serverFiiles;
+      const serverFiles: IServerFile[] = await response.json();
+      this.serverFiles = serverFiles;
     },
   },
 
