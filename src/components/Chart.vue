@@ -446,7 +446,7 @@ export default {
           if (index === 0) return row;
 
           row.value = parseFloat(
-            (array[index - 1].value + row.value).toFixed(2)
+            (array[index - 1].value + row.value).toString()
           );
 
           return row;
