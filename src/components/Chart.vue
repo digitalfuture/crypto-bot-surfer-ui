@@ -502,7 +502,32 @@ export default {
         })
       );
 
+      chart = null;
+      lineSeries = [];
+      lineSeriesBtc = null;
+      lineSeriesTotal = null;
+      this.isLineMarked = false;
+      this.linesData = [];
+      this.lineDataBtc = [];
+      this.linesDataTotal = [];
+      this.isLineBtcVisible = true;
+      this.isLineTotalVisible = true;
+      this.zoom = null;
+      this.zoomCondition = false;
+      this.lineSeriesMarked = null;
+
       this.lines = lines;
+
+      const chartContainer = document.getElementById("chart-container");
+      chartContainer.innerHTML = "";
+      chart = createChart(chartContainer, this.chartOptions);
+
+      this.setupChartLines();
+      this.setupChartTotal();
+      this.setupChartBtc();
+
+      chart.timeScale().fitContent();
+      this.setupZoomListener();
     },
 
     ////
@@ -633,13 +658,13 @@ export default {
       this.serverLines = serverLines;
     },
 
-    async fetchUpdateData() {
-      const response = await fetch(
-        `http://${window.location.hostname}/lines/update`
-      );
-      const serverLines: IServerLine[] = await response.json();
-      this.serverLines = serverLines;
-    },
+    // async fetchUpdateData() {
+    //   const response = await fetch(
+    //     `http://${window.location.hostname}/lines/update`
+    //   );
+    //   const serverLines: IServerLine[] = await response.json();
+    //   this.serverLines = serverLines;
+    // },
   },
 
   async mounted() {
