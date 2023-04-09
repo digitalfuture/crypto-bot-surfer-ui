@@ -354,6 +354,7 @@ export default {
 
       this.updateLineTotal();
       this.updateLineBtc();
+      this.updateLineMarketChange();
     },
   },
 
