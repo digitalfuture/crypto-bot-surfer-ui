@@ -20,7 +20,9 @@
       @click="isFullScreen = !isFullScreen"
     />
 
+    <!-- Legend toolbar-->
     <div class="info-container">
+      <!-- BTC -->
       <div
         class="line btc clip-right cursor-pointer"
         :class="{ 'btc--disabled': !isLineBtcVisible }"
@@ -32,6 +34,7 @@
         </div>
       </div>
 
+      <!-- Total -->
       <div
         class="total info line clip-right cursor-pointer"
         :class="{
@@ -45,6 +48,7 @@
         </div>
       </div>
 
+      <!-- Open files -->
       <input
         type="file"
         multiple
@@ -54,16 +58,18 @@
       />
     </div>
 
+    <!-- Legrnd lines-->
     <section ref="legend" class="legend">
       <div
         v-for="(line, index) in lines"
         :key="index"
         :style="{
-          background: !line.disabled ? line.color : 'transparent',
+          'background-color': !line.disabled ? line.color : 'transparent',
         }"
         class="line clip-right cursor-pointer"
         :class="{
           'line--disabled': hasLineTotalOnly,
+          // 'line--disabled-zebra': line.name.startsWith('~'),
         }"
         @click="updateLineVisibility(index)"
       >
@@ -634,6 +640,7 @@ export default {
       const lineData = this.prepareSeriesData(line.data);
       const markers = lineData
         .filter(({ trade }) => trade)
+        .filter((trade) => trade === ("BUY" || "SELL"))
         .map(({ trade, time }) => ({
           time,
           position: trade === "BUY" ? "belowBar" : "aboveBar",
@@ -655,25 +662,8 @@ export default {
     async fetchData() {
       const response = await fetch(`http://${window.location.hostname}/lines`);
       const serverLines: IServerLine[] = await response.json();
-      const profitLines = serverLines.filter(
-        (line) => !line.name.startsWith("~")
-      );
-
-      const indicatorLines = serverLines.filter((line) =>
-        line.name.startsWith("~")
-      );
-
-      this.serverLines = profitLines;
-      this.indicatorLines = indicatorLines;
+      this.serverLines = serverLines;
     },
-
-    // async fetchUpdateData() {
-    //   const response = await fetch(
-    //     `http://${window.location.hostname}/lines/update`
-    //   );
-    //   const serverLines: IServerLine[] = await response.json();
-    //   this.serverLines = serverLines;
-    // },
   },
 
   async mounted() {
@@ -845,7 +835,7 @@ export default {
   min-width: calc(100% / 3 - 1px);
 
   &--disabled {
-    background: lightgrey !important;
+    background-color: lightgrey !important;
   }
 
   .line__details {
