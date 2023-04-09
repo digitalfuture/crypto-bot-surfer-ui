@@ -244,7 +244,7 @@ export default {
 
     chartOptions() {
       return {
-        height: this.isFullScreen ? window.innerHeight : 340,
+        height: this.isFullScreen ? window.innerHeight : 335,
         width: window.innerWidth - 20,
         timeScale: {
           timeVisible: true,
@@ -460,32 +460,6 @@ export default {
       return data;
     },
 
-    prepareSeriesDataBtc() {
-      const data = this.linesDataTotal.map(({ time, btcValue }) => {
-        return {
-          time,
-          value: btcValue,
-        };
-      });
-
-      this.lineDataBtc = data;
-
-      return data;
-    },
-
-    prepareSeriesDataMarketChange() {
-      const data = this.linesDataTotal.map(({ time, marketChangeValue }) => {
-        return {
-          time,
-          value: marketChangeValue,
-        };
-      });
-
-      this.lineDataMarketChange = data;
-
-      return data;
-    },
-
     prepareSeriesDataTotal() {
       const lines =
         this.hasLineTotalOnly || this.hasNoLines
@@ -526,6 +500,34 @@ export default {
       this.linesDataTotal = linesDataTotal;
 
       return linesDataTotal;
+    },
+
+    prepareSeriesDataBtc() {
+      const data = this.linesDataTotal.map(({ time, btcValue }) => {
+        return {
+          time,
+          value: btcValue,
+        };
+      });
+
+      this.lineDataBtc = data;
+
+      return data;
+    },
+
+    prepareSeriesDataMarketChange() {
+      const data = this.linesDataTotal.map(({ time, marketChangeValue }) => {
+        return {
+          time,
+          value: marketChangeValue,
+        };
+      });
+
+      this.lineDataMarketChange = data;
+
+      console.log(data);
+
+      return data;
     },
 
     ////
