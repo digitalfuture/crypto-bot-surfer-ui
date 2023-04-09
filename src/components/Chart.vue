@@ -31,20 +31,6 @@
         @change="createLinesFromInput"
       />
 
-      <!-- Total -->
-      <div
-        class="total info line clip-right cursor-pointer"
-        :class="{
-          'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
-        }"
-        @click="updateLineTotalVisibility"
-      >
-        <div class="line__details info">
-          <span class="line__name">TOTAL</span>
-          <span class="line__last-value"> {{ totalProfit }}</span>
-        </div>
-      </div>
-
       <!-- BTC / USDT -->
       <div
         class="line btc clip-right cursor-pointer"
@@ -66,6 +52,20 @@
         <div class="line__details info">
           <span class="line__name">MARKET CHANGE</span>
           <span class="line__last-value"> {{ marketChangeProfit }} </span>
+        </div>
+      </div>
+
+      <!-- Total -->
+      <div
+        class="total info line clip-right cursor-pointer"
+        :class="{
+          'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
+        }"
+        @click="updateLineTotalVisibility"
+      >
+        <div class="line__details info">
+          <span class="line__name">TOTAL</span>
+          <span class="line__last-value"> {{ totalProfit }}</span>
         </div>
       </div>
     </div>
