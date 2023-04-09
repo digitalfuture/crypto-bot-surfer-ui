@@ -655,7 +655,16 @@ export default {
     async fetchData() {
       const response = await fetch(`http://${window.location.hostname}/lines`);
       const serverLines: IServerLine[] = await response.json();
-      this.serverLines = serverLines;
+      const profitLines = serverLines.filter(
+        (line) => !line.name.startsWith("~")
+      );
+
+      const indicatorLines = serverLines.filter((line) =>
+        line.name.startsWith("~")
+      );
+
+      this.serverLines = profitLines;
+      this.indicatorLines = indicatorLines;
     },
 
     // async fetchUpdateData() {
