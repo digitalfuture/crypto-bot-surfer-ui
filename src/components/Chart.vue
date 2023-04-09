@@ -22,7 +22,30 @@
 
     <!-- Legend toolbar-->
     <div class="info-container">
-      <!-- BTC -->
+      <!-- Open files -->
+      <input
+        type="file"
+        multiple
+        ref="input"
+        class="input info clip-left cursor-pointer"
+        @change="createLinesFromInput"
+      />
+
+      <!-- Total -->
+      <div
+        class="total info line clip-right cursor-pointer"
+        :class="{
+          'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
+        }"
+        @click="updateLineTotalVisibility"
+      >
+        <div class="line__details info">
+          <span class="line__name">TOTAL</span>
+          <span class="line__last-value"> {{ totalProfit }}</span>
+        </div>
+      </div>
+
+      <!-- BTC / USDT -->
       <div
         class="line btc clip-right cursor-pointer"
         :class="{ 'btc--disabled': !isLineBtcVisible }"
@@ -34,28 +57,17 @@
         </div>
       </div>
 
-      <!-- Total -->
+      <!-- Market change -->
       <div
-        class="total info line clip-right cursor-pointer"
-        :class="{
-          'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
-        }"
-        @click="updatelineTotalVisibility"
+        class="line market-change clip-right cursor-pointer"
+        :class="{ 'market-change--disabled': !isLineMarketChangeVisible }"
+        @click="updateLineMarketChangeVisibility"
       >
         <div class="line__details info">
-          <span class="line__name">TOTAL</span>
-          <span class="line__last-value"> {{ totalProfit }}%</span>
+          <span class="line__name">MARKET CHANGE</span>
+          <span class="line__last-value"> {{ marketChangeProfit }} </span>
         </div>
       </div>
-
-      <!-- Open files -->
-      <input
-        type="file"
-        multiple
-        ref="input"
-        class="input info clip-left cursor-pointer"
-        @change="createLinesFromInput"
-      />
     </div>
 
     <!-- Legrnd lines-->
@@ -69,7 +81,6 @@
         class="line clip-right cursor-pointer"
         :class="{
           'line--disabled': hasLineTotalOnly,
-          // 'line--disabled-zebra': line.name.startsWith('~'),
         }"
         @click="updateLineVisibility(index)"
       >
@@ -105,6 +116,7 @@ export interface ISeries {
   value: number;
   trade?: string;
   btcValue?: number;
+  marketChangeValue?: number;
 }
 </script>
 
@@ -112,6 +124,7 @@ export interface ISeries {
 let chart = null;
 let lineSeries = [];
 let lineSeriesBtc = null;
+let lineSeriesMarketChange = null;
 let lineSeriesTotal = null;
 
 export default {
@@ -130,9 +143,11 @@ export default {
 
       linesData: [],
       lineDataBtc: [],
+      lineDataMarketChange: [],
       linesDataTotal: [],
 
       isLineBtcVisible: true,
+      isLineMarketChangeVisible: true,
       isLineTotalVisible: true,
 
       colors: [
@@ -251,10 +266,6 @@ export default {
       };
     },
 
-    totalProfit() {
-      return this.linesDataTotal[this.linesDataTotal.length - 1]?.value || 0;
-    },
-
     btcProfit() {
       const firstValue = this.lineDataBtc[0].value;
       const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1].value;
@@ -263,6 +274,17 @@ export default {
       const profit = diff / onePercent;
 
       return profit?.toFixed(2);
+    },
+
+    totalProfit() {
+      return this.linesDataTotal[this.linesDataTotal.length - 1]?.value || 0;
+    },
+
+    marketChangeProfit() {
+      const lastValue =
+        this.lineDataMarketChange[this.lineDataMarketChange.length - 1].value;
+
+      return lastValue?.toFixed(2);
     },
 
     linesEnabled() {
@@ -289,6 +311,10 @@ export default {
 
     isLineBtcVisible(value) {
       this.updateLineBtc();
+    },
+
+    isLineMarketChangeVisible(value) {
+      this.updateLineMarketChange();
     },
 
     isLineTotalVisible() {
@@ -342,6 +368,7 @@ export default {
       this.setupChartLines();
       this.setupChartTotal();
       this.setupChartBtc();
+      this.setupChartMarketChange();
 
       chart.timeScale().fitContent();
 
@@ -387,6 +414,21 @@ export default {
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
+    setupChartMarketChange() {
+      const seriesDataMarketChange = this.prepareSeriesDataMarketChange();
+
+      lineSeriesMarketChange = chart.addLineSeries({
+        color: "gray",
+        priceScaleId: "right",
+        lineWidth: this.lineWidth,
+        visible: this.isLineBtcVisible,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
+
+      lineSeriesMarketChange.setData(seriesDataMarketChange);
+    },
+
     setupChartTotal() {
       lineSeriesTotal = chart.addLineSeries({
         color: "white",
@@ -430,6 +472,19 @@ export default {
       return data;
     },
 
+    prepareSeriesDataMarketChange() {
+      const data = this.linesDataTotal.map(({ time, marketChangeValue }) => {
+        return {
+          time,
+          value: marketChangeValue,
+        };
+      });
+
+      this.lineDataMarketChange = data;
+
+      return data;
+    },
+
     prepareSeriesDataTotal() {
       const lines =
         this.hasLineTotalOnly || this.hasNoLines
@@ -439,12 +494,14 @@ export default {
       const linesDataTotal = lines
         .flatMap((line: ILine): string[] => line.data)
         .map((row: string): ISeries => {
-          const [, dateString, btcValue, , , , , , profit] = row.split(",");
+          const [, dateString, btcValue, , , , , , profit, marketChangeValue] =
+            row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
             value: parseFloat(profit),
             btcValue: parseFloat(btcValue),
+            marketChangeValue: parseFloat(marketChangeValue),
           };
         })
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
@@ -515,6 +572,7 @@ export default {
       this.isLineMarked = false;
       this.linesData = [];
       this.lineDataBtc = [];
+      this.lineDataMarketChange = [];
       this.linesDataTotal = [];
       this.isLineBtcVisible = true;
       this.isLineTotalVisible = true;
@@ -541,7 +599,7 @@ export default {
       this.isLineBtcVisible = !this.isLineBtcVisible;
     },
 
-    updatelineTotalVisibility() {
+    updateLineTotalVisibility() {
       const isLastLine = this.linesEnabled.length === 1;
 
       if (!isLastLine) {
@@ -549,9 +607,16 @@ export default {
       }
     },
 
+    updateLineMarketChangeVisibility() {
+      this.isLineMarketChangeVisible = !this.isLineMarketChangeVisible;
+    },
+
     updateLineVisibility(index: number) {
       // BTC / USDT line
-      this.updateLineBtc(index);
+      this.updateLineBtc();
+
+      // Market change line
+      this.updateLineMarketChange();
 
       // Total line
       this.updateLineTotal();
@@ -590,7 +655,18 @@ export default {
       lineSeriesBtc.applyOptions({ visible: this.isLineBtcVisible });
 
       const seriesDataBtc = this.prepareSeriesDataBtc();
+
       lineSeriesBtc.setData(seriesDataBtc);
+    },
+
+    updateLineMarketChange() {
+      lineSeriesMarketChange.applyOptions({
+        visible: this.isLineMarketChangeVisible,
+      });
+
+      const seriesDataMarketChange = this.prepareSeriesDataMarketChange();
+
+      lineSeriesMarketChange.setData(seriesDataMarketChange);
     },
 
     ////
@@ -609,6 +685,7 @@ export default {
         this.updateLines();
         this.updateLineTotal();
         this.updateLineBtc();
+        this.updateLineMarketChange();
       }, this.updateTimeout);
     },
 
@@ -746,21 +823,19 @@ export default {
 .info-container {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 7px;
+  gap: 1px;
 
   .info {
     flex-grow: 1;
-    min-width: 33.3%;
   }
 
   .input {
     background: var(--background-color);
     position: relative;
     padding: 5px;
-    width: 33.3%;
     height: 42px;
     padding-left: 50px;
-    margin-bottom: 7px;
+    width: 100%;
 
     &:before {
       content: "";
@@ -794,23 +869,25 @@ export default {
     justify-content: flex-end;
     align-items: center;
     background: white;
-    margin-bottom: 7px;
+    width: 100%;
 
     &--disabled {
       background: none;
-    }
-
-    .info__details {
-      display: inline-block;
-      margin: 12px;
-      background: var(--background-color);
-      padding-inline: 5px;
     }
   }
 
   .btc {
     background: black;
-    margin-bottom: 7px;
+    min-width: calc(50% - 1px);
+
+    &--disabled {
+      background: none;
+    }
+  }
+
+  .market-change {
+    background: grey;
+    min-width: calc(50% - 1px);
 
     &--disabled {
       background: none;
@@ -819,7 +896,6 @@ export default {
 }
 
 .legend {
-  margin-top: -7px;
   position: relative;
   font-size: 14px;
   line-height: 18px;
@@ -837,24 +913,24 @@ export default {
   &--disabled {
     background-color: lightgrey !important;
   }
+}
 
-  .line__details {
-    display: flex;
-    justify-content: space-between;
-    margin: 12px;
-    padding-inline: 5px;
-    flex-wrap: nowrap;
+.line__details {
+  display: flex;
+  justify-content: space-between;
+  margin: 12px;
+  padding-inline: 5px;
+  flex-wrap: nowrap;
 
-    .line__name,
-    .line__last-value {
-      background: var(--background-color);
-      padding-inline: 7px;
-    }
+  .line__name,
+  .line__last-value {
+    background: var(--background-color);
+    padding-inline: 7px;
+  }
 
-    .line__last-value {
-      margin-left: 7px;
-      font-weight: bold;
-    }
+  .line__last-value {
+    margin-left: 7px;
+    font-weight: bold;
   }
 }
 
