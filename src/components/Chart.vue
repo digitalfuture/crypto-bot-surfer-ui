@@ -422,7 +422,7 @@ export default {
         color: "gray",
         priceScaleId: "right",
         lineWidth: this.lineWidth,
-        visible: this.isLineBtcVisible,
+        visible: this.isLineMarketChangeVisible,
         priceLineVisible: false,
         lastValueVisible: true,
       });
@@ -469,8 +469,19 @@ export default {
       const linesDataTotal = lines
         .flatMap((line: ILine): string[] => line.data)
         .map((row: string): ISeries => {
-          const [, dateString, btcValue, , , , , , profit, marketChangeValue] =
-            row.split(",");
+          const [
+            ,
+            dateString,
+            btcValue,
+            ,
+            ,
+            ,
+            ,
+            ,
+            profit,
+            ,
+            marketChangeValue,
+          ] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
@@ -524,8 +535,6 @@ export default {
       });
 
       this.lineDataMarketChange = data;
-
-      console.log(data);
 
       return data;
     },
@@ -907,6 +916,7 @@ export default {
   flex-wrap: wrap;
   text-transform: uppercase;
   gap: 1px;
+  margin-top: 1px;
 }
 
 .line {
