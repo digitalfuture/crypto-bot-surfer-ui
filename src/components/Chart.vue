@@ -359,7 +359,7 @@ export default {
   },
 
   methods: {
-    ////
+    //// Init chart
     async initChart() {
       this.createLinesFromServer({ isUpdate: false });
 
@@ -376,6 +376,7 @@ export default {
       this.setupZoomListener();
     },
 
+    /// Create lines
     setupChartLines() {
       const linesData = [];
 
@@ -400,6 +401,21 @@ export default {
       this.linesData = linesData;
     },
 
+    setupChartTotal() {
+      lineSeriesTotal = chart.addLineSeries({
+        color: "white",
+        priceScaleId: "right",
+        lineWidth: this.lineWidth * 2,
+        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
+
+      const seriesDataTotal = this.prepareSeriesDataTotal();
+
+      lineSeriesTotal.setData(seriesDataTotal);
+    },
+
     setupChartBtc() {
       const seriesDataBtc = this.prepareSeriesDataBtc();
 
@@ -421,7 +437,7 @@ export default {
       lineSeriesMarketChange = chart.addLineSeries({
         color: "gray",
         priceScaleId: "",
-        lineWidth: this.lineWidth,
+        lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketChangeVisible,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -430,22 +446,7 @@ export default {
       lineSeriesMarketChange.setData(seriesDataMarketChange);
     },
 
-    setupChartTotal() {
-      lineSeriesTotal = chart.addLineSeries({
-        color: "white",
-        priceScaleId: "right",
-        lineWidth: this.lineWidth * 2,
-        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
-        priceLineVisible: false,
-        lastValueVisible: true,
-      });
-
-      const seriesDataTotal = this.prepareSeriesDataTotal();
-
-      lineSeriesTotal.setData(seriesDataTotal);
-    },
-
-    ////
+    //// Create line series
     prepareSeriesData(lineData: string[]): ISeries[] {
       const data = lineData.map((row: string) => {
         const [, dateString, , , , trade, , , , profit] = row.split(",");
@@ -540,7 +541,7 @@ export default {
     },
 
     ////
-    // Create lines
+    // Create initial line data
     createLinesFromServer({ isUpdate }) {
       const lines: ILine[] = this.serverLines.map(
         (file: IServerLine, index: number): ILine => ({
@@ -606,7 +607,7 @@ export default {
       this.setupZoomListener();
     },
 
-    ////
+    //// Updates
     updateLineBtcVisibility() {
       this.isLineBtcVisible = !this.isLineBtcVisible;
     },
@@ -681,14 +682,6 @@ export default {
       lineSeriesMarketChange.setData(seriesDataMarketChange);
     },
 
-    ////
-    setupResizeListener() {
-      const handler = () =>
-        chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
-
-      window.addEventListener("resize", handler);
-    },
-
     setupChartUpdate() {
       this.updateInterval = setInterval(async () => {
         await this.fetchData();
@@ -699,6 +692,14 @@ export default {
         this.updateLineBtc();
         this.updateLineMarketChange();
       }, this.updateTimeout);
+    },
+
+    //// Listeners
+    setupResizeListener() {
+      const handler = () =>
+        chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
+
+      window.addEventListener("resize", handler);
     },
 
     async setupZoomListener() {
@@ -715,6 +716,7 @@ export default {
         .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
     },
 
+    //// Visuals
     getColor(index: number): string {
       if (index < this.colors.length) {
         return this.colors[index];
@@ -747,6 +749,7 @@ export default {
       this.lineSeriesMarked = null;
     },
 
+    //// Fetches
     async fetchData() {
       const response = await fetch(`http://${window.location.hostname}/lines`);
       const serverLines: IServerLine[] = await response.json();
@@ -754,6 +757,7 @@ export default {
     },
   },
 
+  //// Life cycle
   async mounted() {
     await this.fetchData();
 
