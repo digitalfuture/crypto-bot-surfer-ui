@@ -366,10 +366,10 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartLines();
-      this.setupChartTotal();
-      this.setupChartBtc();
       this.setupChartMarketChange();
+      this.setupChartBtc();
+      this.setupChartTotal();
+      this.setupChartLines();
 
       chart.timeScale().fitContent();
 
