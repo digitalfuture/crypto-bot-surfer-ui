@@ -728,8 +728,7 @@ export default {
       const index = this.lines.indexOf(line);
       const lineData = this.prepareSeriesData(line.data);
       const markers = lineData
-        .filter(({ trade }) => trade)
-        .filter((trade) => trade === ("BUY" || "SELL"))
+        .filter(({ trade }) => trade === "BUY" || trade === "SELL")
         .map(({ trade, time }) => ({
           time,
           position: trade === "BUY" ? "belowBar" : "aboveBar",
@@ -757,6 +756,7 @@ export default {
 
   async mounted() {
     await this.fetchData();
+
     this.initChart();
     this.setupResizeListener();
     this.setupChartUpdate();
