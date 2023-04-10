@@ -420,7 +420,7 @@ export default {
 
       lineSeriesMarketChange = chart.addLineSeries({
         color: "gray",
-        priceScaleId: "right",
+        priceScaleId: "",
         lineWidth: this.lineWidth,
         visible: this.isLineMarketChangeVisible,
         priceLineVisible: false,
