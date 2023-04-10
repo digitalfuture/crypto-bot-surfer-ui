@@ -367,8 +367,8 @@ export default {
       chart = createChart(chartContainer, this.chartOptions);
 
       this.setupChartMarketChange();
-      this.setupChartBtc();
       this.setupChartTotal();
+      this.setupChartBtc();
       this.setupChartLines();
 
       chart.timeScale().fitContent();
