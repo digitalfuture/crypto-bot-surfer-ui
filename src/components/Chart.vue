@@ -46,12 +46,12 @@
       <!-- Market change -->
       <div
         class="line market-change clip-right cursor-pointer"
-        :class="{ 'market-change--disabled': !isLineMarketChangeVisible }"
-        @click="updateLineMarketChangeVisibility"
+        :class="{ 'market-change--disabled': !isLineMarketAverageVisible }"
+        @click="updateLineMarketAverageVisibility"
       >
         <div class="line__details info">
           <span class="line__name">MARKET CHANGE</span>
-          <span class="line__last-value"> {{ marketChangeProfit }} </span>
+          <span class="line__last-value"> {{ marketAverageProfit }} </span>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ export interface ISeries {
   value: number;
   trade?: string;
   btcValue?: number;
-  marketChangeValue?: number;
+  marketAverageValue?: number;
 }
 </script>
 
@@ -124,7 +124,7 @@ export interface ISeries {
 let chart = null;
 let lineSeries = [];
 let lineSeriesBtc = null;
-let lineSeriesMarketChange = null;
+let lineSeriesMarketAverage = null;
 let lineSeriesTotal = null;
 
 export default {
@@ -143,11 +143,11 @@ export default {
 
       linesData: [],
       lineDataBtc: [],
-      lineDataMarketChange: [],
+      lineDataMarketAverage: [],
       linesDataTotal: [],
 
       isLineBtcVisible: true,
-      isLineMarketChangeVisible: true,
+      isLineMarketAverageVisible: true,
       isLineTotalVisible: true,
 
       colors: [
@@ -280,9 +280,9 @@ export default {
       return this.linesDataTotal[this.linesDataTotal.length - 1]?.value || 0;
     },
 
-    marketChangeProfit() {
+    marketAverageProfit() {
       const lastValue =
-        this.lineDataMarketChange[this.lineDataMarketChange.length - 1].value;
+        this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1].value;
 
       return lastValue?.toFixed(2);
     },
@@ -313,8 +313,8 @@ export default {
       this.updateLineBtc();
     },
 
-    isLineMarketChangeVisible(value) {
-      this.updateLineMarketChange();
+    isLineMarketAverageVisible(value) {
+      this.updateLineMarketAverage();
     },
 
     isLineTotalVisible() {
@@ -354,7 +354,7 @@ export default {
 
       this.updateLineTotal();
       this.updateLineBtc();
-      this.updateLineMarketChange();
+      this.updateLineMarketAverage();
     },
   },
 
@@ -366,7 +366,7 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartMarketChange();
+      this.setupChartMarketAverage();
       this.setupChartTotal();
       this.setupChartBtc();
       this.setupChartLines();
@@ -431,19 +431,19 @@ export default {
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
-    setupChartMarketChange() {
-      const seriesDataMarketChange = this.prepareSeriesDataMarketChange();
+    setupChartMarketAverage() {
+      const seriesDataMarketAverage = this.prepareSeriesDataMarketAverage();
 
-      lineSeriesMarketChange = chart.addLineSeries({
+      lineSeriesMarketAverage = chart.addLineSeries({
         color: "gray",
         priceScaleId: "",
         lineWidth: this.lineWidth / 2,
-        visible: this.isLineMarketChangeVisible,
+        visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
         lastValueVisible: true,
       });
 
-      lineSeriesMarketChange.setData(seriesDataMarketChange);
+      lineSeriesMarketAverage.setData(seriesDataMarketAverage);
     },
 
     //// Create line series
@@ -481,14 +481,14 @@ export default {
             ,
             profit,
             ,
-            marketChangeValue,
+            marketAverageValue,
           ] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
             value: parseFloat(profit),
             btcValue: parseFloat(btcValue),
-            marketChangeValue: parseFloat(marketChangeValue),
+            marketAverageValue: parseFloat(marketAverageValue),
           };
         })
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
@@ -527,15 +527,15 @@ export default {
       return data;
     },
 
-    prepareSeriesDataMarketChange() {
-      const data = this.linesDataTotal.map(({ time, marketChangeValue }) => {
+    prepareSeriesDataMarketAverage() {
+      const data = this.linesDataTotal.map(({ time, marketAverageValue }) => {
         return {
           time,
-          value: marketChangeValue,
+          value: marketAverageValue,
         };
       });
 
-      this.lineDataMarketChange = data;
+      this.lineDataMarketAverage = data;
 
       return data;
     },
@@ -585,7 +585,7 @@ export default {
       this.isLineMarked = false;
       this.linesData = [];
       this.lineDataBtc = [];
-      this.lineDataMarketChange = [];
+      this.lineDataMarketAverage = [];
       this.linesDataTotal = [];
       this.isLineBtcVisible = true;
       this.isLineTotalVisible = true;
@@ -620,8 +620,8 @@ export default {
       }
     },
 
-    updateLineMarketChangeVisibility() {
-      this.isLineMarketChangeVisible = !this.isLineMarketChangeVisible;
+    updateLineMarketAverageVisibility() {
+      this.isLineMarketAverageVisible = !this.isLineMarketAverageVisible;
     },
 
     updateLineVisibility(index: number) {
@@ -629,7 +629,7 @@ export default {
       this.updateLineBtc();
 
       // Market change line
-      this.updateLineMarketChange();
+      this.updateLineMarketAverage();
 
       // Total line
       this.updateLineTotal();
@@ -672,14 +672,14 @@ export default {
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
-    updateLineMarketChange() {
-      lineSeriesMarketChange.applyOptions({
-        visible: this.isLineMarketChangeVisible,
+    updateLineMarketAverage() {
+      lineSeriesMarketAverage.applyOptions({
+        visible: this.isLineMarketAverageVisible,
       });
 
-      const seriesDataMarketChange = this.prepareSeriesDataMarketChange();
+      const seriesDataMarketAverage = this.prepareSeriesDataMarketAverage();
 
-      lineSeriesMarketChange.setData(seriesDataMarketChange);
+      lineSeriesMarketAverage.setData(seriesDataMarketAverage);
     },
 
     setupChartUpdate() {
@@ -690,7 +690,7 @@ export default {
         this.updateLines();
         this.updateLineTotal();
         this.updateLineBtc();
-        this.updateLineMarketChange();
+        this.updateLineMarketAverage();
       }, this.updateTimeout);
     },
 
