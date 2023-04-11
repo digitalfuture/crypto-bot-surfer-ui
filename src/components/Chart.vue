@@ -43,10 +43,10 @@
         </div>
       </div>
 
-      <!-- Market change -->
+      <!-- Market average -->
       <div
-        class="line market-change clip-right cursor-pointer"
-        :class="{ 'market-change--disabled': !isLineMarketAverageVisible }"
+        class="line market-average clip-right cursor-pointer"
+        :class="{ 'market-average--disabled': !isLineMarketAverageVisible }"
         @click="updateLineMarketAverageVisibility"
       >
         <div class="line__details info">
@@ -901,7 +901,7 @@ export default {
     }
   }
 
-  .market-change {
+  .market-average {
     background: grey;
     min-width: calc(50% - 1px);
 
