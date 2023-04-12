@@ -51,7 +51,7 @@
       >
         <div class="line__details info">
           <span class="line__name">MARKET AVERAGE</span>
-          <span class="line__last-value"> {{ marketAverage }} </span>
+          <span class="line__last-value"> {{ marketAverageProfit }} </span>
         </div>
       </div>
 
@@ -280,11 +280,15 @@ export default {
       return this.linesDataTotal[this.linesDataTotal.length - 1]?.value || 0;
     },
 
-    marketAverage() {
+    marketAverageProfit() {
+      const firstValue = this.lineDataMarketAverage[0].value;
       const lastValue =
         this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1].value;
+      const diff = lastValue - firstValue;
+      const onePercent = firstValue / 100;
+      const profit = diff / onePercent;
 
-      return lastValue?.toFixed(2);
+      return profit?.toFixed(2);
     },
 
     linesEnabled() {
