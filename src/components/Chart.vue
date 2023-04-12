@@ -788,7 +788,7 @@ export default {
 .full-screen-button {
   position: absolute;
   top: 7px;
-  left: 72px;
+  left: 82px;
   width: 32px;
   height: auto;
   z-index: 9999;
