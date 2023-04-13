@@ -380,7 +380,7 @@ export default {
       this.setupZoomListener();
     },
 
-    /// Create lines
+    /// Setup lines
     setupChartLines() {
       const linesData = [];
 
@@ -492,7 +492,8 @@ export default {
             time: Date.parse(dateString) / 1000,
             value: parseFloat(profit),
             btcValue: parseFloat(btcValue),
-            marketAverageValue: parseFloat(marketAverageValue),
+            marketAverageValue:
+              parseFloat(marketAverageValue) / parseFloat(btcValue),
           };
         })
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
