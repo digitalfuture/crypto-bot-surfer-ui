@@ -50,7 +50,9 @@
         @click="updateLineMarketAverageVisibility"
       >
         <div class="line__details info">
-          <span class="line__name">MARKET AVERAGE</span>
+          <span class="line__name"
+            >MARKET AVERAGE (<span class="italic">without BTC</span>)</span
+          >
           <span class="line__last-value"> {{ marketAverageProfit }} </span>
         </div>
       </div>
@@ -890,7 +892,7 @@ export default {
     justify-content: flex-end;
     align-items: center;
     background: white;
-    width: 100%;
+    min-width: calc(100% / 3 - 1px);
 
     &--disabled {
       background: none;
@@ -899,7 +901,7 @@ export default {
 
   .btc {
     background: black;
-    min-width: calc(50% - 1px);
+    min-width: calc(100% / 3 - 1px);
 
     &--disabled {
       background: none;
@@ -908,7 +910,7 @@ export default {
 
   .market-average {
     background: grey;
-    min-width: calc(50% - 1px);
+    min-width: calc(100% / 3 - 1px);
 
     &--disabled {
       background: none;
