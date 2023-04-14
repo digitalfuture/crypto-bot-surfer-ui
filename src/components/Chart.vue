@@ -28,7 +28,7 @@
         multiple
         ref="input"
         class="input info clip-left cursor-pointer"
-        @change="createLinesFromInput"
+        @change="convertFileDataToLines"
       />
 
       <!-- BTC / USDT -->
@@ -50,9 +50,7 @@
         @click="updateLineMarketAverageVisibility"
       >
         <div class="line__details info">
-          <span class="line__name"
-            >MARKET AVERAGE (<span class="italic">without BTC</span>)</span
-          >
+          <span class="line__name">USDT MARKET AVERAGE (EXCEPT BTC)</span>
           <span class="line__last-value"> {{ marketAverageProfit }} </span>
         </div>
       </div>
@@ -66,7 +64,7 @@
         @click="updateLineTotalVisibility"
       >
         <div class="line__details info">
-          <span class="line__name">TOTAL</span>
+          <span class="line__name">TOTAL EQUITY</span>
           <span class="line__last-value"> {{ totalProfit }}</span>
         </div>
       </div>
@@ -152,18 +150,23 @@ export default {
       isLineMarketAverageVisible: true,
       isLineTotalVisible: true,
 
+      lineSeriesMarked: null,
+
+      zoom: null,
+      zoomCondition: false,
+
       colors: [
         "maroon",
-        "purple",
-        "navy",
-        "teal",
         "orange",
-        "blueviolet",
+        "navy",
         "brown",
         "burlywood",
-        "cadetblue",
+        "purple",
         "chocolate",
+        "cadetblue",
+        "blueviolet",
         "coral",
+        "teal",
         "cornflowerblue",
         "crimson",
         "darkcyan",
@@ -232,10 +235,6 @@ export default {
         "whitesmoke",
         "yellowgreen",
       ],
-
-      zoom: null,
-      zoomCondition: false,
-      lineSeriesMarked: null,
     };
   },
 
@@ -367,7 +366,7 @@ export default {
   methods: {
     //// Init chart
     async initChart() {
-      this.createLinesFromServer({ isUpdate: false });
+      this.convertServerDataToLines({ isUpdate: false });
 
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
@@ -548,8 +547,8 @@ export default {
     },
 
     ////
-    // Create initial line data
-    createLinesFromServer({ isUpdate }) {
+    // Convert server data to lines
+    convertServerDataToLines({ isUpdate }) {
       const lines: ILine[] = this.serverLines.map(
         (file: IServerLine, index: number): ILine => ({
           name: file.name.split(".")[0],
@@ -562,7 +561,7 @@ export default {
       this.lines = lines;
     },
 
-    async createLinesFromInput({ target }) {
+    async convertFileDataToLines({ target }) {
       // console.log(event.target.files);
       const inputFiles = [...target.files];
 
@@ -693,7 +692,7 @@ export default {
       this.updateInterval = setInterval(async () => {
         await this.fetchData();
 
-        this.createLinesFromServer({ isUpdate: true });
+        this.convertServerDataToLines({ isUpdate: true });
         this.updateLines();
         this.updateLineTotal();
         this.updateLineBtc();
@@ -723,15 +722,7 @@ export default {
         .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
     },
 
-    //// Visuals
-    getColor(index: number): string {
-      if (index < this.colors.length) {
-        return this.colors[index];
-      }
-
-      return this.colors[index % this.colors.length];
-    },
-
+    // Line marks
     setMarks() {
       const line = this.linesEnabled[0];
       const index = this.lines.indexOf(line);
@@ -754,6 +745,15 @@ export default {
     clearMarks() {
       this.lineSeriesMarked?.setMarkers([]);
       this.lineSeriesMarked = null;
+    },
+
+    //// Colors
+    getColor(index: number): string {
+      if (index < this.colors.length) {
+        return this.colors[index];
+      }
+
+      return this.colors[index % this.colors.length];
     },
 
     //// Fetches
