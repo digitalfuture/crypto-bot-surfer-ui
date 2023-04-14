@@ -958,6 +958,7 @@ export default {
   }
 }
 
+// Lists
 #colors {
   color: deeppink;
   color: darkmagenta;
@@ -990,4 +991,40 @@ export default {
   color: orange;
   color: red;
 }
+
+$step: 100 / 99; // step between colors
+$colors: (); // empty list for colors
+@for $i from 0 through 99 {
+  $hue: $i * $step; // hue
+  $saturation: 100%; // saturation
+  $value: 100%; // brightness
+  $rgb: hsv(
+    $hue,
+    $saturation,
+    $value
+  ); // RGB color by hue, saturation and brightness
+  $r: nth($rgb, 1); // red channel
+  $g: nth($rgb, 2); // green channel
+  $b: nth($rgb, 3); // blue channel
+  $color: rgb($r, $g, $b); // CSS color
+  $colors: append($colors, $color); // add color to list
+}
+
+@for $i from 1 through 100 {
+  $color: nth($colors, $i); // get color by index
+  $name: "--color-#{$i}"; // variable name
+  #{$name}: $color; // assign value to variable
+}
+
+// Example
+// --color-1: rgb(255, 0, 0);
+// --color-2: rgb(255, 25, 0);
+// --color-3: rgb(255, 51, 0);
+// --color-4: rgb(255, 76, 0);
+// --color-5: rgb(255, 102, 0);
+// --color-6: rgb(255, 127, 0);
+// --color-7: rgb(255, 153, 0);
+// --color-8: rgb(255, 178, 0);
+// --color-9: rgb(255, 204, 0);
+// --color-10: rgb(255, 229,
 </style>
