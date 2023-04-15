@@ -880,10 +880,6 @@ export default {
   flex-wrap: wrap;
   gap: 1px;
 
-  .info {
-    flex-grow: 1;
-  }
-
   .input {
     background: var(--background-color);
     position: relative;
@@ -924,7 +920,6 @@ export default {
     justify-content: flex-end;
     align-items: center;
     background: white;
-    min-width: calc(100% / 3 - 1px);
 
     &--disabled {
       background: none;
@@ -933,7 +928,6 @@ export default {
 
   .btc {
     background: black;
-    min-width: calc(100% / 3 - 1px);
 
     &--disabled {
       background: none;
@@ -942,7 +936,6 @@ export default {
 
   .market-average {
     background: grey;
-    min-width: calc(100% / 3 - 1px);
 
     &--disabled {
       background: none;
@@ -964,7 +957,7 @@ export default {
 
 .line {
   flex-grow: 1;
-  min-width: calc(100% / 3 - 1px);
+  flex-basis: 0;
 
   &--disabled {
     background-color: lightgrey !important;
@@ -977,11 +970,13 @@ export default {
   margin: 12px;
   padding-inline: 5px;
   flex-wrap: nowrap;
+  flex-grow: 1;
 
   .line__name,
   .line__last-value {
     background: var(--background-color);
     padding-inline: 7px;
+    white-space: nowrap;
   }
 
   .line__last-value {
