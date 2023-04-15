@@ -40,6 +40,14 @@
         <div class="line__details info">
           <span class="line__name">BTC / USDT</span>
           <span class="line__last-value"> {{ btcProfit }}% </span>
+          <span
+            class="round"
+            :class="{
+              green: parseFloat(btcProfit) > 0,
+              red: parseFloat(btcProfit) < 0,
+            }"
+            >·</span
+          >
         </div>
       </div>
 
@@ -52,6 +60,14 @@
         <div class="line__details info">
           <span class="line__name">THE OTHERS / USDT</span>
           <span class="line__last-value"> {{ marketAverageProfit }} </span>
+          <span
+            class="round"
+            :class="{
+              green: parseFloat(marketAverageProfit) > 0,
+              red: parseFloat(marketAverageProfit) < 0,
+            }"
+            >·</span
+          >
         </div>
       </div>
 
@@ -66,6 +82,14 @@
         <div class="line__details info">
           <span class="line__name">TOTAL EQUITY</span>
           <span class="line__last-value"> {{ totalProfit }}</span>
+          <span
+            class="round"
+            :class="{
+              green: parseFloat(totalProfit) > 0,
+              red: parseFloat(totalProfit) < 0,
+            }"
+            >·</span
+          >
         </div>
       </div>
     </div>
@@ -90,6 +114,14 @@
             class="line__last-value"
             v-text="linesData[index][linesData[index].length - 1].value"
           />
+          <span
+            class="round"
+            :class="{
+              green: linesData[index][linesData[index].length - 1].value > 0,
+              red: linesData[index][linesData[index].length - 1].value < 0,
+            }"
+            >·</span
+          >
         </div>
       </div>
     </section>
@@ -953,8 +985,27 @@ export default {
   }
 
   .line__last-value {
-    margin-left: 7px;
     font-weight: bold;
+    margin-left: auto;
+    margin-right: 8px;
+  }
+
+  .round {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: solid 1px white;
+    opacity: 0.5;
+    background-color: white;
+
+    &.red {
+      background-color: red;
+    }
+
+    &.green {
+      background-color: green;
+    }
   }
 }
 
@@ -991,41 +1042,4 @@ export default {
   color: orange;
   color: red;
 }
-
-// $step: 100 / 99; // step between colors
-// $colors: (); // empty list for colors
-
-// @for $i from 0 through 99 {
-//   $hue: $i * $step; // hue
-//   $saturation: 100%; // saturation
-//   $value: 100%; // brightness
-//   $rgb: hsv(
-//     $hue,
-//     $saturation,
-//     $value
-//   ); // RGB color by hue, saturation and brightness
-//   $r: nth($rgb, 1); // red channel
-//   $g: nth($rgb, 2); // green channel
-//   $b: nth($rgb, 3); // blue channel
-//   $color: rgb($r, $g, $b); // CSS color
-//   $colors: append($colors, $color); // add color to list
-// }
-
-// @for $i from 1 through 100 {
-//   $color: nth($colors, $i); // get color by index
-//   $name: "--color-#{$i}"; // variable name
-//   #{$name}: $color; // assign value to variable
-// }
-
-// Example
-// --color-1: rgb(255, 0, 0);
-// --color-2: rgb(255, 25, 0);
-// --color-3: rgb(255, 51, 0);
-// --color-4: rgb(255, 76, 0);
-// --color-5: rgb(255, 102, 0);
-// --color-6: rgb(255, 127, 0);
-// --color-7: rgb(255, 153, 0);
-// --color-8: rgb(255, 178, 0);
-// --color-9: rgb(255, 204, 0);
-// --color-10: rgb(255, 229,
 </style>
