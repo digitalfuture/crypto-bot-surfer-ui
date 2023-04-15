@@ -992,29 +992,30 @@ export default {
   color: red;
 }
 
-$step: 100 / 99; // step between colors
-$colors: (); // empty list for colors
-@for $i from 0 through 99 {
-  $hue: $i * $step; // hue
-  $saturation: 100%; // saturation
-  $value: 100%; // brightness
-  $rgb: hsv(
-    $hue,
-    $saturation,
-    $value
-  ); // RGB color by hue, saturation and brightness
-  $r: nth($rgb, 1); // red channel
-  $g: nth($rgb, 2); // green channel
-  $b: nth($rgb, 3); // blue channel
-  $color: rgb($r, $g, $b); // CSS color
-  $colors: append($colors, $color); // add color to list
-}
+// $step: 100 / 99; // step between colors
+// $colors: (); // empty list for colors
 
-@for $i from 1 through 100 {
-  $color: nth($colors, $i); // get color by index
-  $name: "--color-#{$i}"; // variable name
-  #{$name}: $color; // assign value to variable
-}
+// @for $i from 0 through 99 {
+//   $hue: $i * $step; // hue
+//   $saturation: 100%; // saturation
+//   $value: 100%; // brightness
+//   $rgb: hsv(
+//     $hue,
+//     $saturation,
+//     $value
+//   ); // RGB color by hue, saturation and brightness
+//   $r: nth($rgb, 1); // red channel
+//   $g: nth($rgb, 2); // green channel
+//   $b: nth($rgb, 3); // blue channel
+//   $color: rgb($r, $g, $b); // CSS color
+//   $colors: append($colors, $color); // add color to list
+// }
+
+// @for $i from 1 through 100 {
+//   $color: nth($colors, $i); // get color by index
+//   $name: "--color-#{$i}"; // variable name
+//   #{$name}: $color; // assign value to variable
+// }
 
 // Example
 // --color-1: rgb(255, 0, 0);
