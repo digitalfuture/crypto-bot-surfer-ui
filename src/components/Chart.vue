@@ -1,5 +1,9 @@
 <template>
-  <div class="chart cursor-pointer" id="chart-container" />
+  <div
+    v-show="!isLoading && this.lines.length > 0"
+    class="chart cursor-pointer"
+    id="chart-container"
+  />
 
   <div v-if="isLoading" class="loader-container">
     <div class="loader">
@@ -8,6 +12,8 @@
       <img src="/favicon.png" alt="DNATRADE" class="icon" />
     </div>
   </div>
+
+  <div v-else-if="this.lines.length === 0" class="no-data">NO DATA</div>
 
   <template v-else>
     <img
@@ -162,6 +168,7 @@ export default {
 
   data() {
     return {
+      isLoading: true,
       serverLines: [],
       updateTimeout: 1000 * 60 * 3,
       updateInterval: null,
@@ -269,10 +276,6 @@ export default {
   },
 
   computed: {
-    isLoading() {
-      return this.lines.length === 0;
-    },
-
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
@@ -790,6 +793,7 @@ export default {
     async fetchData() {
       const response = await fetch(`http://${window.location.hostname}/lines`);
       const serverLines: IServerLine[] = await response.json();
+      this.isLoading = false;
       this.serverLines = serverLines;
     },
   },
@@ -812,6 +816,16 @@ export default {
 </script>
 
 <style lang="scss">
+.no-data {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 72px;
+  font-weight: bold;
+  opacity: 0.5;
+}
+
 .clip-right,
 .clip-right:before {
   clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
@@ -1001,7 +1015,7 @@ export default {
   }
 }
 
-// Lists
+// Colors
 #colors {
   color: deeppink;
   color: darkmagenta;
