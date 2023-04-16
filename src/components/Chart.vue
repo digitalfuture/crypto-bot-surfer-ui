@@ -989,7 +989,6 @@ export default {
     height: 15px;
     border-radius: 50%;
     border: solid 1px var(--background-color);
-    opacity: 0.5;
     background-color: var(--background-color);
 
     &--red {
