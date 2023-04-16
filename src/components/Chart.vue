@@ -43,11 +43,10 @@
           <span
             class="round"
             :class="{
-              green: parseFloat(btcProfit) > 0,
-              red: parseFloat(btcProfit) < 0,
+              'round--green': parseFloat(btcProfit) > 0,
+              'round--red': parseFloat(btcProfit) < 0,
             }"
-            >·</span
-          >
+          />
         </div>
       </div>
 
@@ -63,11 +62,10 @@
           <span
             class="round"
             :class="{
-              green: parseFloat(marketAverageProfit) > 0,
-              red: parseFloat(marketAverageProfit) < 0,
+              'round--green': parseFloat(marketAverageProfit) > 0,
+              'round--red': parseFloat(marketAverageProfit) < 0,
             }"
-            >·</span
-          >
+          />
         </div>
       </div>
 
@@ -85,11 +83,10 @@
           <span
             class="round"
             :class="{
-              green: parseFloat(totalProfit) > 0,
-              red: parseFloat(totalProfit) < 0,
+              'round--green': parseFloat(totalProfit) > 0,
+              'round--red': parseFloat(totalProfit) < 0,
             }"
-            >·</span
-          >
+          />
         </div>
       </div>
     </div>
@@ -117,11 +114,12 @@
           <span
             class="round"
             :class="{
-              green: linesData[index][linesData[index].length - 1].value > 0,
-              red: linesData[index][linesData[index].length - 1].value < 0,
+              'round--green':
+                linesData[index][linesData[index].length - 1].value > 0,
+              'round--red':
+                linesData[index][linesData[index].length - 1].value < 0,
             }"
-            >·</span
-          >
+          />
         </div>
       </div>
     </section>
@@ -982,7 +980,7 @@ export default {
   .line__last-value {
     font-weight: bold;
     margin-left: auto;
-    margin-right: 8px;
+    margin-right: 16px;
   }
 
   .round {
@@ -990,15 +988,15 @@ export default {
     width: 15px;
     height: 15px;
     border-radius: 50%;
-    border: solid 1px white;
+    border: solid 1px var(--background-color);
     opacity: 0.5;
-    background-color: white;
+    background-color: var(--background-color);
 
-    &.red {
+    &--red {
       background-color: red;
     }
 
-    &.green {
+    &--green {
       background-color: green;
     }
   }
