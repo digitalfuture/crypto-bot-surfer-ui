@@ -63,7 +63,7 @@
         @click="updateLineMarketAverageVisibility"
       >
         <div class="line__details info">
-          <span class="line__name">THE OTHERS / USDT</span>
+          <span class="line__name">OTHERS / USDT</span>
           <span class="line__last-value"> {{ marketAverageProfit }} </span>
           <span
             class="round"
