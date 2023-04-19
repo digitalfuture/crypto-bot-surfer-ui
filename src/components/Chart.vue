@@ -45,7 +45,7 @@
       >
         <div class="line__details info">
           <span class="line__name">BTC / USDT</span>
-          <span class="line__last-value"> {{ btcProfit }}% </span>
+          <span class="line__last-value"> {{ btcProfit }} </span>
           <span
             class="round"
             :class="{
