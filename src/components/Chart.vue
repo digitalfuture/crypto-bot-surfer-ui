@@ -115,15 +115,15 @@
           <span class="line__name" v-text="line.name" />
           <span
             class="line__last-value"
-            v-text="linesData[index][linesData[index].length - 1].value"
+            v-text="linesData[index][linesData[index].length - 1]?.value || 0"
           />
           <span
             class="round"
             :class="{
               'round--green':
-                linesData[index][linesData[index].length - 1].value > 0,
+                linesData[index][linesData[index].length - 1]?.value > 0,
               'round--red':
-                linesData[index][linesData[index].length - 1].value < 0,
+                linesData[index][linesData[index].length - 1]?.value < 0,
             }"
           />
         </div>
