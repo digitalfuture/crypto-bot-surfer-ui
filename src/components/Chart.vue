@@ -109,7 +109,10 @@
         :class="{
           'line--disabled': hasLineTotalOnly,
         }"
-        @click="updateLineVisibility(index)"
+        @click="
+          linesData[index][linesData[index].length - 1] &&
+            updateLineVisibility(index)
+        "
       >
         <div class="line__details">
           <span class="line__name" v-text="line.name" />
