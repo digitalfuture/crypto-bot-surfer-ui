@@ -318,12 +318,13 @@ export default {
     },
 
     marketAverageProfit() {
-      const firstValue = this.lineDataMarketAverage[0].value;
+      // const firstValue = this.lineDataMarketAverage[0].value;
       const lastValue =
         this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1].value;
-      const diff = lastValue - firstValue;
-      const onePercent = firstValue / 100;
-      const profit = diff / onePercent;
+      // const diff = lastValue - firstValue;
+      // const onePercent = firstValue / 100;
+      // const profit = diff / onePercent;
+      const profit = lastValue;
 
       return profit?.toFixed(2);
     },
