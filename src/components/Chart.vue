@@ -155,7 +155,7 @@ export interface ISeries {
   value: number;
   trade?: string;
   btcValue?: number;
-  marketAverageValue?: number;
+  marketAveragePrice?: number;
 }
 </script>
 
@@ -318,13 +318,12 @@ export default {
     },
 
     marketAverageProfit() {
-      // const firstValue = this.lineDataMarketAverage[0].value;
+      const firstValue = this.lineDataMarketAverage[0].value;
       const lastValue =
         this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1].value;
-      // const diff = lastValue - firstValue;
-      // const onePercent = firstValue / 100;
-      // const profit = diff / onePercent;
-      const profit = lastValue;
+      const diff = lastValue - firstValue;
+      const onePercent = firstValue / 100;
+      const profit = diff / onePercent;
 
       return profit?.toFixed(2);
     },
@@ -523,15 +522,14 @@ export default {
             ,
             profit,
             ,
-            marketAverageValue,
+            marketAveragePrice,
           ] = row.split(",");
 
           return {
             time: Date.parse(dateString) / 1000,
             value: parseFloat(profit),
             btcValue: parseFloat(btcValue),
-            marketAverageValue:
-              parseFloat(marketAverageValue) / parseFloat(btcValue),
+            marketAveragePrice: parseFloat(marketAveragePrice),
           };
         })
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
@@ -571,10 +569,10 @@ export default {
     },
 
     prepareSeriesDataMarketAverage() {
-      const data = this.linesDataTotal.map(({ time, marketAverageValue }) => {
+      const data = this.linesDataTotal.map(({ time, marketAveragePrice }) => {
         return {
           time,
-          value: marketAverageValue,
+          value: marketAveragePrice,
         };
       });
 
