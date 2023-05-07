@@ -16,15 +16,21 @@
   <div v-else-if="this.lines.length === 0" class="no-data">NO DATA</div>
 
   <template v-else>
-    <img
-      src="/favicon.png"
-      alt="DNATRADE"
-      class="full-screen-button cursor-pointer"
-      :class="{
-        'full-screen-button--active': isFullScreen,
-      }"
-      @click="isFullScreen = !isFullScreen"
-    />
+    <div class="top-bar-menu">
+      <img
+        :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
+        alt="DNATRADE"
+        class="full-screen-button cursor-pointer"
+        @click="isFullScreen = !isFullScreen"
+      />
+
+      <img
+        :src="tradeDirectionIcon"
+        alt="DNATRADE"
+        class="trade-direction-button cursor-pointer"
+        @click="swithTradeDirection"
+      />
+    </div>
 
     <!-- Legend toolbar-->
     <div class="info-container">
@@ -116,10 +122,7 @@
       >
         <div class="line__details">
           <span class="line__name" v-text="line.name" />
-          <span
-            class="line__last-value"
-            v-text="linesData[index][linesData[index].length - 1]?.value || 0"
-          />
+          <span class="line__last-value" v-text="getLineValue(index)" />
           <span
             class="round"
             :class="{
@@ -155,6 +158,7 @@ export interface ISeries {
   value: number;
   trade?: string;
   btcValue?: number;
+  profit?: number;
   marketAveragePrice?: number;
 }
 </script>
@@ -183,8 +187,8 @@ export default {
 
       linesData: [],
       lineDataBtc: [],
-      lineDataMarketAverage: [],
       linesDataTotal: [],
+      lineDataMarketAverage: [],
 
       isLineBtcVisible: true,
       isLineMarketAverageVisible: true,
@@ -194,6 +198,8 @@ export default {
 
       zoom: null,
       zoomCondition: false,
+
+      tradeDirection: "long-short",
 
       colors: [
         "maroon",
@@ -279,6 +285,17 @@ export default {
   },
 
   computed: {
+    tradeDirectionIcon() {
+      switch (this.tradeDirection) {
+        case "long":
+          return "/icons/up.svg";
+        case "short":
+          return "/icons/down.svg";
+        case "long-short":
+          return "/icons/up-down.svg";
+      }
+    },
+
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
@@ -314,7 +331,8 @@ export default {
     },
 
     totalProfit() {
-      return this.linesDataTotal[this.linesDataTotal.length - 1]?.value || 0;
+      const result = this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
+      return result ? result.toFixed(2) : 0;
     },
 
     marketAverageProfit() {
@@ -397,9 +415,34 @@ export default {
       this.updateLineBtc();
       this.updateLineMarketAverage();
     },
+
+    tradeDirection() {
+      this.updateChart();
+    },
   },
 
   methods: {
+    getLineValue(index) {
+      const lineData = this.linesData[index];
+      const lineValue = lineData[lineData.length - 1]?.value || 0;
+      const result = lineValue ? parseFloat(lineValue.toFixed(2)) : 0;
+
+      return result;
+    },
+
+    swithTradeDirection() {
+      switch (this.tradeDirection) {
+        case "long":
+          this.tradeDirection = "short";
+          break;
+        case "short":
+          this.tradeDirection = "long-short";
+          break;
+        case "long-short":
+          this.tradeDirection = "long";
+      }
+    },
+
     //// Init chart
     async initChart() {
       this.convertServerDataToLines({ isUpdate: false });
@@ -489,15 +532,86 @@ export default {
 
     //// Create line series
     prepareSeriesData(lineData: string[]): ISeries[] {
-      const data = lineData.map((row: string) => {
-        const [, dateString, , , , trade, , , , profit] = row.split(",");
+      const tradeArray = lineData.map((row: string) => {
+        const [
+          ,
+          dateString,
+          btcValue,
+          ,
+          ,
+          trade,
+          price,
+          comission,
+          profit,
+          ,
+          marketAveragePrice,
+        ] = row.split(",");
 
         return {
-          time: Date.parse(dateString) / 1000,
-          value: parseFloat(parseFloat(profit).toFixed(2)),
+          dateString,
+          btcValue: parseFloat(btcValue),
           trade,
+          price: parseFloat(price),
+          profit: parseFloat(profit),
+          comission: parseFloat(comission),
+          marketAveragePrice: parseFloat(marketAveragePrice),
         };
       });
+
+      let longProfitTotal = 0;
+      let shortProfitTotal = 0;
+      let lastBuyPrice = 0;
+      let lastSellPrice = 0;
+
+      const data = tradeArray.map(
+        ({
+          dateString,
+          btcValue,
+          trade,
+          price,
+          comission,
+          profit,
+          marketAveragePrice,
+        }) => {
+          let tradeProfit = 0;
+
+          if (trade === "BUY") {
+            if (!lastBuyPrice) lastBuyPrice = price;
+
+            tradeProfit = lastBuyPrice - price - comission;
+            shortProfitTotal += tradeProfit;
+            lastBuyPrice = price;
+          } else if (trade === "SELL") {
+            if (!lastSellPrice) lastSellPrice = price;
+
+            tradeProfit = price - lastSellPrice - comission;
+            longProfitTotal += tradeProfit;
+            lastSellPrice = price;
+          }
+
+          let value = 0;
+
+          switch (this.tradeDirection) {
+            case "long":
+              value = longProfitTotal;
+              break;
+            case "short":
+              value = shortProfitTotal;
+              break;
+            case "long-short":
+              value = longProfitTotal + shortProfitTotal;
+          }
+
+          return {
+            time: Date.parse(dateString) / 1000,
+            btcValue,
+            value,
+            profit: tradeProfit,
+            trade,
+            marketAveragePrice,
+          };
+        }
+      );
 
       return data;
     },
@@ -509,41 +623,21 @@ export default {
           : this.linesEnabled;
 
       const linesDataTotal = lines
-        .flatMap((line: ILine): string[] => line.data)
-        .map((row: string): ISeries => {
-          const [
-            ,
-            dateString,
-            btcValue,
-            ,
-            ,
-            ,
-            ,
-            ,
-            profit,
-            ,
-            marketAveragePrice,
-          ] = row.split(",");
-
-          return {
-            time: Date.parse(dateString) / 1000,
-            value: parseFloat(profit),
-            btcValue: parseFloat(btcValue),
-            marketAveragePrice: parseFloat(marketAveragePrice),
-          };
+        .flatMap((line: ILine): string[] => this.prepareSeriesData(line.data))
+        .map((lineData: ISeries): ISeries => {
+          lineData.value = lineData.profit;
+          return lineData;
         })
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
         .map((row: ISeries, index: number, array: ISeries[]) => {
           if (index === 0) return row;
 
-          row.value = parseFloat(
-            (array[index - 1].value + row.value).toString()
-          );
+          row.value = array[index - 1].value + row.value;
 
           return row;
         })
-        .map((row: ISeries) => {
-          row.value = parseFloat((row.value / lines.length).toFixed(2));
+        .map((row: ISeries): ISeries => {
+          row.value = row.value / lines.length;
           return row;
         })
         .filter((line: ISeries, index: number, array: ISeries[]) => {
@@ -649,6 +743,13 @@ export default {
     },
 
     //// Updates
+    updateChart() {
+      this.updateLines();
+      this.updateLineTotal();
+      this.updateLineBtc();
+      this.updateLineMarketAverage();
+    },
+
     updateLineBtcVisibility() {
       this.isLineBtcVisible = !this.isLineBtcVisible;
     },
@@ -728,10 +829,7 @@ export default {
         await this.fetchData();
 
         this.convertServerDataToLines({ isUpdate: true });
-        this.updateLines();
-        this.updateLineTotal();
-        this.updateLineBtc();
-        this.updateLineMarketAverage();
+        this.updateChart();
       }, this.updateTimeout);
     },
 
@@ -791,7 +889,7 @@ export default {
       return this.colors[index % this.colors.length];
     },
 
-    //// Fetches
+    //// API
     async fetchData() {
       const response = await fetch(`http://${window.location.hostname}/lines`);
       const serverLines: IServerLine[] = await response.json();
@@ -838,14 +936,23 @@ export default {
   clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
 }
 
-.full-screen-button {
+.top-bar-menu {
   position: absolute;
   top: 7px;
   left: 82px;
-  width: 32px;
-  height: auto;
+  display: flex;
+  align-items: center;
   z-index: 9999;
-  filter: grayscale(1) brightness(1.4);
+
+  .full-screen-button {
+    width: 32px;
+    height: auto;
+  }
+
+  .trade-direction-button {
+    width: 24px;
+    height: auto;
+  }
 }
 
 .loader-container {
