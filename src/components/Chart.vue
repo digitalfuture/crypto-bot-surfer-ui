@@ -542,7 +542,7 @@ export default {
           trade,
           price,
           comission,
-          profit,
+          ,
           ,
           marketAveragePrice,
         ] = row.split(",");
@@ -552,7 +552,6 @@ export default {
           btcValue: parseFloat(btcValue),
           trade,
           price: parseFloat(price),
-          profit: parseFloat(profit),
           comission: parseFloat(comission),
           marketAveragePrice: parseFloat(marketAveragePrice),
         };
@@ -570,21 +569,20 @@ export default {
           trade,
           price,
           comission,
-          profit,
           marketAveragePrice,
         }) => {
           let tradeProfit = 0;
 
           if (trade === "BUY") {
-            if (!lastBuyPrice) lastBuyPrice = price;
+            if (!lastSellPrice) lastSellPrice = price;
 
-            tradeProfit = lastBuyPrice - price - comission;
+            tradeProfit = lastSellPrice - price - comission;
             shortProfitTotal += tradeProfit;
             lastBuyPrice = price;
           } else if (trade === "SELL") {
-            if (!lastSellPrice) lastSellPrice = price;
+            if (!lastBuyPrice) lastBuyPrice = price;
 
-            tradeProfit = price - lastSellPrice - comission;
+            tradeProfit = price - lastBuyPrice - comission;
             longProfitTotal += tradeProfit;
             lastSellPrice = price;
           }
