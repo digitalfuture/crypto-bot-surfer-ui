@@ -532,29 +532,6 @@ export default {
     },
 
     //// Prepare line series
-    smoothLineData(lineData: ISeries[], smoothingFactor: number): ISeries[] {
-      const smoothedLineData: ISeries[] = [];
-
-      for (let i = 0; i < lineData.length; i++) {
-        const currentPoint = lineData[i];
-
-        if (i === 0) {
-          smoothedLineData.push(currentPoint);
-        } else {
-          const previousPoint = smoothedLineData[i - 1];
-          const smoothedValue =
-            previousPoint.value +
-            smoothingFactor * (currentPoint.value - previousPoint.value);
-          smoothedLineData.push({
-            time: currentPoint.time,
-            value: smoothedValue,
-          });
-        }
-      }
-
-      return smoothedLineData;
-    },
-
     prepareSeriesData(lineData: string[]): ISeries[] {
       const tradeArray = lineData.map((row: string) => {
         const [
@@ -692,7 +669,7 @@ export default {
         return alignedLine;
       });
 
-      const lineDataTotal: ISeries[] = allTimes.map(
+      const linesDataTotal: ISeries[] = allTimes.map(
         (time: number, index: number) => {
           const sum = alignedLines.reduce(
             (total: number, line: ISeries[]) => total + line[index].value,
@@ -707,9 +684,9 @@ export default {
         }
       );
 
-      this.lineDataTotal = lineDataTotal;
+      this.linesDataTotal = linesDataTotal;
 
-      return lineDataTotal;
+      return linesDataTotal;
     },
 
     prepareSeriesDataBtc() {
