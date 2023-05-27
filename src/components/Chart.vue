@@ -160,6 +160,8 @@ export interface ISeries {
   btcValue?: number;
   profit?: number;
   marketAveragePrice?: number;
+  sum?: number;
+  count?: number;
 }
 </script>
 
@@ -320,6 +322,12 @@ export default {
       };
     },
 
+    totalProfit() {
+      const lastValue =
+        this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
+      return lastValue?.toFixed(2);
+    },
+
     btcProfit() {
       const firstValue = this.lineDataBtc[0].value;
       const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1].value;
@@ -330,20 +338,11 @@ export default {
       return profit?.toFixed(2);
     },
 
-    totalProfit() {
-      const result = this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
-      return result ? result.toFixed(2) : 0;
-    },
-
     marketAverageProfit() {
-      const firstValue = this.lineDataMarketAverage[0].value;
       const lastValue =
         this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1].value;
-      const diff = lastValue - firstValue;
-      const onePercent = firstValue / 100;
-      const profit = diff / onePercent;
 
-      return profit?.toFixed(2);
+      return lastValue?.toFixed(2);
     },
 
     linesEnabled() {
@@ -530,20 +529,43 @@ export default {
       lineSeriesMarketAverage.setData(seriesDataMarketAverage);
     },
 
-    //// Create line series
+    //// Prepare line series
+    smoothLineData(lineData: ISeries[], smoothingFactor: number): ISeries[] {
+      const smoothedLineData: ISeries[] = [];
+
+      for (let i = 0; i < lineData.length; i++) {
+        const currentPoint = lineData[i];
+
+        if (i === 0) {
+          smoothedLineData.push(currentPoint);
+        } else {
+          const previousPoint = smoothedLineData[i - 1];
+          const smoothedValue =
+            previousPoint.value +
+            smoothingFactor * (currentPoint.value - previousPoint.value);
+          smoothedLineData.push({
+            time: currentPoint.time,
+            value: smoothedValue,
+          });
+        }
+      }
+
+      return smoothedLineData;
+    },
+
     prepareSeriesData(lineData: string[]): ISeries[] {
       const tradeArray = lineData.map((row: string) => {
         const [
-          ,
+          count,
           dateString,
           btcValue,
-          ,
-          ,
+          tikenName,
+          priceChangePercent,
           trade,
           price,
           comission,
-          ,
-          ,
+          profit,
+          profitTotal,
           marketAveragePrice,
         ] = row.split(",");
 
@@ -559,8 +581,8 @@ export default {
 
       let longProfitTotal = 0;
       let shortProfitTotal = 0;
-      let lastBuyPrice = 0;
-      let lastSellPrice = 0;
+      let lastBuyPrice: number;
+      let lastSellPrice: number;
 
       const data = tradeArray.map(
         ({
@@ -571,41 +593,49 @@ export default {
           comission,
           marketAveragePrice,
         }) => {
-          let tradeProfit = 0;
+          let tradeProfit: number;
+          let profit: number;
+          let onePercent: number;
 
-          if (trade === "BUY") {
-            if (!lastSellPrice) lastSellPrice = price;
+          switch (trade) {
+            case "BUY":
+              if (!lastSellPrice) lastSellPrice = price;
 
-            tradeProfit = lastSellPrice - price - comission;
-            shortProfitTotal += tradeProfit;
-            lastBuyPrice = price;
-          } else if (trade === "SELL") {
-            if (!lastBuyPrice) lastBuyPrice = price;
+              tradeProfit = lastSellPrice - price - comission;
+              onePercent = lastSellPrice / 100;
+              const tradeProfitPercent = tradeProfit / onePercent;
 
-            tradeProfit = price - lastBuyPrice - comission;
-            longProfitTotal += tradeProfit;
-            lastSellPrice = price;
+              shortProfitTotal += tradeProfitPercent;
+              lastBuyPrice = price;
+              break;
+            case "SELL":
+              if (!lastBuyPrice) lastBuyPrice = price;
+
+              tradeProfit = price - lastBuyPrice - comission;
+              onePercent = lastBuyPrice / 100;
+              longProfitTotal += tradeProfit / onePercent;
+              lastSellPrice = price;
+              break;
           }
-
-          let value = 0;
 
           switch (this.tradeDirection) {
             case "long":
-              value = longProfitTotal;
+              profit = longProfitTotal;
               break;
             case "short":
-              value = shortProfitTotal;
+              profit = shortProfitTotal;
               break;
             case "long-short":
-              value = longProfitTotal + shortProfitTotal;
+              profit = longProfitTotal + shortProfitTotal;
+              break;
           }
 
           return {
             time: Date.parse(dateString) / 1000,
-            btcValue,
-            value,
-            profit: tradeProfit,
             trade,
+            price,
+            value: profit,
+            btcValue,
             marketAveragePrice,
           };
         }
@@ -614,66 +644,110 @@ export default {
       return data;
     },
 
-    prepareSeriesDataTotal() {
-      const lines =
-        this.hasLineTotalOnly || this.hasNoLines
-          ? this.lines
-          : this.linesEnabled;
+    prepareSeriesDataTotal(): ISeries[] {
+      const isAllLinesSelected: boolean =
+        this.hasLineTotalOnly || this.hasNoLines;
+      const lines: ILine[] = isAllLinesSelected
+        ? this.lines
+        : this.linesEnabled;
 
-      const linesDataTotal = lines
-        .flatMap((line: ILine): string[] => this.prepareSeriesData(line.data))
-        .map((lineData: ISeries): ISeries => {
-          lineData.value = lineData.profit;
-          return lineData;
-        })
+      const allTimes = lines
+        .flatMap((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
-        .map((row: ISeries, index: number, array: ISeries[]) => {
-          if (index === 0) return row;
-
-          row.value = array[index - 1].value + row.value;
-
-          return row;
-        })
-        .map((row: ISeries): ISeries => {
-          row.value = row.value / lines.length;
-          return row;
-        })
-        .filter((line: ISeries, index: number, array: ISeries[]) => {
-          return line.time !== array[index + 1]?.time;
+        .map(({ time }) => time)
+        .filter((time: number, index: number, array: number[]) => {
+          return time !== array[index + 1];
         });
 
-      this.linesDataTotal = linesDataTotal;
+      const alignedLines: ISeries[][] = lines.map((line: ILine) => {
+        const lineData = this.prepareSeriesData(line.data);
+        const alignedLine: ISeries[] = [];
 
-      return linesDataTotal;
+        for (let i = 0; i < allTimes.length; i++) {
+          const time = allTimes[i];
+          const matchingSeries = lineData.find(
+            ({ time: seriesTime }) => seriesTime === time
+          );
+
+          if (matchingSeries) {
+            alignedLine.push(matchingSeries);
+          } else {
+            const previousSeries = alignedLine[i - 1];
+            if (previousSeries) {
+              alignedLine.push({
+                time,
+                value: previousSeries.value,
+              });
+            } else {
+              alignedLine.push({
+                time,
+                value: 0,
+              });
+            }
+          }
+        }
+
+        return alignedLine;
+      });
+
+      const lineDataTotal: ISeries[] = allTimes.map(
+        (time: number, index: number) => {
+          const sum = alignedLines.reduce(
+            (total: number, line: ISeries[]) => total + line[index].value,
+            0
+          );
+          const averageValue = sum / alignedLines.length;
+
+          return {
+            time,
+            value: averageValue,
+          };
+        }
+      );
+
+      this.lineDataTotal = lineDataTotal;
+
+      return lineDataTotal;
     },
 
     prepareSeriesDataBtc() {
-      const data = this.linesDataTotal.map(({ time, btcValue }) => {
-        return {
-          time,
-          value: btcValue,
-        };
-      });
+      const isAllLinesSelected: boolean =
+        this.hasLineTotalOnly || this.hasNoLines;
+      const lines: ILine[] = isAllLinesSelected
+        ? this.lines
+        : this.linesEnabled;
 
-      this.lineDataBtc = data;
+      const lineDataBtc = lines
+        .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
+        .sort((a, b) => b.length - a.length)[0]
+        .map(({ time, btcValue }) => {
+          return {
+            time,
+            value: btcValue,
+          };
+        });
 
-      return data;
+      this.lineDataBtc = lineDataBtc;
+
+      return lineDataBtc;
     },
 
     prepareSeriesDataMarketAverage() {
-      const data = this.linesDataTotal.map(({ time, marketAveragePrice }) => {
-        return {
-          time,
-          value: marketAveragePrice,
-        };
-      });
+      const isAllLinesSelected: boolean =
+        this.hasLineTotalOnly || this.hasNoLines;
+      const lines: ILine[] = isAllLinesSelected
+        ? this.lines
+        : this.linesEnabled;
 
-      this.lineDataMarketAverage = data;
+      const lineDataMarketAverage = lines
+        .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
+        .sort((a, b) => b.length - a.length)[0];
 
-      return data;
+      this.lineDataMarketAverage = lineDataMarketAverage;
+
+      return lineDataMarketAverage;
     },
 
-    ////
     // Convert server data to lines
     convertServerDataToLines({ isUpdate }) {
       const lines: ILine[] = this.serverLines.map(
