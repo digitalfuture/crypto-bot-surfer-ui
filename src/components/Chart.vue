@@ -325,12 +325,13 @@ export default {
     totalProfit() {
       const lastValue =
         this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
+
       return lastValue?.toFixed(2);
     },
 
     btcProfit() {
       const firstValue = this.lineDataBtc[0].value;
-      const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1].value;
+      const lastValue = this.lineDataBtc[this.lineDataBtc.length - 1]?.value;
       const diff = lastValue - firstValue;
       const onePercent = firstValue / 100;
       const profit = diff / onePercent;
@@ -340,7 +341,8 @@ export default {
 
     marketAverageProfit() {
       const lastValue =
-        this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1].value;
+        this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1]
+          ?.value;
 
       return lastValue?.toFixed(2);
     },
