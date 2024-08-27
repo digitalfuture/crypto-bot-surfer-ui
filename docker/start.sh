@@ -8,7 +8,7 @@ docker build -t chart-image . --no-cache
 
 # build run via name: chart-server
 docker run \
-    -p 80:80 \
+    -p 8081:8081 \
     --name chart-container \
-    -v /root/mytest/report:/home/chart/public/data \
+    -v /home/koshkindom/app/report:/home/chart/public/data \
     -d chart-image
