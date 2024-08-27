@@ -942,7 +942,7 @@ export default {
 
     //// API
     async fetchData() {
-      const response = await fetch(`http://${window.location.hostname}/lines`);
+      const response = await fetch(`http://${window.location.host}/lines`);
       const serverLines: IServerLine[] = await response.json();
       this.isLoading = false;
       this.serverLines = serverLines;

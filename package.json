@@ -4,9 +4,9 @@
   "version": "0.1.4",
   "private": true,
   "scripts": {
-    "dev": "astro dev",
+    "start:web": "astro dev",
     "build": "astro build",
-    "start": "node server.js"
+    "start:api": "node server.js"
   },
   "dependencies": {
     "@astrojs/node": "^5.0.1",
