@@ -4,7 +4,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handler as ssrHandler } from "./dist/server/entry.mjs";
 
-const port = 80;
+const port = 8080;
 const hostName = "localhost";
 const app = express();
 
@@ -35,28 +35,27 @@ app.listen(port, () => {
 });
 
 // Functions
-function readFiles() {
-  return new Promise(async (resolve, reject) => {
-    const __filename = fileURLToPath(import.meta.url);
+async function readFiles() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const directoryPath = join(__dirname, "public/data/");
+  const fileList = [];
 
-    const __dirname = dirname(__filename);
-    const directoryPath = join(__dirname, "public/data/");
-    const fileList = [];
-
+  try {
     const files = await readdir(directoryPath);
 
-    for await (const fileName of files) {
-      const filePath = directoryPath + fileName;
-      const fileData = await readFile(filePath, {
-        encoding: "utf8",
-      });
-
-      // console.log("file;", file);
-      fileList.push({ name: fileName, data: fileData });
+    for (const fileName of files) {
+      if (fileName.endsWith(".csv")) {
+        const filePath = join(directoryPath, fileName);
+        const fileData = await readFile(filePath, {
+          encoding: "utf8",
+        });
+        fileList.push({ name: fileName, data: fileData });
+      }
     }
 
-    // console.log(fileList);
-
-    return resolve(fileList);
-  });
+    return fileList;
+  } catch (error) {
+    throw error;
+  }
 }
