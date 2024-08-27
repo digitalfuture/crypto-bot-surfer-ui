@@ -521,12 +521,14 @@ export default {
 
       lineSeriesMarketAverage = chart.addLineSeries({
         color: "gray",
-        priceScaleId: "",
+        priceScaleId: "right",
         lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
         lastValueVisible: true,
       });
+
+      console.log("seriesDataMarketAverage:", seriesDataMarketAverage);
 
       lineSeriesMarketAverage.setData(seriesDataMarketAverage);
     },
@@ -720,7 +722,13 @@ export default {
 
       const lineDataMarketAverage = lines
         .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
-        .sort((a, b) => b.length - a.length)[0];
+        .sort((a, b) => b.length - a.length)[0]
+        .map(({ time, marketAveragePrice }) => {
+          return {
+            time,
+            value: marketAveragePrice,
+          };
+        });
 
       this.lineDataMarketAverage = lineDataMarketAverage;
 
