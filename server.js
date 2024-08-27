@@ -4,7 +4,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handler as ssrHandler } from "./dist/server/entry.mjs";
 
-const port = 8080;
+const port = 8081;
 const hostName = "localhost";
 const app = express();
 

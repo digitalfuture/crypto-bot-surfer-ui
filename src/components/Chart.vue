@@ -942,7 +942,7 @@ export default {
 
     //// API
     async fetchData() {
-      const port = 8080;
+      const port = 8081;
       const response = await fetch(
         `http://${window.location.hostname}:${port}/lines`
       );
