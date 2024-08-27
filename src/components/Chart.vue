@@ -528,8 +528,6 @@ export default {
         lastValueVisible: true,
       });
 
-      console.log("seriesDataMarketAverage:", seriesDataMarketAverage);
-
       lineSeriesMarketAverage.setData(seriesDataMarketAverage);
     },
 
@@ -723,10 +721,12 @@ export default {
       const lineDataMarketAverage = lines
         .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a, b) => b.length - a.length)[0]
-        .map(({ time, marketAveragePrice }) => {
+        .map(({ time, marketAveragePrice }, index, array) => {
+          const initialPrice = array[0].marketAveragePrice;
+
           return {
             time,
-            value: marketAveragePrice,
+            value: (marketAveragePrice / initialPrice) * 100 - 100,
           };
         });
 
