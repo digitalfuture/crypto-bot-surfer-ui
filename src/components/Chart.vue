@@ -103,7 +103,7 @@
       </div>
     </div>
 
-    <!-- Legrnd lines-->
+    <!-- Legend lines-->
     <section ref="legend" class="legend">
       <div
         v-for="(line, index) in lines"
