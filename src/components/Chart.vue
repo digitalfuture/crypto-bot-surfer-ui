@@ -69,7 +69,7 @@
         @click="updateLineMarketAverageVisibility"
       >
         <div class="line__details info">
-          <span class="line__name">MARKET AVERAGE (without BTC)</span>
+          <span class="line__name">MARKET AVERAGE</span>
           <span class="line__last-value"> {{ marketAverageProfit }} </span>
           <span
             class="round"
