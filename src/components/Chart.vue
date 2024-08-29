@@ -157,7 +157,7 @@ export interface ISeries {
   time: number;
   value: number;
   trade?: string;
-  btcValue?: number;
+  btcPrice?: number;
   profit?: number;
   marketAveragePrice?: number;
   sum?: number;
@@ -533,15 +533,16 @@ export default {
 
     //// Prepare line series
     prepareSeriesData(lineData: string[]): ISeries[] {
+      console.log("New");
       const tradeArray = lineData.map((row: string) => {
         const [
           count,
           dateString,
-          btcValue,
+          btcPrice,
           tokenName,
           priceChangePercent,
           trade,
-          price,
+          tradePrice,
           comission,
           profit,
           profitTotal,
@@ -550,9 +551,11 @@ export default {
 
         return {
           dateString,
-          btcValue: isNaN(parseFloat(btcValue)) ? 0 : parseFloat(btcValue),
+          btcPrice: isNaN(parseFloat(btcPrice)) ? 0 : parseFloat(btcPrice),
           trade,
-          price: isNaN(parseFloat(price)) ? 0 : parseFloat(price),
+          tradePrice: isNaN(parseFloat(tradePrice))
+            ? 0
+            : parseFloat(tradePrice),
           comission: isNaN(parseFloat(comission)) ? 0 : parseFloat(comission),
           marketAveragePrice: isNaN(parseFloat(marketAveragePrice))
             ? 0
@@ -568,89 +571,90 @@ export default {
       const data = tradeArray.map(
         ({
           dateString,
-          btcValue,
+          btcPrice,
           trade,
-          price,
+          tradePrice,
           comission,
           marketAveragePrice,
         }) => {
           let tradeProfit: number = 0;
-          let profit: number = 0;
+          let totalProfit: number = 0;
           let tradeProfitPercent: number = 0;
-          let onePercent: number = 1;
+          let onePercent: number = 0;
 
           switch (trade) {
             case "BUY":
               if (lastSellPrice === undefined) {
-                lastSellPrice = price;
+                lastSellPrice = tradePrice;
               }
 
               if (
-                price === undefined ||
+                tradePrice === undefined ||
                 lastSellPrice === undefined ||
-                isNaN(price)
+                isNaN(tradePrice)
               ) {
                 console.error("Invalid price or lastSellPrice for BUY:", {
-                  price,
+                  tradePrice,
                   lastSellPrice,
                 });
                 tradeProfit = 0;
                 tradeProfitPercent = 0;
               } else {
-                tradeProfit = lastSellPrice - price - comission;
+                tradeProfit = lastSellPrice - tradePrice - comission;
                 onePercent = lastSellPrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
                 shortProfitTotal += tradeProfitPercent;
-                lastBuyPrice = price;
+                lastBuyPrice = tradePrice;
               }
+
               break;
 
             case "SELL":
               if (lastBuyPrice === undefined) {
-                lastBuyPrice = price;
+                lastBuyPrice = tradePrice;
               }
 
               if (
-                price === undefined ||
+                tradePrice === undefined ||
                 lastBuyPrice === undefined ||
-                isNaN(price)
+                isNaN(tradePrice)
               ) {
                 console.error("Invalid price or lastBuyPrice for SELL:", {
-                  price,
+                  tradePrice,
                   lastBuyPrice,
                 });
                 tradeProfit = 0;
                 tradeProfitPercent = 0;
               } else {
-                tradeProfit = price - lastBuyPrice - comission;
+                tradeProfit = tradePrice - lastBuyPrice - comission;
                 onePercent = lastBuyPrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
                 longProfitTotal += tradeProfitPercent;
-                lastSellPrice = price;
+                lastSellPrice = tradePrice;
               }
               break;
           }
 
           switch (this.tradeDirection) {
             case "long":
-              profit = longProfitTotal;
+              totalProfit = longProfitTotal;
               break;
             case "short":
-              profit = shortProfitTotal;
+              totalProfit = shortProfitTotal;
               break;
             case "long-short":
-              profit = longProfitTotal + shortProfitTotal;
+              totalProfit = longProfitTotal + shortProfitTotal;
               break;
           }
 
           return {
             time: Date.parse(dateString) / 1000,
             trade,
-            price: isNaN(price) ? 0 : price,
-            value: profit,
-            btcValue,
+            price: isNaN(tradePrice) ? 0 : tradePrice,
+            value: totalProfit,
+            btcPrice,
             marketAveragePrice: isNaN(marketAveragePrice)
               ? 0
               : marketAveragePrice,
@@ -737,10 +741,10 @@ export default {
       const lineDataBtc = lines
         .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a, b) => b.length - a.length)[0]
-        .map(({ time, btcValue }) => {
+        .map(({ time, btcPrice }) => {
           return {
             time,
-            value: btcValue,
+            value: btcPrice,
           };
         });
 
