@@ -538,7 +538,7 @@ export default {
           count,
           dateString,
           btcValue,
-          tikenName,
+          tokenName,
           priceChangePercent,
           trade,
           price,
@@ -550,18 +550,20 @@ export default {
 
         return {
           dateString,
-          btcValue: parseFloat(btcValue),
+          btcValue: isNaN(parseFloat(btcValue)) ? 0 : parseFloat(btcValue),
           trade,
-          price: parseFloat(price),
-          comission: parseFloat(comission),
-          marketAveragePrice: parseFloat(marketAveragePrice),
+          price: isNaN(parseFloat(price)) ? 0 : parseFloat(price),
+          comission: isNaN(parseFloat(comission)) ? 0 : parseFloat(comission),
+          marketAveragePrice: isNaN(parseFloat(marketAveragePrice))
+            ? 0
+            : parseFloat(marketAveragePrice),
         };
       });
 
       let longProfitTotal = 0;
       let shortProfitTotal = 0;
-      let lastBuyPrice: number;
-      let lastSellPrice: number;
+      let lastBuyPrice: number | undefined;
+      let lastSellPrice: number | undefined;
 
       const data = tradeArray.map(
         ({
@@ -572,28 +574,62 @@ export default {
           comission,
           marketAveragePrice,
         }) => {
-          let tradeProfit: number;
-          let profit: number;
-          let onePercent: number;
+          let tradeProfit: number = 0;
+          let profit: number = 0;
+          let tradeProfitPercent: number = 0;
+          let onePercent: number = 1;
 
           switch (trade) {
             case "BUY":
-              if (!lastSellPrice) lastSellPrice = price;
+              if (lastSellPrice === undefined) {
+                lastSellPrice = price;
+              }
 
-              tradeProfit = lastSellPrice - price - comission;
-              onePercent = lastSellPrice / 100;
-              const tradeProfitPercent = tradeProfit / onePercent;
+              if (
+                price === undefined ||
+                lastSellPrice === undefined ||
+                isNaN(price)
+              ) {
+                console.error("Invalid price or lastSellPrice for BUY:", {
+                  price,
+                  lastSellPrice,
+                });
+                tradeProfit = 0;
+                tradeProfitPercent = 0;
+              } else {
+                tradeProfit = lastSellPrice - price - comission;
+                onePercent = lastSellPrice / 100;
+                tradeProfitPercent = tradeProfit / onePercent;
 
-              shortProfitTotal += tradeProfitPercent;
-              lastBuyPrice = price;
+                shortProfitTotal += tradeProfitPercent;
+                lastBuyPrice = price;
+              }
               break;
-            case "SELL":
-              if (!lastBuyPrice) lastBuyPrice = price;
 
-              tradeProfit = price - lastBuyPrice - comission;
-              onePercent = lastBuyPrice / 100;
-              longProfitTotal += tradeProfit / onePercent;
-              lastSellPrice = price;
+            case "SELL":
+              if (lastBuyPrice === undefined) {
+                lastBuyPrice = price;
+              }
+
+              if (
+                price === undefined ||
+                lastBuyPrice === undefined ||
+                isNaN(price)
+              ) {
+                console.error("Invalid price or lastBuyPrice for SELL:", {
+                  price,
+                  lastBuyPrice,
+                });
+                tradeProfit = 0;
+                tradeProfitPercent = 0;
+              } else {
+                tradeProfit = price - lastBuyPrice - comission;
+                onePercent = lastBuyPrice / 100;
+                tradeProfitPercent = tradeProfit / onePercent;
+
+                longProfitTotal += tradeProfitPercent;
+                lastSellPrice = price;
+              }
               break;
           }
 
@@ -612,10 +648,12 @@ export default {
           return {
             time: Date.parse(dateString) / 1000,
             trade,
-            price,
+            price: isNaN(price) ? 0 : price,
             value: profit,
             btcValue,
-            marketAveragePrice,
+            marketAveragePrice: isNaN(marketAveragePrice)
+              ? 0
+              : marketAveragePrice,
           };
         }
       );
