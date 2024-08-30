@@ -201,7 +201,7 @@ export default {
       zoom: null,
       zoomCondition: false,
 
-      tradeDirection: "long-short",
+      tradeDirection: "long",
 
       colors: [
         "maroon",
