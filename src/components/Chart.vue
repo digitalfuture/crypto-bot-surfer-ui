@@ -426,7 +426,7 @@ export default {
     getLineValue(index) {
       const lineData = this.linesData[index];
       const lineValue = lineData[lineData.length - 1]?.value || "0.00";
-      const result = lineValue ? lineValue.toFixed(2) : "0.00";
+      const result = lineValue ? parseFloat(lineValue).toFixed(2) : "0.00";
 
       return result;
     },
