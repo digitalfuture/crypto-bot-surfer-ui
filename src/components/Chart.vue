@@ -103,7 +103,7 @@
       </div>
     </div>
 
-    <!-- Legend lines-->
+    <!-- Other lines-->
     <section ref="legend" class="legend">
       <div
         v-for="(line, index) in lines"
@@ -425,8 +425,8 @@ export default {
   methods: {
     getLineValue(index) {
       const lineData = this.linesData[index];
-      const lineValue = lineData[lineData.length - 1]?.value || 0;
-      const result = lineValue ? parseFloat(lineValue.toFixed(2)) : 0;
+      const lineValue = lineData[lineData.length - 1]?.value || "0.00";
+      const result = lineValue ? lineValue.toFixed(2) : "0.00";
 
       return result;
     },
