@@ -533,7 +533,6 @@ export default {
 
     //// Prepare line series
     prepareSeriesData(lineData: string[]): ISeries[] {
-      console.log("New");
       const tradeArray = lineData.map((row: string) => {
         const [
           count,
