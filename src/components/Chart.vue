@@ -651,11 +651,11 @@ export default {
               break;
           }
 
-          console.log("\n");
-          console.log("tradePrice:", tradePrice);
-          console.log("comission:", comission);
-          console.log("totalProfitPercent:", totalProfitPercent);
-          console.log("tradeProfitPercent:", tradeProfitPercent);
+          // console.log("\n");
+          // console.log("tradePrice:", tradePrice);
+          // console.log("comission:", comission);
+          // console.log("totalProfitPercent:", totalProfitPercent);
+          // console.log("tradeProfitPercent:", tradeProfitPercent);
 
           return {
             time: Date.parse(dateString) / 1000,
