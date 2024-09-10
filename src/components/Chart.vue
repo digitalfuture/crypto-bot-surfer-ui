@@ -562,8 +562,8 @@ export default {
         };
       });
 
-      let longProfitTotal = 0;
-      let shortProfitTotal = 0;
+      let longProfitTotalPercent = 0;
+      let shortProfitTotalPercent = 0;
       let lastBuyPrice: number | undefined;
       let lastSellPrice: number | undefined;
 
@@ -576,10 +576,10 @@ export default {
           comission,
           marketAveragePrice,
         }) => {
-          let tradeProfit: number = 0;
-          let totalProfit: number = 0;
-          let tradeProfitPercent: number = 0;
           let onePercent: number = 0;
+          let tradeProfit: number = 0;
+          let tradeProfitPercent: number = 0;
+          let totalProfitPercent: number = 0;
 
           switch (trade) {
             case "BUY":
@@ -603,7 +603,8 @@ export default {
                 onePercent = lastSellPrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
-                shortProfitTotal += tradeProfitPercent;
+                shortProfitTotalPercent += tradeProfitPercent;
+                longProfitTotalPercent -= comission / onePercent;
                 lastBuyPrice = tradePrice;
               }
 
@@ -630,7 +631,8 @@ export default {
                 onePercent = lastBuyPrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
-                longProfitTotal += tradeProfitPercent;
+                longProfitTotalPercent += tradeProfitPercent;
+                shortProfitTotalPercent -= comission / onePercent;
                 lastSellPrice = tradePrice;
               }
               break;
@@ -638,21 +640,28 @@ export default {
 
           switch (this.tradeDirection) {
             case "long":
-              totalProfit = longProfitTotal;
+              totalProfitPercent = longProfitTotalPercent;
               break;
             case "short":
-              totalProfit = shortProfitTotal;
+              totalProfitPercent = shortProfitTotalPercent;
               break;
             case "long-short":
-              totalProfit = longProfitTotal + shortProfitTotal;
+              totalProfitPercent =
+                longProfitTotalPercent + shortProfitTotalPercent;
               break;
           }
+
+          console.log("\n");
+          console.log("tradePrice:", tradePrice);
+          console.log("comission:", comission);
+          console.log("totalProfitPercent:", totalProfitPercent);
+          console.log("tradeProfitPercent:", tradeProfitPercent);
 
           return {
             time: Date.parse(dateString) / 1000,
             trade,
             price: isNaN(tradePrice) ? 0 : tradePrice,
-            value: totalProfit,
+            value: totalProfitPercent,
             btcPrice,
             marketAveragePrice: isNaN(marketAveragePrice)
               ? 0
