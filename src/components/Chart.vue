@@ -559,6 +559,8 @@ export default {
           marketAveragePrice: isNaN(parseFloat(marketAveragePrice))
             ? 0
             : parseFloat(marketAveragePrice),
+          profit,
+          profitTotal,
         };
       });
 
@@ -599,8 +601,8 @@ export default {
                 tradeProfit = 0;
                 tradeProfitPercent = 0;
               } else {
-                tradeProfit = lastSellPrice - tradePrice - comission;
-                onePercent = lastSellPrice / 100;
+                tradeProfit = -comission;
+                onePercent = tradePrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
                 shortProfitTotalPercent += tradeProfitPercent;
@@ -652,6 +654,7 @@ export default {
           }
 
           // console.log("\n");
+          // console.log("trade:", trade);
           // console.log("tradePrice:", tradePrice);
           // console.log("comission:", comission);
           // console.log("totalProfitPercent:", totalProfitPercent);
@@ -670,6 +673,8 @@ export default {
         }
       );
 
+      // console.log("data", data);
+
       return data;
     },
 
@@ -680,7 +685,7 @@ export default {
         ? this.lines
         : this.linesEnabled;
 
-      const allTimes = lines
+      const allTimesData = lines
         .flatMap((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
         .map(({ time }) => time)
@@ -692,8 +697,8 @@ export default {
         const lineData = this.prepareSeriesData(line.data);
         const alignedLine: ISeries[] = [];
 
-        for (let i = 0; i < allTimes.length; i++) {
-          const time = allTimes[i];
+        for (let i = 0; i < allTimesData.length; i++) {
+          const time = allTimesData[i];
           const matchingSeries = lineData.find(
             ({ time: seriesTime }) => seriesTime === time
           );
@@ -719,12 +724,11 @@ export default {
         return alignedLine;
       });
 
-      const linesDataTotal: ISeries[] = allTimes.map(
+      const linesDataTotal: ISeries[] = allTimesData.map(
         (time: number, index: number) => {
-          const sum = alignedLines.reduce(
-            (total: number, line: ISeries[]) => total + line[index].value,
-            0
-          );
+          const sum = alignedLines.reduce((total: number, line: ISeries[]) => {
+            return total + line[index].value;
+          }, 0);
           const averageValue = sum / alignedLines.length;
 
           return {
