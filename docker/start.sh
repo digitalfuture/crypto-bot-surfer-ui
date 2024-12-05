@@ -10,5 +10,5 @@ docker build -t chart-image . --no-cache
 docker run \
     -p 8081:8081 \
     --name chart-container \
-    -v /home/koshkindom/app/report:/home/chart/public/data \
+    -v /home/report:/home/chart/public/data \
     -d chart-image
