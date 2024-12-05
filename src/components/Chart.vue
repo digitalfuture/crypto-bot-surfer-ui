@@ -27,8 +27,7 @@
       <img
         :src="tradeDirectionIcon"
         alt="DNATRADE"
-        class="trade-direction-button cursor-pointer"
-        @click="swithTradeDirection"
+        class="trade-direction-button"
       />
     </div>
 
@@ -431,19 +430,6 @@ export default {
       return result;
     },
 
-    swithTradeDirection() {
-      switch (this.tradeDirection) {
-        case "long":
-          this.tradeDirection = "short";
-          break;
-        case "short":
-          this.tradeDirection = "long-short";
-          break;
-        case "long-short":
-          this.tradeDirection = "long";
-      }
-    },
-
     //// Init chart
     async initChart() {
       this.convertServerDataToLines({ isUpdate: false });
@@ -564,8 +550,7 @@ export default {
         };
       });
 
-      let longProfitTotalPercent = 0;
-      let shortProfitTotalPercent = 0;
+      let profitTotalPercent = 0;
       let lastBuyPrice: number | undefined;
       let lastSellPrice: number | undefined;
 
@@ -605,8 +590,7 @@ export default {
                 onePercent = tradePrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
-                shortProfitTotalPercent += tradeProfitPercent;
-                longProfitTotalPercent -= comission / onePercent;
+                profitTotalPercent -= comission / onePercent;
                 lastBuyPrice = tradePrice;
               }
 
@@ -633,25 +617,13 @@ export default {
                 onePercent = lastBuyPrice / 100;
                 tradeProfitPercent = tradeProfit / onePercent;
 
-                longProfitTotalPercent += tradeProfitPercent;
-                shortProfitTotalPercent -= comission / onePercent;
+                profitTotalPercent += tradeProfitPercent;
                 lastSellPrice = tradePrice;
               }
               break;
           }
 
-          switch (this.tradeDirection) {
-            case "long":
-              totalProfitPercent = longProfitTotalPercent;
-              break;
-            case "short":
-              totalProfitPercent = shortProfitTotalPercent;
-              break;
-            case "long-short":
-              totalProfitPercent =
-                longProfitTotalPercent + shortProfitTotalPercent;
-              break;
-          }
+          totalProfitPercent = profitTotalPercent;
 
           // console.log("\n");
           // console.log("trade:", trade);
