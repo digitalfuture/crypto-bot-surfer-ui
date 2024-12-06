@@ -16,6 +16,8 @@
   <div v-else-if="this.lines.length === 0" class="no-data">NO DATA</div>
 
   <template v-else>
+    <div class="annotation" />
+
     <div class="top-bar-menu">
       <img
         :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
@@ -445,6 +447,7 @@ export default {
       chart.timeScale().fitContent();
 
       this.setupZoomListener();
+      this.setupAnnotations();
     },
 
     /// Setup lines
@@ -518,8 +521,8 @@ export default {
     },
 
     //// Prepare line series
-    prepareSeriesData(lineData: string[]): ISeries[] {
-      const tradeArray = lineData.map((row: string) => {
+    prepareSeriesData(lineData: string[][]): ISeries[] {
+      const tradeArray = lineData.map((row: string[]) => {
         const [
           count,
           dateString,
@@ -532,7 +535,7 @@ export default {
           profit,
           profitTotal,
           marketAveragePrice,
-        ] = row.split(",");
+        ] = row;
 
         return {
           dateString,
@@ -547,6 +550,7 @@ export default {
             : parseFloat(marketAveragePrice),
           profit,
           profitTotal,
+          tokenName,
         };
       });
 
@@ -562,6 +566,7 @@ export default {
           tradePrice,
           comission,
           marketAveragePrice,
+          tokenName,
         }) => {
           let onePercent: number = 0;
           let tradeProfit: number = 0;
@@ -638,6 +643,7 @@ export default {
             price: isNaN(tradePrice) ? 0 : tradePrice,
             value: totalProfitPercent,
             btcPrice,
+            tokenName,
             marketAveragePrice: isNaN(marketAveragePrice)
               ? 0
               : marketAveragePrice,
@@ -766,7 +772,11 @@ export default {
       const lines: ILine[] = this.serverLines.map(
         (file: IServerLine, index: number): ILine => ({
           name: file.name.split(".")[0],
-          data: file.data.trim().split("\n").slice(1),
+          data: file.data
+            .trim()
+            .split("\n")
+            .slice(1)
+            .map((item: string[]): string[][] => item.split(",")),
           color: this.getColor(index),
           disabled: isUpdate ? this.lines[index].disabled : true,
         })
@@ -940,6 +950,52 @@ export default {
         .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
     },
 
+    setupAnnotations() {
+      chart.subscribeCrosshairMove((param) => {
+        const annotation = document.querySelector(".annotation");
+
+        if (!param || !param.seriesData) {
+          annotation.style.display = "none";
+          return;
+        }
+
+        const point = param.point;
+
+        if (!point) {
+          annotation.style.display = "none";
+          return;
+        }
+
+        let annotationText = "";
+        let color = "black";
+
+        lineSeries.forEach((series, index) => {
+          const seriesData = param.seriesData.get(series);
+
+          const line = this.linesData[index]
+            .filter((item) => !this.lines[index].disabled)
+            .find(
+              (item) =>
+                item.time === seriesData?.time &&
+                item.value === seriesData?.value
+            );
+
+          if (line?.trade) {
+            annotationText += `${line?.tokenName}<br>`;
+            color = this.lines[index].color;
+          }
+        });
+
+        if (annotationText) {
+          annotation.innerHTML = annotationText;
+          annotation.style.display = "block";
+          annotation.style.background = color;
+        } else {
+          annotation.style.display = "none";
+        }
+      });
+    },
+
     // Line marks
     setMarks() {
       const line = this.linesEnabled[0];
@@ -1004,6 +1060,17 @@ export default {
 </script>
 
 <style lang="scss">
+.annotation {
+  position: absolute;
+  top: 20px;
+  right: 100px;
+  text-align: right;
+  padding: 5px;
+  color: white;
+  display: none;
+  pointerevents: none;
+}
+
 .no-data {
   height: 100vh;
   display: flex;
