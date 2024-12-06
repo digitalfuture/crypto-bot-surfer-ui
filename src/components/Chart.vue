@@ -16,7 +16,10 @@
   <div v-else-if="this.lines.length === 0" class="no-data">NO DATA</div>
 
   <template v-else>
-    <div class="annotation" />
+    <div class="annotation" style="display: none">
+      <span class="annotation--token" />
+      <span class="annotation--price" />
+    </div>
 
     <div class="top-bar-menu">
       <img
@@ -149,7 +152,7 @@ export interface IServerLine {
 
 export interface ILine {
   name: string;
-  data: string[];
+  data: string[][];
   color: string;
   disabled: boolean;
 }
@@ -776,7 +779,7 @@ export default {
             .trim()
             .split("\n")
             .slice(1)
-            .map((item: string[]): string[][] => item.split(",")),
+            .map((item: string): string[] => item.split(",")),
           color: this.getColor(index),
           disabled: isUpdate ? this.lines[index].disabled : true,
         })
@@ -799,7 +802,11 @@ export default {
 
           const line: ILine = {
             name: lineName,
-            data: lineText.trim().split("\n").slice(1),
+            data: lineText
+              .trim()
+              .split("\n")
+              .slice(1)
+              .map((item: string): string[] => item.split(",")),
             color: this.getColor(index),
             disabled: false,
           };
@@ -952,7 +959,11 @@ export default {
 
     setupAnnotations() {
       chart.subscribeCrosshairMove((param) => {
-        const annotation = document.querySelector(".annotation");
+        const annotation: HTMLElement = document.querySelector(".annotation");
+        const annotationToken: HTMLElement =
+          document.querySelector(".annotation--token");
+        const annotationPrice: HTMLElement =
+          document.querySelector(".annotation--price");
 
         if (!param || !param.seriesData) {
           annotation.style.display = "none";
@@ -966,30 +977,33 @@ export default {
           return;
         }
 
-        let annotationText = "";
-        let color = "black";
+        let annotationTokenText = "";
+        let annotationPriceText = "";
+        let color = "transparent";
 
         lineSeries.forEach((series, index) => {
           const seriesData = param.seriesData.get(series);
 
-          const line = this.linesData[index]
-            .filter((item) => !this.lines[index].disabled)
-            .find(
-              (item) =>
-                item.time === seriesData?.time &&
-                item.value === seriesData?.value
-            );
+          if (this.lines[index].disabled) return;
+
+          const line = this.linesData[index].find(
+            (item) =>
+              item.time === seriesData?.time && item.value === seriesData?.value
+          );
 
           if (line?.trade) {
-            annotationText += `${line?.tokenName}<br>`;
+            annotationTokenText += `${line.tokenName}<br>`;
+            annotationPriceText += `${seriesData.value.toFixed(4)}<br>`;
             color = this.lines[index].color;
           }
         });
 
-        if (annotationText) {
-          annotation.innerHTML = annotationText;
+        if (annotationToken) {
+          annotationToken.innerHTML = annotationTokenText;
+          annotationPrice.innerHTML = annotationPriceText;
           annotation.style.display = "block";
-          annotation.style.background = color;
+          annotationToken.style.background = color;
+          annotationPrice.style.background = color;
         } else {
           annotation.style.display = "none";
         }
@@ -1065,10 +1079,16 @@ export default {
   top: 20px;
   right: 100px;
   text-align: right;
-  padding: 5px;
   color: white;
-  display: none;
-  pointerevents: none;
+
+  * {
+    padding: 5px 10px;
+    display: inline-block;
+  }
+
+  .annotation--price {
+    margin-left: 2px;
+  }
 }
 
 .no-data {
