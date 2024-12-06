@@ -993,7 +993,7 @@ export default {
 
           if (line?.trade) {
             annotationTokenText += `${line.tokenName}<br>`;
-            annotationPriceText += `${seriesData.value.toFixed(4)}<br>`;
+            annotationPriceText += `${line.price.toFixed(4)}<br>`;
             color = this.lines[index].color;
           }
         });
