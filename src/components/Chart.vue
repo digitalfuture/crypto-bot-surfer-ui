@@ -513,7 +513,7 @@ export default {
 
       lineSeriesMarketAverage = chart.addLineSeries({
         color: "gray",
-        priceScaleId: "right",
+        priceScaleId: null,
         lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
