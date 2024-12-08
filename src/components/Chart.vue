@@ -427,6 +427,52 @@ export default {
   },
 
   methods: {
+    calculatePSAR(data, accelerationFactor = 0.02, maxAcceleration = 0.2) {
+      const psarValues = [];
+      let af = accelerationFactor;
+      let ep = data[0].high; // Начальная экстремальная точка (EP)
+      let psar = data[0].low; // Начальный PSAR
+      let trend = "up"; // Начальный тренд
+
+      for (let i = 1; i < data.length; i++) {
+        const current = data[i];
+        const previous = data[i - 1];
+
+        // Обновляем PSAR в зависимости от тренда
+        if (trend === "up") {
+          psar = psar + af * (ep - psar);
+          if (current.low < psar) {
+            trend = "down";
+            psar = ep;
+            ep = current.low;
+            af = accelerationFactor;
+          } else {
+            if (current.high > ep) {
+              ep = current.high;
+              af = Math.min(af + accelerationFactor, maxAcceleration);
+            }
+          }
+        } else {
+          psar = psar + af * (ep - psar);
+          if (current.high > psar) {
+            trend = "up";
+            psar = ep;
+            ep = current.high;
+            af = accelerationFactor;
+          } else {
+            if (current.low < ep) {
+              ep = current.low;
+              af = Math.min(af + accelerationFactor, maxAcceleration);
+            }
+          }
+        }
+
+        psarValues.push({ time: current.time, value: psar });
+      }
+
+      return psarValues;
+    },
+
     getLineValue(index) {
       const lineData = this.linesData[index];
       const lineValue = lineData[lineData.length - 1]?.value || "0.00";
@@ -517,7 +563,7 @@ export default {
         lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
-        lastValueVisible: true,
+        lastValueVisible: false,
       });
 
       lineSeriesMarketAverage.setData(seriesDataMarketAverage);
