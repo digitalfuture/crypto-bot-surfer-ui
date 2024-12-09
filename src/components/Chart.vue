@@ -1,6 +1,6 @@
 <template>
   <div
-    v-show="!isLoading && this.lines.length > 0"
+    v-show="!isLoading && lines.length > 0"
     class="chart cursor-pointer"
     id="chart-container"
   />
@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  <div v-else-if="this.lines.length === 0" class="no-data">NO DATA</div>
+  <div v-else-if="lines.length === 0" class="no-data">NO DATA</div>
 
   <template v-else>
     <div class="annotation" style="display: none">
@@ -427,52 +427,6 @@ export default {
   },
 
   methods: {
-    calculatePSAR(data, accelerationFactor = 0.02, maxAcceleration = 0.2) {
-      const psarValues = [];
-      let af = accelerationFactor;
-      let ep = data[0].high; // Начальная экстремальная точка (EP)
-      let psar = data[0].low; // Начальный PSAR
-      let trend = "up"; // Начальный тренд
-
-      for (let i = 1; i < data.length; i++) {
-        const current = data[i];
-        const previous = data[i - 1];
-
-        // Обновляем PSAR в зависимости от тренда
-        if (trend === "up") {
-          psar = psar + af * (ep - psar);
-          if (current.low < psar) {
-            trend = "down";
-            psar = ep;
-            ep = current.low;
-            af = accelerationFactor;
-          } else {
-            if (current.high > ep) {
-              ep = current.high;
-              af = Math.min(af + accelerationFactor, maxAcceleration);
-            }
-          }
-        } else {
-          psar = psar + af * (ep - psar);
-          if (current.high > psar) {
-            trend = "up";
-            psar = ep;
-            ep = current.high;
-            af = accelerationFactor;
-          } else {
-            if (current.low < ep) {
-              ep = current.low;
-              af = Math.min(af + accelerationFactor, maxAcceleration);
-            }
-          }
-        }
-
-        psarValues.push({ time: current.time, value: psar });
-      }
-
-      return psarValues;
-    },
-
     getLineValue(index) {
       const lineData = this.linesData[index];
       const lineValue = lineData[lineData.length - 1]?.value || "0.00";
@@ -708,9 +662,13 @@ export default {
     prepareSeriesDataTotal(): ISeries[] {
       const isAllLinesSelected: boolean =
         this.hasLineTotalOnly || this.hasNoLines;
+
       const lines: ILine[] = isAllLinesSelected
         ? this.lines
         : this.linesEnabled;
+
+      console.log("isAllLinesSelected", isAllLinesSelected);
+      console.log("lines", lines);
 
       const allTimesData = lines
         .flatMap((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
@@ -734,6 +692,7 @@ export default {
             alignedLine.push(matchingSeries);
           } else {
             const previousSeries = alignedLine[i - 1];
+
             if (previousSeries) {
               alignedLine.push({
                 time,
@@ -756,6 +715,7 @@ export default {
           const sum = alignedLines.reduce((total: number, line: ISeries[]) => {
             return total + line[index].value;
           }, 0);
+
           const averageValue = sum / alignedLines.length;
 
           return {
