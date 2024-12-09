@@ -6,15 +6,18 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "start:api": "node server.js"
+    "start:api": "node server.js",
+    "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/node": "^5.0.1",
-    "@astrojs/vue": "^2.0.0",
-    "astro": "^2.0.14",
+    "@astrojs/node": "^9.0.0",
+    "@astrojs/vue": "^5.0.1",
+    "astro": "^5.0.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
     "express": "^4.18.2",
     "lightweight-charts": "^4.0.0",
-    "vue": "^3.2.45"
+    "vue": "^3.5.13"
   },
   "devDependencies": {
     "sass": "^1.57.1"
