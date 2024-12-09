@@ -667,9 +667,6 @@ export default {
         ? this.lines
         : this.linesEnabled;
 
-      console.log("isAllLinesSelected", isAllLinesSelected);
-      console.log("lines", lines);
-
       const allTimesData = lines
         .flatMap((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a: ISeries, b: ISeries) => a.time - b.time)
