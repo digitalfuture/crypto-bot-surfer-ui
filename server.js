@@ -67,7 +67,10 @@ async function readFiles() {
         const fileData = await readFile(filePath, { encoding: "utf8" });
 
         // Add file name and content to the result list
-        fileList.push({ name: fileName, data: fileData });
+        fileList.push({
+          name: fileName,
+          data: fileData.trim().split("\n").slice(1).slice(-1000),
+        });
       }
     }
 

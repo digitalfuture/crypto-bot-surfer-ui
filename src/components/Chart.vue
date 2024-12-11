@@ -147,7 +147,7 @@ import { createChart } from "lightweight-charts";
 
 export interface IServerLine {
   name: string;
-  data: string;
+  data: string[];
 }
 
 export interface ILine {
@@ -778,11 +778,7 @@ export default {
       const lines: ILine[] = this.serverLines.map(
         (file: IServerLine, index: number): ILine => ({
           name: file.name.split(".")[0],
-          data: file.data
-            .trim()
-            .split("\n")
-            .slice(1)
-            .map((item: string): string[] => item.split(",")),
+          data: file.data.map((item: string): string[] => item.split(",")),
           color: this.getColor(index),
           disabled: isUpdate ? this.lines[index].disabled : true,
         })
