@@ -530,6 +530,7 @@ export default {
           count,
           dateString,
           btcPrice,
+          marketAveragePrice,
           tokenName,
           priceChangePercent,
           trade,
@@ -537,7 +538,6 @@ export default {
           comission,
           profit,
           profitTotal,
-          marketAveragePrice,
         ] = row;
 
         return {
@@ -795,7 +795,6 @@ export default {
 
       const lines = await Promise.all(
         inputFiles.map(async (file: File, index: number): Promise<ILine> => {
-          // console.log("file.text():", await file.text());
           const lineText = await file.text();
           const lineName = file.name.split(".")[0];
 
