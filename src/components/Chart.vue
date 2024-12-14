@@ -1330,4 +1330,8 @@ export default {
   color: orange;
   color: red;
 }
+
+#tv-attr-logo {
+  display: none !important;
+}
 </style>
