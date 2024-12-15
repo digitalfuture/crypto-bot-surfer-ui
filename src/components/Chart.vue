@@ -29,11 +29,18 @@
         @click="isFullScreen = !isFullScreen"
       />
 
-      <img
-        :src="tradeDirectionIcon"
-        alt="DNATRADE"
-        class="trade-direction-button"
-      />
+      <div class="use-comission-container">
+        <img
+          :src="useComission ? '/icons/money.svg' : '/icons/money-off.svg'"
+          alt="DNATRADE"
+          class="use-comission-button cursor-pointer"
+          @click="useComission = !useComission"
+        />
+
+        <span class="use-comission-tip">{{
+          useComission ? "With Comission" : "Without Comission"
+        }}</span>
+      </div>
     </div>
 
     <!-- Legend toolbar-->
@@ -188,6 +195,7 @@ export default {
       lineWidth: 2.5,
       isFullScreen: false,
       isLineMarked: false,
+      useComission: true,
 
       lines: [],
 
@@ -291,17 +299,6 @@ export default {
   },
 
   computed: {
-    tradeDirectionIcon() {
-      switch (this.tradeDirection) {
-        case "long":
-          return "/icons/up.svg";
-        case "short":
-          return "/icons/down.svg";
-        case "long-short":
-          return "/icons/up-down.svg";
-      }
-    },
-
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
@@ -416,6 +413,12 @@ export default {
         this.clearMarks();
       }
 
+      this.updateLineTotal();
+      this.updateLineBtc();
+      this.updateLineMarketAverage();
+    },
+
+    useComission() {
       this.updateLineTotal();
       this.updateLineBtc();
       this.updateLineMarketAverage();
@@ -547,7 +550,11 @@ export default {
           tradePrice: isNaN(parseFloat(tradePrice))
             ? 0
             : parseFloat(tradePrice),
-          comission: isNaN(parseFloat(comission)) ? 0 : parseFloat(comission),
+          comission: this.useComission
+            ? isNaN(parseFloat(comission))
+              ? 0
+              : parseFloat(comission)
+            : 0,
           marketAveragePrice: isNaN(parseFloat(marketAveragePrice))
             ? 0
             : parseFloat(marketAveragePrice),
@@ -1122,9 +1129,32 @@ export default {
     height: auto;
   }
 
-  .trade-direction-button {
-    width: 24px;
-    height: auto;
+  .use-comission-container {
+    display: flex;
+
+    .use-comission-button {
+      width: 25px;
+      height: auto;
+    }
+
+    .use-comission-tip {
+      display: flex;
+      align-items: center;
+      visibility: hidden;
+      background: grey;
+      color: white;
+      text-transform: uppercase;
+      padding: 0 8px;
+      opacity: 0;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    &:hover {
+      .use-comission-tip {
+        visibility: visible;
+        opacity: 1;
+      }
+    }
   }
 }
 
