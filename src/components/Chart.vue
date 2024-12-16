@@ -114,7 +114,7 @@
       </div>
     </div>
 
-    <!-- Other lines-->
+    <!-- Tickers lines-->
     <section ref="legend" class="legend">
       <div
         v-for="(line, index) in lines"
@@ -133,7 +133,7 @@
       >
         <div class="line__details">
           <span class="line__name" v-text="line.name" />
-          <span class="line__last-value" v-text="getLineValue(index)" />
+          <span class="line__last-value" v-text="getLegendLineValue(index)" />
           <span
             class="round"
             :class="{
@@ -419,9 +419,7 @@ export default {
     },
 
     useComission() {
-      this.updateLineTotal();
-      this.updateLineBtc();
-      this.updateLineMarketAverage();
+      this.updateChart();
     },
 
     tradeDirection() {
@@ -430,7 +428,7 @@ export default {
   },
 
   methods: {
-    getLineValue(index) {
+    getLegendLineValue(index) {
       const lineData = this.linesData[index];
       const lineValue = lineData[lineData.length - 1]?.value || "0.00";
       const result = lineValue ? parseFloat(lineValue).toFixed(2) : "0.00";
