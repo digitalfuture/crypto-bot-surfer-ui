@@ -1359,6 +1359,7 @@ export default {
   color: red;
 }
 
+// hide Lightweight Chart logo
 #tv-attr-logo {
   display: none !important;
 }
