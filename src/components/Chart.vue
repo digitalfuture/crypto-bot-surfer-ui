@@ -765,11 +765,9 @@ export default {
         .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a, b) => b.length - a.length)[0]
         .map(({ time, marketAveragePrice }, index, array) => {
-          const initialPrice = array[0].marketAveragePrice;
-
           return {
             time,
-            value: (marketAveragePrice / initialPrice) * 100 - 100,
+            value: marketAveragePrice,
           };
         });
 
