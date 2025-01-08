@@ -81,12 +81,12 @@
       >
         <div class="line__details info">
           <span class="line__name">MARKET GROW LEVEL</span>
-          <span class="line__last-value"> {{ marketAverageProfit }} </span>
+          <span class="line__last-value"> {{ marketAverage }} </span>
           <span
             class="round"
             :class="{
-              'round--green': parseFloat(marketAverageProfit) > 0,
-              'round--red': parseFloat(marketAverageProfit) < 0,
+              'round--green': parseFloat(marketAverage) > 0,
+              'round--red': parseFloat(marketAverage) < 0,
             }"
           />
         </div>
@@ -340,7 +340,7 @@ export default {
       return profit?.toFixed(2);
     },
 
-    marketAverageProfit() {
+    marketAverage() {
       const lastValue =
         this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1]
           ?.value;
@@ -514,7 +514,7 @@ export default {
 
       lineSeriesMarketAverage = chart.addLineSeries({
         color: "gray",
-        priceScaleId: null,
+        priceScaleId: "right",
         lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
