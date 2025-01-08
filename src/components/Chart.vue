@@ -499,7 +499,7 @@ export default {
 
       lineSeriesBtc = chart.addLineSeries({
         color: "black",
-        priceScaleId: "left",
+        priceScaleId: null,
         lineWidth: this.lineWidth,
         visible: this.isLineBtcVisible,
         priceLineVisible: false,
@@ -514,7 +514,7 @@ export default {
 
       lineSeriesMarketAverage = chart.addLineSeries({
         color: "gray",
-        priceScaleId: "right",
+        priceScaleId: "left",
         lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
