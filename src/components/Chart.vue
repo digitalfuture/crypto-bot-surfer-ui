@@ -133,7 +133,7 @@
       >
         <div class="line__details">
           <span class="line__name" v-text="line.name" />
-          <span class="line__last-value" v-text="getLegendLineValue(index)" />
+          <span class="line__last-value" v-text="getLegendValue(index)" />
           <span
             class="round"
             :class="{
@@ -428,7 +428,7 @@ export default {
   },
 
   methods: {
-    getLegendLineValue(index) {
+    getLegendValue(index) {
       const lineData = this.linesData[index];
       const lineValue = lineData[lineData.length - 1]?.value || "0.00";
       const result = lineValue ? parseFloat(lineValue).toFixed(2) : "0.00";
@@ -503,7 +503,7 @@ export default {
         lineWidth: this.lineWidth,
         visible: this.isLineBtcVisible,
         priceLineVisible: false,
-        lastValueVisible: true,
+        lastValueVisible: false,
       });
 
       lineSeriesBtc.setData(seriesDataBtc);
@@ -518,7 +518,7 @@ export default {
         lineWidth: this.lineWidth / 2,
         visible: this.isLineMarketAverageVisible,
         priceLineVisible: false,
-        lastValueVisible: false,
+        lastValueVisible: true,
       });
 
       lineSeriesMarketAverage.setData(seriesDataMarketAverage);
