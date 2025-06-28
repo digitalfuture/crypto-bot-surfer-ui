@@ -8,7 +8,7 @@ docker build -t chart-image . --no-cache
 
 # build run via name: chart-server
 docker run \
-    -p 8081:80 \
+    -p 80:8081 \
     --name chart-container \
     -v /home/report:/home/chart/public/data \
     -d chart-image
