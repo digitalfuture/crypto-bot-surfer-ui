@@ -6,7 +6,7 @@ docker rmi chart-image --force
 
 docker build -t chart-image . --no-cache
 
-# build run via name: chart-server
+# build run via name: chart-container
 docker run \
     -p 80:8081 \
     --name chart-container \
