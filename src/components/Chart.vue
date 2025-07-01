@@ -563,8 +563,8 @@ export default {
       });
 
       let profitTotalPercent = 0;
-      let lastBuyPrice: number | undefined;
-      let lastSellPrice: number | undefined;
+      let lastEntryPrice: number | undefined;
+      let lastTradeType: "BUY" | "SELL" | null = null;
 
       const data = tradeArray.map(
         ({
@@ -579,77 +579,54 @@ export default {
           let onePercent: number = 0;
           let tradeProfit: number = 0;
           let tradeProfitPercent: number = 0;
-          let totalProfitPercent: number = 0;
 
-          switch (trade) {
-            case "BUY":
-              if (lastSellPrice === undefined) {
-                lastSellPrice = tradePrice;
-              }
+          if (trade === "BUY" || trade === "SELL") {
+            const isOpening = lastTradeType === null || lastTradeType === trade;
 
+            if (isOpening) {
+              // Открытие сделки
+              lastEntryPrice = tradePrice;
+              tradeProfit = -comission;
+              onePercent = tradePrice / 100;
+              tradeProfitPercent = tradeProfit / onePercent;
+              profitTotalPercent += tradeProfitPercent;
+            } else {
+              // Закрытие сделки
               if (
+                lastEntryPrice === undefined ||
                 tradePrice === undefined ||
-                lastSellPrice === undefined ||
                 isNaN(tradePrice)
               ) {
-                console.error("Invalid price or lastSellPrice for BUY:", {
+                console.error("Invalid price for closing trade:", {
                   tradePrice,
-                  lastSellPrice,
+                  lastEntryPrice,
                 });
                 tradeProfit = 0;
                 tradeProfitPercent = 0;
               } else {
-                tradeProfit = -comission;
-                onePercent = tradePrice / 100;
+                onePercent = lastEntryPrice / 100;
+
+                if (lastTradeType === "BUY" && trade === "SELL") {
+                  // Лонг: продаём выше — в плюс
+                  tradeProfit = tradePrice - lastEntryPrice - comission;
+                } else if (lastTradeType === "SELL" && trade === "BUY") {
+                  // Шорт: покупаем ниже — в плюс
+                  tradeProfit = lastEntryPrice - tradePrice - comission;
+                }
+
                 tradeProfitPercent = tradeProfit / onePercent;
-
-                profitTotalPercent -= comission / onePercent;
-                lastBuyPrice = tradePrice;
-              }
-
-              break;
-
-            case "SELL":
-              if (lastBuyPrice === undefined) {
-                lastBuyPrice = tradePrice;
-              }
-
-              if (
-                tradePrice === undefined ||
-                lastBuyPrice === undefined ||
-                isNaN(tradePrice)
-              ) {
-                console.error("Invalid price or lastBuyPrice for SELL:", {
-                  tradePrice,
-                  lastBuyPrice,
-                });
-                tradeProfit = 0;
-                tradeProfitPercent = 0;
-              } else {
-                tradeProfit = tradePrice - lastBuyPrice - comission;
-                onePercent = lastBuyPrice / 100;
-                tradeProfitPercent = tradeProfit / onePercent;
-
                 profitTotalPercent += tradeProfitPercent;
-                lastSellPrice = tradePrice;
               }
-              break;
+            }
+
+            lastTradeType = trade as "BUY" | "SELL";
           }
-
-          totalProfitPercent = profitTotalPercent;
-
-          // console.log("\n");
-          // console.log("trade:", trade);
-          // console.log("tradePrice:", tradePrice);
-          // console.log("comission:", comission);
-          // console.log("totalProfitPercent:", totalProfitPercent);
-          // console.log("tradeProfitPercent:", tradeProfitPercent);
 
           return {
             time: Date.parse(dateString) / 1000,
             trade,
             price: isNaN(tradePrice) ? 0 : tradePrice,
-            value: totalProfitPercent,
+            value: profitTotalPercent,
             btcPrice,
             tokenName,
             marketAveragePrice: isNaN(marketAveragePrice)
@@ -658,8 +635,6 @@ export default {
           };
         }
       );
-
-      // console.log("data", data);
 
       return data;
     },
