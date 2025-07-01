@@ -603,11 +603,11 @@ export default {
               tradeProfitPercent = tradeProfit / onePercent;
               profitTotalPercent += tradeProfitPercent;
 
-              console.log(
-                `[OPEN] Mode: ${mode}, Price: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
-                  4
-                )}%, Total: ${profitTotalPercent.toFixed(4)}%`
-              );
+              // console.log(
+              //   `[OPEN] Mode: ${mode}, Price: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
+              //     4
+              //   )}%, Total: ${profitTotalPercent.toFixed(4)}%`
+              // );
             } else if (isClosing) {
               if (
                 lastEntryPrice === undefined ||
@@ -632,11 +632,11 @@ export default {
                 tradeProfitPercent = tradeProfit / onePercent;
                 profitTotalPercent += tradeProfitPercent;
 
-                console.log(
-                  `[CLOSE] Mode: ${mode}, Entry: ${lastEntryPrice}, Exit: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
-                    4
-                  )}%, Total: ${profitTotalPercent.toFixed(4)}%`
-                );
+                // console.log(
+                //   `[CLOSE] Mode: ${mode}, Entry: ${lastEntryPrice}, Exit: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
+                //     4
+                //   )}%, Total: ${profitTotalPercent.toFixed(4)}%`
+                // );
               }
             }
 
