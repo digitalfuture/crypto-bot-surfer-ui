@@ -562,6 +562,14 @@ export default {
         };
       });
 
+      const firstTrade = tradeArray.find(
+        (t) => t.trade === "BUY" || t.trade === "SELL"
+      );
+      const mode: "LONG" | "SHORT" =
+        firstTrade?.trade === "BUY" ? "LONG" : "SHORT";
+
+      console.log(`Strategy Mode: ${mode}`);
+
       let profitTotalPercent = 0;
       let lastEntryPrice: number | undefined;
       let lastTradeType: "BUY" | "SELL" | null = null;
@@ -581,17 +589,26 @@ export default {
           let tradeProfitPercent: number = 0;
 
           if (trade === "BUY" || trade === "SELL") {
-            const isOpening = lastTradeType === null || lastTradeType === trade;
+            const isOpening =
+              (mode === "LONG" && trade === "BUY") ||
+              (mode === "SHORT" && trade === "SELL");
+            const isClosing =
+              (mode === "LONG" && trade === "SELL") ||
+              (mode === "SHORT" && trade === "BUY");
 
             if (isOpening) {
-              // Открытие сделки
               lastEntryPrice = tradePrice;
               tradeProfit = -comission;
               onePercent = tradePrice / 100;
               tradeProfitPercent = tradeProfit / onePercent;
               profitTotalPercent += tradeProfitPercent;
-            } else {
-              // Закрытие сделки
+
+              console.log(
+                `[OPEN] Mode: ${mode}, Price: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
+                  4
+                )}%, Total: ${profitTotalPercent.toFixed(4)}%`
+              );
+            } else if (isClosing) {
               if (
                 lastEntryPrice === undefined ||
                 tradePrice === undefined ||
@@ -606,16 +623,20 @@ export default {
               } else {
                 onePercent = lastEntryPrice / 100;
 
-                if (lastTradeType === "BUY" && trade === "SELL") {
-                  // Лонг: продаём выше — в плюс
+                if (mode === "LONG") {
                   tradeProfit = tradePrice - lastEntryPrice - comission;
-                } else if (lastTradeType === "SELL" && trade === "BUY") {
-                  // Шорт: покупаем ниже — в плюс
+                } else if (mode === "SHORT") {
                   tradeProfit = lastEntryPrice - tradePrice - comission;
                 }
 
                 tradeProfitPercent = tradeProfit / onePercent;
                 profitTotalPercent += tradeProfitPercent;
+
+                console.log(
+                  `[CLOSE] Mode: ${mode}, Entry: ${lastEntryPrice}, Exit: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
+                    4
+                  )}%, Total: ${profitTotalPercent.toFixed(4)}%`
+                );
               }
             }
 
@@ -1022,7 +1043,7 @@ export default {
 
     //// API
     async fetchData() {
-      const port = 80;
+      const port = 8081;
       const response = await fetch(
         `http://${window.location.hostname}:${port}/lines`
       );
