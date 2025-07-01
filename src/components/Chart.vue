@@ -1043,7 +1043,7 @@ export default {
 
     //// API
     async fetchData() {
-      const port = 8081;
+      const port = window.location["hostname"] === "localhost" ? 8081 : 80;
       const response = await fetch(
         `http://${window.location.hostname}:${port}/lines`
       );
