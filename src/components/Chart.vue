@@ -75,18 +75,20 @@
 
       <!-- Market average -->
       <div
-        class="line market-average clip-right cursor-pointer"
-        :class="{ 'market-average--disabled': !isLineMarketAverageVisible }"
-        @click="updateLineMarketAverageVisibility"
+        class="line market-oscillator clip-right cursor-pointer"
+        :class="{
+          'market-oscillator--disabled': !isLineMarketOscillatorVisible,
+        }"
+        @click="updateLineMarketOscillatorVisibility"
       >
         <div class="line__details info">
-          <span class="line__name">MARKET GROW LEVEL</span>
-          <span class="line__last-value"> {{ marketAverage }} </span>
+          <span class="line__name">MARKET OSCILLATOR</span>
+          <span class="line__last-value"> {{ marketOscillator }} </span>
           <span
             class="round"
             :class="{
-              'round--green': parseFloat(marketAverage) > 0,
-              'round--red': parseFloat(marketAverage) < 0,
+              'round--green': parseFloat(marketOscillator) > 0,
+              'round--red': parseFloat(marketOscillator) < 0,
             }"
           />
         </div>
@@ -170,7 +172,7 @@ export interface ISeries {
   trade?: string;
   btcPrice?: number;
   profit?: number;
-  marketAveragePrice?: number;
+  marketOscillatorPrice?: number;
   sum?: number;
   count?: number;
 }
@@ -180,7 +182,7 @@ export interface ISeries {
 let chart = null;
 let lineSeries = [];
 let lineSeriesBtc = null;
-let lineSeriesMarketAverage = null;
+let lineSeriesMarketOscillator = null;
 let lineSeriesTotal = null;
 
 export default {
@@ -202,10 +204,10 @@ export default {
       linesData: [],
       lineDataBtc: [],
       linesDataTotal: [],
-      lineDataMarketAverage: [],
+      lineDataMarketOscillator: [],
 
       isLineBtcVisible: true,
-      isLineMarketAverageVisible: true,
+      isLineMarketOscillatorVisible: true,
       isLineTotalVisible: true,
 
       lineSeriesMarked: null,
@@ -340,9 +342,9 @@ export default {
       return profit?.toFixed(2);
     },
 
-    marketAverage() {
+    marketOscillator() {
       const lastValue =
-        this.lineDataMarketAverage[this.lineDataMarketAverage.length - 1]
+        this.lineDataMarketOscillator[this.lineDataMarketOscillator.length - 1]
           ?.value;
 
       return lastValue?.toFixed(2);
@@ -374,8 +376,8 @@ export default {
       this.updateLineBtc();
     },
 
-    isLineMarketAverageVisible(value) {
-      this.updateLineMarketAverage();
+    isLineMarketOscillatorVisible(value) {
+      this.updateLineMarketOscillator();
     },
 
     isLineTotalVisible() {
@@ -415,7 +417,7 @@ export default {
 
       this.updateLineTotal();
       this.updateLineBtc();
-      this.updateLineMarketAverage();
+      this.updateLineMarketOscillator();
     },
 
     useComission() {
@@ -443,7 +445,7 @@ export default {
       const chartContainer = document.getElementById("chart-container");
       chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartMarketAverage();
+      this.setupChartMarketOscillator();
       this.setupChartTotal();
       this.setupChartBtc();
       this.setupChartLines();
@@ -509,19 +511,20 @@ export default {
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
-    setupChartMarketAverage() {
-      const seriesDataMarketAverage = this.prepareSeriesDataMarketAverage();
+    setupChartMarketOscillator() {
+      const seriesDataMarketOscillator =
+        this.prepareSeriesDataMarketOscillator();
 
-      lineSeriesMarketAverage = chart.addLineSeries({
+      lineSeriesMarketOscillator = chart.addLineSeries({
         color: "gray",
         priceScaleId: "left",
         lineWidth: this.lineWidth / 2,
-        visible: this.isLineMarketAverageVisible,
+        visible: this.isLineMarketOscillatorVisible,
         priceLineVisible: false,
         lastValueVisible: true,
       });
 
-      lineSeriesMarketAverage.setData(seriesDataMarketAverage);
+      lineSeriesMarketOscillator.setData(seriesDataMarketOscillator);
     },
 
     //// Prepare line series
@@ -531,7 +534,7 @@ export default {
           count,
           dateString,
           btcPrice,
-          marketAveragePrice,
+          marketOscillatorPrice,
           tokenName,
           priceChangePercent,
           trade,
@@ -553,9 +556,9 @@ export default {
               ? 0
               : parseFloat(comission)
             : 0,
-          marketAveragePrice: isNaN(parseFloat(marketAveragePrice))
+          marketOscillatorPrice: isNaN(parseFloat(marketOscillatorPrice))
             ? 0
-            : parseFloat(marketAveragePrice),
+            : parseFloat(marketOscillatorPrice),
           profit,
           profitTotal,
           tokenName,
@@ -581,7 +584,7 @@ export default {
           trade,
           tradePrice,
           comission,
-          marketAveragePrice,
+          marketOscillatorPrice,
           tokenName,
         }) => {
           let onePercent: number = 0;
@@ -650,9 +653,9 @@ export default {
             value: profitTotalPercent,
             btcPrice,
             tokenName,
-            marketAveragePrice: isNaN(marketAveragePrice)
+            marketOscillatorPrice: isNaN(marketOscillatorPrice)
               ? 0
-              : marketAveragePrice,
+              : marketOscillatorPrice,
           };
         }
       );
@@ -750,26 +753,26 @@ export default {
       return lineDataBtc;
     },
 
-    prepareSeriesDataMarketAverage() {
+    prepareSeriesDataMarketOscillator() {
       const isAllLinesSelected: boolean =
         this.hasLineTotalOnly || this.hasNoLines;
       const lines: ILine[] = isAllLinesSelected
         ? this.lines
         : this.linesEnabled;
 
-      const lineDataMarketAverage = lines
+      const lineDataMarketOscillator = lines
         .map((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
         .sort((a, b) => b.length - a.length)[0]
-        .map(({ time, marketAveragePrice }, index, array) => {
+        .map(({ time, marketOscillatorPrice }, index, array) => {
           return {
             time,
-            value: marketAveragePrice,
+            value: marketOscillatorPrice,
           };
         });
 
-      this.lineDataMarketAverage = lineDataMarketAverage;
+      this.lineDataMarketOscillator = lineDataMarketOscillator;
 
-      return lineDataMarketAverage;
+      return lineDataMarketOscillator;
     },
 
     // Convert server data to lines
@@ -819,7 +822,7 @@ export default {
       this.isLineMarked = false;
       this.linesData = [];
       this.lineDataBtc = [];
-      this.lineDataMarketAverage = [];
+      this.lineDataMarketOscillator = [];
       this.linesDataTotal = [];
       this.isLineBtcVisible = true;
       this.isLineTotalVisible = true;
@@ -846,7 +849,7 @@ export default {
       this.updateLines();
       this.updateLineTotal();
       this.updateLineBtc();
-      this.updateLineMarketAverage();
+      this.updateLineMarketOscillator();
     },
 
     updateLineBtcVisibility() {
@@ -861,8 +864,8 @@ export default {
       }
     },
 
-    updateLineMarketAverageVisibility() {
-      this.isLineMarketAverageVisible = !this.isLineMarketAverageVisible;
+    updateLineMarketOscillatorVisibility() {
+      this.isLineMarketOscillatorVisible = !this.isLineMarketOscillatorVisible;
     },
 
     updateLineVisibility(index: number) {
@@ -870,7 +873,7 @@ export default {
       this.updateLineBtc();
 
       // Market change line
-      this.updateLineMarketAverage();
+      this.updateLineMarketOscillator();
 
       // Total line
       this.updateLineTotal();
@@ -913,14 +916,15 @@ export default {
       lineSeriesBtc.setData(seriesDataBtc);
     },
 
-    updateLineMarketAverage() {
-      lineSeriesMarketAverage.applyOptions({
-        visible: this.isLineMarketAverageVisible,
+    updateLineMarketOscillator() {
+      lineSeriesMarketOscillator.applyOptions({
+        visible: this.isLineMarketOscillatorVisible,
       });
 
-      const seriesDataMarketAverage = this.prepareSeriesDataMarketAverage();
+      const seriesDataMarketOscillator =
+        this.prepareSeriesDataMarketOscillator();
 
-      lineSeriesMarketAverage.setData(seriesDataMarketAverage);
+      lineSeriesMarketOscillator.setData(seriesDataMarketOscillator);
     },
 
     setupChartUpdate() {
@@ -1250,7 +1254,7 @@ export default {
     }
   }
 
-  .market-average {
+  .market-oscillator {
     background: grey;
 
     &--disabled {
