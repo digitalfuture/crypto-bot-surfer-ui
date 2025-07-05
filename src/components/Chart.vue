@@ -404,9 +404,9 @@ export default {
 
     setupChartTotal() {
       lineSeriesTotal = chart.addLineSeries({
-        color: "white",
+        color: "black",
         priceScaleId: "right",
-        lineWidth: this.lineWidth * 2,
+        lineWidth: this.lineWidth,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -1025,7 +1025,7 @@ export default {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    background: white;
+    background: black;
 
     &--disabled {
       background: none;
