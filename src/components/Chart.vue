@@ -141,6 +141,8 @@ let chart = null;
 let lineSeries = [];
 let lineSeriesTotal = null;
 
+const totalLineColor = "dimgray";
+
 export default {
   name: "Chart",
 
@@ -199,8 +201,6 @@ export default {
         "darkviolet",
         "deeppink",
         "deepskyblue",
-        "dimgray",
-        "dimgray",
         "dodgerblue",
         "firebrick",
         "goldenrod",
@@ -404,7 +404,7 @@ export default {
 
     setupChartTotal() {
       lineSeriesTotal = chart.addLineSeries({
-        color: "black",
+        color: totalLineColor,
         priceScaleId: "right",
         lineWidth: this.lineWidth,
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
@@ -1025,7 +1025,7 @@ export default {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    background: black;
+    background: var(--total-line-color);
 
     &--disabled {
       background: none;
