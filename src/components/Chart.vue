@@ -449,82 +449,18 @@ export default {
         };
       });
 
-      const firstTrade = tradeArray.find(
-        (t) => t.trade === "BUY" || t.trade === "SELL"
-      );
-      const mode: "LONG" | "SHORT" =
-        firstTrade?.trade === "BUY" ? "LONG" : "SHORT";
-
-      let profitTotalPercent = 0;
-      let lastEntryPrice: number | undefined;
-      let lastTradeType: "BUY" | "SELL" | null = null;
+      // Мы уже не используем mode, lastEntryPrice, lastTradeType и логику подсчёта прибыли — берем из отчёта напрямую.
 
       const data = tradeArray.map(
-        ({ dateString, trade, tradePrice, comission, tokenName }) => {
-          let onePercent: number = 0;
-          let tradeProfit: number = 0;
-          let tradeProfitPercent: number = 0;
-
-          if (trade === "BUY" || trade === "SELL") {
-            const isOpening =
-              (mode === "LONG" && trade === "BUY") ||
-              (mode === "SHORT" && trade === "SELL");
-            const isClosing =
-              (mode === "LONG" && trade === "SELL") ||
-              (mode === "SHORT" && trade === "BUY");
-
-            if (isOpening) {
-              lastEntryPrice = tradePrice;
-              tradeProfit = -comission;
-              onePercent = tradePrice / 100;
-              tradeProfitPercent = tradeProfit / onePercent;
-              profitTotalPercent += tradeProfitPercent;
-
-              // console.log(
-              //   `[OPEN] Mode: ${mode}, Price: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
-              //     4
-              //   )}%, Total: ${profitTotalPercent.toFixed(4)}%`
-              // );
-            } else if (isClosing) {
-              if (
-                lastEntryPrice === undefined ||
-                tradePrice === undefined ||
-                isNaN(tradePrice)
-              ) {
-                console.error("Invalid price for closing trade:", {
-                  tradePrice,
-                  lastEntryPrice,
-                });
-                tradeProfit = 0;
-                tradeProfitPercent = 0;
-              } else {
-                onePercent = lastEntryPrice / 100;
-
-                if (mode === "LONG") {
-                  tradeProfit = tradePrice - lastEntryPrice - comission;
-                } else if (mode === "SHORT") {
-                  tradeProfit = lastEntryPrice - tradePrice - comission;
-                }
-
-                tradeProfitPercent = tradeProfit / onePercent;
-                profitTotalPercent += tradeProfitPercent;
-
-                // console.log(
-                //   `[CLOSE] Mode: ${mode}, Entry: ${lastEntryPrice}, Exit: ${tradePrice}, Fee: ${comission}, ΔEquity: ${tradeProfitPercent.toFixed(
-                //     4
-                //   )}%, Total: ${profitTotalPercent.toFixed(4)}%`
-                // );
-              }
-            }
-
-            lastTradeType = trade as "BUY" | "SELL";
-          }
+        ({ dateString, trade, tradePrice, profitTotal, tokenName }) => {
+          // Читаем profitTotal как число, если не число — 0
+          const totalProfit = parseFloat(profitTotal) || 0;
 
           return {
             time: Date.parse(dateString) / 1000,
             trade,
             price: isNaN(tradePrice) ? 0 : tradePrice,
-            value: profitTotalPercent,
+            value: totalProfit,
             tokenName,
           };
         }
