@@ -438,29 +438,42 @@ export default {
           tradePrice: isNaN(parseFloat(tradePrice))
             ? 0
             : parseFloat(tradePrice),
-          comission: this.useComission
-            ? isNaN(parseFloat(comission))
-              ? 0
-              : parseFloat(comission)
-            : 0,
-          profit,
-          profitTotal,
+          comission: isNaN(parseFloat(comission)) ? 0 : parseFloat(comission),
+          profit: parseFloat(profit) || 0,
+          profitTotal: parseFloat(profitTotal) || 0,
           tokenName,
+          count,
+          priceChangePercent,
         };
       });
 
-      // Мы уже не используем mode, lastEntryPrice, lastTradeType и логику подсчёта прибыли — берем из отчёта напрямую.
+      let cumulativeProfit = 0;
 
       const data = tradeArray.map(
-        ({ dateString, trade, tradePrice, profitTotal, tokenName }) => {
-          // Читаем profitTotal как число, если не число — 0
-          const totalProfit = parseFloat(profitTotal) || 0;
+        ({
+          count,
+          dateString,
+          trade,
+          tradePrice,
+          comission,
+          profit,
+          profitTotal,
+          tokenName,
+        }) => {
+          const comissionPercent =
+            tradePrice === 0 ? 0 : (comission / tradePrice) * 100;
+
+          if (this.useComission) {
+            cumulativeProfit += profit;
+          } else {
+            cumulativeProfit += profit + comissionPercent;
+          }
 
           return {
             time: Date.parse(dateString) / 1000,
             trade,
-            price: isNaN(tradePrice) ? 0 : tradePrice,
-            value: totalProfit,
+            price: tradePrice,
+            value: cumulativeProfit,
             tokenName,
           };
         }
