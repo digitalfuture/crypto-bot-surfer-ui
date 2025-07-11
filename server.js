@@ -57,19 +57,26 @@ async function readFiles() {
   const fileList = [];
 
   try {
-    // Read all files in the target directory
     const files = await readdir(directoryPath);
 
     for (const fileName of files) {
-      // Only process .csv files
       if (fileName.endsWith(".csv")) {
         const filePath = join(directoryPath, fileName);
         const fileData = await readFile(filePath, { encoding: "utf8" });
 
-        // Add file name and content to the result list
+        // Split lines, skip header
+        const lines = fileData.trim().split("\n").slice(1);
+
+        // Filter lines where Trade column (5th column, index 4) is SELL or BUY
+        const filteredLines = lines.filter((line) => {
+          const cols = line.split(",");
+          const trade = cols[4]?.trim().toUpperCase();
+          return trade === "SELL" || trade === "BUY";
+        });
+
         fileList.push({
           name: fileName,
-          data: fileData.trim().split("\n").slice(1),
+          data: filteredLines,
         });
       }
     }
