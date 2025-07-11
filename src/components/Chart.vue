@@ -428,21 +428,17 @@ export default {
           trade,
           tradePrice,
           commission,
-          profit,
-          profitTotal,
+          profitPercent,
+          profitTotalPercent,
         ] = row;
 
         return {
           dateString,
           trade,
-          tradePrice: isNaN(parseFloat(tradePrice))
-            ? 0
-            : parseFloat(tradePrice),
-          commission: isNaN(parseFloat(commission))
-            ? 0
-            : parseFloat(commission),
-          profit: parseFloat(profit) || 0,
-          profitTotal: parseFloat(profitTotal) || 0,
+          tradePrice: parseFloat(tradePrice),
+          commission: parseFloat(commission),
+          profitPercent: parseFloat(profitPercent) || 0,
+          profitTotalPercent: parseFloat(profitTotalPercent) || 0,
           tokenName,
           count,
           priceChangePercent,
@@ -450,12 +446,12 @@ export default {
       });
 
       return tradeArray.map(
-        ({ dateString, trade, tradePrice, profitTotal, tokenName }) => {
+        ({ dateString, trade, tradePrice, profitTotalPercent, tokenName }) => {
           return {
             time: Date.parse(dateString) / 1000,
             trade,
             price: tradePrice,
-            value: profitTotal,
+            value: profitTotalPercent,
             tokenName,
           };
         }
