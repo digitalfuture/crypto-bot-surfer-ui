@@ -450,13 +450,11 @@ export default {
 
         tradeArray.forEach((trade) => {
           if (trade.trade === "BUY" || trade.trade === "SELL") {
-            // Конвертируем комиссию в проценты от торговой стоимости
-            // Комиссия обычно составляет около 0.04% от суммы сделки
             const commissionPercent =
               (Math.abs(trade.commission) / trade.tradePrice) * 100;
             cumulativeCommissionPercent += commissionPercent;
           }
-          // Добавляем накопленную комиссию в процентах к общей прибыли
+
           trade.profitTotalPercent += cumulativeCommissionPercent;
         });
       }
