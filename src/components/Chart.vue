@@ -29,16 +29,16 @@
         @click="isFullScreen = !isFullScreen"
       />
 
-      <div class="use-comission-container">
+      <div class="use-commission-container">
         <img
-          :src="useComission ? '/icons/money.svg' : '/icons/money-off.svg'"
+          :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
           alt="DNATRADE"
-          class="use-comission-button cursor-pointer"
-          @click="useComission = !useComission"
+          class="use-commission-button cursor-pointer"
+          @click="useCommission = !useCommission"
         />
 
-        <span class="use-comission-tip">{{
-          useComission ? "With Comission" : "Without Comission"
+        <span class="use-commission-tip">{{
+          useCommission ? "With Comission" : "Without Comission"
         }}</span>
       </div>
     </div>
@@ -155,7 +155,7 @@ export default {
       lineWidth: 2.5,
       isFullScreen: false,
       isLineMarked: false,
-      useComission: true,
+      useCommission: true,
 
       lines: [],
 
@@ -343,7 +343,7 @@ export default {
       this.updateLineTotal();
     },
 
-    useComission() {
+    useCommission() {
       this.updateChart();
     },
 
@@ -427,7 +427,7 @@ export default {
           priceChangePercent,
           trade,
           tradePrice,
-          comission,
+          commission,
           profit,
           profitTotal,
         ] = row;
@@ -438,7 +438,9 @@ export default {
           tradePrice: isNaN(parseFloat(tradePrice))
             ? 0
             : parseFloat(tradePrice),
-          comission: isNaN(parseFloat(comission)) ? 0 : parseFloat(comission),
+          commission: isNaN(parseFloat(commission))
+            ? 0
+            : parseFloat(commission),
           profit: parseFloat(profit) || 0,
           profitTotal: parseFloat(profitTotal) || 0,
           tokenName,
@@ -447,39 +449,17 @@ export default {
         };
       });
 
-      let cumulativeProfit = 0;
-
-      const data = tradeArray.map(
-        ({
-          count,
-          dateString,
-          trade,
-          tradePrice,
-          comission,
-          profit,
-          profitTotal,
-          tokenName,
-        }) => {
-          const comissionPercent =
-            tradePrice === 0 ? 0 : (comission / tradePrice) * 100;
-
-          if (this.useComission) {
-            cumulativeProfit += profit;
-          } else {
-            cumulativeProfit += profit + comissionPercent;
-          }
-
+      return tradeArray.map(
+        ({ dateString, trade, tradePrice, profitTotal, tokenName }) => {
           return {
             time: Date.parse(dateString) / 1000,
             trade,
             price: tradePrice,
-            value: cumulativeProfit,
+            value: profitTotal,
             tokenName,
           };
         }
       );
-
-      return data;
     },
 
     prepareSeriesDataTotal(): ISeries[] {
@@ -860,15 +840,15 @@ export default {
     height: auto;
   }
 
-  .use-comission-container {
+  .use-commission-container {
     display: flex;
 
-    .use-comission-button {
+    .use-commission-button {
       width: 25px;
       height: auto;
     }
 
-    .use-comission-tip {
+    .use-commission-tip {
       display: flex;
       align-items: center;
       visibility: hidden;
@@ -881,7 +861,7 @@ export default {
     }
 
     &:hover {
-      .use-comission-tip {
+      .use-commission-tip {
         visibility: visible;
         opacity: 1;
       }
