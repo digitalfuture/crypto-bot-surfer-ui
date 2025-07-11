@@ -437,13 +437,29 @@ export default {
           trade,
           tradePrice: parseFloat(tradePrice),
           commission: parseFloat(commission),
-          profitPercent: parseFloat(profitPercent) || 0,
-          profitTotalPercent: parseFloat(profitTotalPercent) || 0,
+          profitPercent: parseFloat(profitPercent),
+          profitTotalPercent: parseFloat(profitTotalPercent),
           tokenName,
           count,
           priceChangePercent,
         };
       });
+
+      if (!this.useCommission) {
+        let cumulativeCommissionPercent = 0;
+
+        tradeArray.forEach((trade) => {
+          if (trade.trade === "BUY" || trade.trade === "SELL") {
+            // Конвертируем комиссию в проценты от торговой стоимости
+            // Комиссия обычно составляет около 0.04% от суммы сделки
+            const commissionPercent =
+              (Math.abs(trade.commission) / trade.tradePrice) * 100;
+            cumulativeCommissionPercent += commissionPercent;
+          }
+          // Добавляем накопленную комиссию в процентах к общей прибыли
+          trade.profitTotalPercent += cumulativeCommissionPercent;
+        });
+      }
 
       return tradeArray.map(
         ({ dateString, trade, tradePrice, profitTotalPercent, tokenName }) => {
