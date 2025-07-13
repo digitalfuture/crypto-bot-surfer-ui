@@ -69,7 +69,7 @@ async function readFiles() {
         // Add file name and content to the result list
         fileList.push({
           name: fileName,
-          data: fileData.trim().split("\n").slice(1).slice(2000),
+          data: fileData.trim().split("\n").slice(1).slice(-2000),
         });
       }
     }
