@@ -1,8 +1,11 @@
 #!/bin/bash
 
-docker stop chart-container
-docker rm chart-container --force
-docker rmi chart-image --force
+# Ensure script runs from its directory
+cd "$(dirname "$0")"
+
+docker stop chart-container 2>/dev/null || true
+docker rm chart-container --force 2>/dev/null || true
+docker rmi chart-image --force 2>/dev/null || true
 
 docker build -t chart-image . --no-cache
 
@@ -11,4 +14,5 @@ docker run \
     -p 80:8081 \
     --name chart-container \
     -v /home/report:/home/chart/public/data \
-    -d chart-image
+    --restart unless-stopped \
+    -d chart-image
