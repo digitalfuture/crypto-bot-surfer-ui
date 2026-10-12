@@ -38,7 +38,7 @@
         />
 
         <span class="use-commission-tip">{{
-          useCommission ? "With Comission" : "Without Comission"
+          useCommission ? "With Commission" : "Without Commission"
         }}</span>
       </div>
     </div>
@@ -89,7 +89,7 @@
           'line--disabled': hasLineTotalOnly,
         }"
         @click="
-          linesData[index][linesData[index].length - 1] &&
+          linesData[index]?.[linesData[index]?.length - 1] &&
             updateLineVisibility(index)
         "
       >
@@ -100,9 +100,9 @@
             class="round"
             :class="{
               'round--green':
-                linesData[index][linesData[index].length - 1]?.value > 0,
+                linesData[index]?.[linesData[index]?.length - 1]?.value > 0,
               'round--red':
-                linesData[index][linesData[index].length - 1]?.value < 0,
+                linesData[index]?.[linesData[index]?.length - 1]?.value < 0,
             }"
           />
         </div>
@@ -281,7 +281,9 @@ export default {
       const lastValue =
         this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
 
-      return lastValue?.toFixed(2);
+      return lastValue != null && !isNaN(lastValue)
+        ? lastValue.toFixed(2)
+        : "0.00";
     },
 
     linesEnabled() {
@@ -354,9 +356,12 @@ export default {
 
   methods: {
     getLegendValue(index) {
-      const lineData = this.linesData[index];
-      const lineValue = lineData[lineData.length - 1]?.value || "0.00";
-      const result = lineValue ? parseFloat(lineValue).toFixed(2) : "0.00";
+      const lineData = this.linesData[index] || [];
+      const lineValue = lineData[lineData.length - 1]?.value;
+      const result =
+        lineValue != null && !isNaN(lineValue)
+          ? Number(lineValue).toFixed(2)
+          : "0.00";
 
       return result;
     },
@@ -419,39 +424,51 @@ export default {
 
     //// Prepare line series
     prepareSeriesData(lineData: string[][]): ISeries[] {
-      const tradeArray = lineData.map((row: string[]) => {
-        const [
-          count,
-          dateString,
-          tokenName,
-          priceChangePercent,
-          trade,
-          tradePrice,
-          commission,
-          profitPercent,
-          profitTotalPercent,
-        ] = row;
+      const tradeArray = lineData
+        .map((row: string[]) => {
+          const [
+            count,
+            dateString,
+            tokenName,
+            priceChangePercent,
+            trade,
+            tradePrice,
+            commission,
+            profitPercent,
+            profitTotalPercent,
+          ] = row;
 
-        return {
-          dateString,
-          trade,
-          tradePrice: parseFloat(tradePrice),
-          commission: parseFloat(commission),
-          profitPercent: parseFloat(profitPercent),
-          profitTotalPercent: parseFloat(profitTotalPercent),
-          tokenName,
-          count,
-          priceChangePercent,
-        };
-      });
+          const parsedPrice = parseFloat(tradePrice);
+          const parsedCommission = parseFloat(commission);
+          const parsedProfitPercent = parseFloat(profitPercent);
+          const parsedProfitTotal = parseFloat(profitTotalPercent);
+
+          return {
+            dateString,
+            trade: trade ? trade.trim() : "",
+            tradePrice: isNaN(parsedPrice) ? 0 : parsedPrice,
+            commission: isNaN(parsedCommission) ? 0 : parsedCommission,
+            profitPercent: isNaN(parsedProfitPercent) ? 0 : parsedProfitPercent,
+            profitTotalPercent: isNaN(parsedProfitTotal) ? 0 : parsedProfitTotal,
+            tokenName: tokenName ? tokenName.trim() : "",
+            count,
+            priceChangePercent,
+          };
+        })
+        .filter(
+          (item) => item.dateString && !isNaN(Date.parse(item.dateString))
+        );
 
       if (!this.useCommission) {
         let cumulativeCommissionPercent = 0;
 
         tradeArray.forEach((trade) => {
-          if (trade.trade === "BUY" || trade.trade === "SELL") {
+          // In report.js commission was deducted on position close (BUY)
+          if (trade.trade === "BUY") {
             const commissionPercent =
-              (Math.abs(trade.commission) / trade.tradePrice) * 100;
+              trade.tradePrice > 0
+                ? (Math.abs(trade.commission) / trade.tradePrice) * 100
+                : 0;
             cumulativeCommissionPercent += commissionPercent;
           }
 
@@ -459,10 +476,10 @@ export default {
         });
       }
 
-      return tradeArray.map(
+      const mapped = tradeArray.map(
         ({ dateString, trade, tradePrice, profitTotalPercent, tokenName }) => {
           return {
-            time: Date.parse(dateString) / 1000,
+            time: Math.floor(Date.parse(dateString) / 1000),
             trade,
             price: tradePrice,
             value: profitTotalPercent,
@@ -470,6 +487,25 @@ export default {
           };
         }
       );
+
+      mapped.sort((a, b) => a.time - b.time);
+
+      // Lightweight-charts requires strictly ascending time for line series
+      const seriesData: ISeries[] = [];
+      let lastTime = -Infinity;
+      for (const item of mapped) {
+        let time = item.time;
+        if (time <= lastTime) {
+          time = lastTime + 1;
+        }
+        seriesData.push({
+          ...item,
+          time,
+        });
+        lastTime = time;
+      }
+
+      return seriesData;
     },
 
     prepareSeriesDataTotal(): ISeries[] {
@@ -480,53 +516,53 @@ export default {
         ? this.lines
         : this.linesEnabled;
 
-      const allTimesData = lines
-        .flatMap((line: ILine): ISeries[] => this.prepareSeriesData(line.data))
-        .sort((a: ISeries, b: ISeries) => a.time - b.time)
-        .map(({ time }) => time)
-        .filter((time: number, index: number, array: number[]) => {
-          return time !== array[index + 1];
-        });
+      if (!lines.length) {
+        this.linesDataTotal = [];
+        return [];
+      }
 
-      const alignedLines: ISeries[][] = lines.map((line: ILine) => {
-        const lineData = this.prepareSeriesData(line.data);
-        const alignedLine: ISeries[] = [];
+      const allPreparedLines = lines.map((line: ILine) =>
+        this.prepareSeriesData(line.data)
+      );
 
-        for (let i = 0; i < allTimesData.length; i++) {
-          const time = allTimesData[i];
-          const matchingSeries = lineData.find(
-            ({ time: seriesTime }) => seriesTime === time
-          );
-
-          if (matchingSeries) {
-            alignedLine.push(matchingSeries);
-          } else {
-            const previousSeries = alignedLine[i - 1];
-
-            if (previousSeries) {
-              alignedLine.push({
-                time,
-                value: previousSeries.value,
-              });
-            } else {
-              alignedLine.push({
-                time,
-                value: 0,
-              });
-            }
-          }
+      const allTimesSet = new Set<number>();
+      for (const series of allPreparedLines) {
+        for (const item of series) {
+          allTimesSet.add(item.time);
         }
+      }
 
-        return alignedLine;
+      const allTimesData = Array.from(allTimesSet).sort((a, b) => a - b);
+      if (!allTimesData.length) {
+        this.linesDataTotal = [];
+        return [];
+      }
+
+      // Pre-index each line by time for O(1) lookups
+      const lineMaps = allPreparedLines.map(
+        (series) => new Map(series.map((item) => [item.time, item.value]))
+      );
+
+      const alignedLines: number[][] = lineMaps.map((lineMap) => {
+        const aligned: number[] = [];
+        let lastValue = 0;
+        for (const time of allTimesData) {
+          if (lineMap.has(time)) {
+            lastValue = lineMap.get(time)!;
+          }
+          aligned.push(lastValue);
+        }
+        return aligned;
       });
 
       const linesDataTotal: ISeries[] = allTimesData.map(
         (time: number, index: number) => {
-          const sum = alignedLines.reduce((total: number, line: ISeries[]) => {
-            return total + line[index].value;
-          }, 0);
-
-          const averageValue = sum / alignedLines.length;
+          let sum = 0;
+          for (const aligned of alignedLines) {
+            sum += aligned[index];
+          }
+          const averageValue =
+            alignedLines.length > 0 ? sum / alignedLines.length : 0;
 
           return {
             time,
@@ -547,7 +583,7 @@ export default {
           name: file.name.split(".")[0],
           data: file.data.map((item: string): string[] => item.split(",")),
           color: this.getColor(index),
-          disabled: isUpdate ? this.lines[index].disabled : true,
+          disabled: isUpdate ? (this.lines[index]?.disabled ?? true) : true,
         })
       );
 
@@ -569,8 +605,9 @@ export default {
             name: lineName,
             data: lineText
               .trim()
-              .split("\n")
+              .split(/\r?\n/)
               .slice(1)
+              .filter((item: string) => item.trim().length > 0)
               .map((item: string): string[] => item.split(",")),
             color: this.getColor(index),
             disabled: false,
@@ -619,16 +656,17 @@ export default {
     },
 
     updateLineVisibility(index: number) {
-      // Total line
-      this.updateLineTotal();
+      const line = this.lines[index];
+      if (!line) return;
 
       // Line
-      const line = this.lines[index];
-
       line.disabled = !line.disabled;
-      lineSeries[index].applyOptions({
+      lineSeries[index]?.applyOptions({
         visible: !line.disabled,
       });
+
+      // Total line
+      this.updateLineTotal();
     },
 
     updateLines() {
@@ -691,14 +729,11 @@ export default {
         const annotationPrice: HTMLElement =
           document.querySelector(".annotation--price");
 
-        if (!param || !param.seriesData) {
-          annotation.style.display = "none";
+        if (!annotation || !annotationToken || !annotationPrice) {
           return;
         }
 
-        const point = param.point;
-
-        if (!point) {
+        if (!param || !param.seriesData || !param.point) {
           annotation.style.display = "none";
           return;
         }
@@ -710,21 +745,25 @@ export default {
         lineSeries.forEach((series, index) => {
           const seriesData = param.seriesData.get(series);
 
-          if (this.lines[index].disabled) return;
+          if (this.lines[index]?.disabled) return;
 
-          const line = this.linesData[index].find(
+          const line = this.linesData[index]?.find(
             (item) =>
               item.time === seriesData?.time && item.value === seriesData?.value
           );
 
           if (line?.trade) {
             annotationTokenText += `${line.tokenName}<br>`;
-            annotationPriceText += `${line.price.toFixed(4)}<br>`;
-            color = this.lines[index].color;
+            const formattedPrice =
+              typeof line.price === "number"
+                ? (line.price < 0.01 ? line.price.toFixed(8) : line.price.toFixed(4))
+                : "";
+            annotationPriceText += `${formattedPrice}<br>`;
+            color = this.lines[index]?.color || "transparent";
           }
         });
 
-        if (annotationToken) {
+        if (annotationTokenText) {
           annotationToken.innerHTML = annotationTokenText;
           annotationPrice.innerHTML = annotationPriceText;
           annotation.style.display = "block";
@@ -752,8 +791,8 @@ export default {
         }));
 
       this.lineSeriesMarked = lineSeries[index];
-      this.lineSeriesMarked.setMarkers(markers);
-      this.lineMarked = true;
+      this.lineSeriesMarked?.setMarkers(markers);
+      this.isLineMarked = true;
     },
 
     clearMarks() {
@@ -772,13 +811,19 @@ export default {
 
     //// API
     async fetchData() {
-      const port = window.location["hostname"] === "localhost" ? 8081 : 80;
-      const response = await fetch(
-        `http://${window.location.hostname}:${port}/lines`
-      );
-      const serverLines: IServerLine[] = await response.json();
-      this.isLoading = false;
-      this.serverLines = serverLines;
+      try {
+        const response = await fetch("/lines");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const serverLines: IServerLine[] = await response.json();
+        this.isLoading = false;
+        this.serverLines = serverLines;
+      } catch (error) {
+        console.error("Error fetching lines:", error);
+        this.isLoading = false;
+        this.serverLines = [];
+      }
     },
   },
 

@@ -1,5 +1,6 @@
 import express from "express";
 import { readdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handler as ssrHandler } from "./dist/server/entry.mjs";
@@ -49,12 +50,21 @@ app.listen(port, () => {
   console.log(`Server running at http://${hostName}:${port}/`);
 });
 
-// Function to read CSV files from the public/data directory
+// Function to read CSV files from the public/data directory (or dev report directory)
 async function readFiles() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-  const directoryPath = join(__dirname, "public/data/");
+  const isDev = process.env.NODE_ENV === "development";
+  const siblingReportDir = join(__dirname, "../crypto-bot-surfer/report");
+  const prodDir = process.env.REPORT_FILE_DIR || join(__dirname, "public/data/");
+  const directoryPath =
+    isDev && existsSync(siblingReportDir) ? siblingReportDir : prodDir;
   const fileList = [];
+
+  if (!existsSync(directoryPath)) {
+    console.warn(`Reports directory does not exist: ${directoryPath}`);
+    return fileList;
+  }
 
   try {
     // Read all files in the target directory
@@ -69,7 +79,12 @@ async function readFiles() {
         // Add file name and content to the result list
         fileList.push({
           name: fileName,
-          data: fileData.trim().split("\n").slice(1).slice(-10000),
+          data: fileData
+            .trim()
+            .split(/\r?\n/)
+            .slice(1)
+            .filter((line) => line.trim().length > 0)
+            .slice(-10000),
         });
       }
     }
