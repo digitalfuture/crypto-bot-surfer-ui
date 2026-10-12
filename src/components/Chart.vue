@@ -597,7 +597,7 @@ export default {
     convertServerDataToLines({ isUpdate }) {
       const lines: ILine[] = this.serverLines.map(
         (file: IServerLine, index: number): ILine => ({
-          name: file.name.split(".")[0],
+          name: file.name.split(".")[0].replace(/^trades[-_]/i, ""),
           data: file.data.map((item: string): string[] => item.split(",")),
           color: this.getColor(index),
           disabled: isUpdate ? (this.lines[index]?.disabled ?? true) : true,
@@ -616,7 +616,7 @@ export default {
       const lines = await Promise.all(
         inputFiles.map(async (file: File, index: number): Promise<ILine> => {
           const lineText = await file.text();
-          const lineName = file.name.split(".")[0];
+          const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
 
           const line: ILine = {
             name: lineName,
