@@ -488,6 +488,18 @@ export default {
         }
       );
 
+      if (mapped.length === 1) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const nextTime = Math.max(mapped[0].time + 60, nowSec);
+        mapped.push({
+          time: nextTime,
+          trade: "HOLD",
+          price: mapped[0].price,
+          value: mapped[0].value,
+          tokenName: mapped[0].tokenName,
+        });
+      }
+
       mapped.sort((a, b) => a.time - b.time);
 
       // Lightweight-charts requires strictly ascending time for line series
