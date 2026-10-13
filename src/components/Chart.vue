@@ -1276,8 +1276,10 @@ export default {
     }
 
     .status-indicator {
-      width: 7px;
-      height: 7px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: solid 1px var(--background-color);
       display: inline-block;
       flex-shrink: 0;
 
