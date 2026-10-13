@@ -465,16 +465,13 @@ export default {
     },
 
     zoom(value) {
-      const diffMs = value.to - value.from;
-      const zoomCondition = diffMs < 20000;
-
-      this.zoomCondition = zoomCondition;
+      this.zoomCondition = this.computeZoomCondition(value);
     },
 
     zoomCondition() {
       if (this.hasLineTotalOnly) return;
 
-      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+      if (this.zoomCondition) {
         this.setMarks();
       } else {
         this.clearMarks();
@@ -484,7 +481,23 @@ export default {
     },
 
     linesEnabled() {
-      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+      if (this.linesEnabled.length === 1) {
+        this.zoomToLine(this.linesEnabled[0]);
+      }
+
+      if (this.zoom) {
+        this.zoomCondition = this.computeZoomCondition(this.zoom);
+      } else if (this.linesEnabled.length === 1) {
+        const seriesData = this.prepareSeriesData(this.linesEnabled[0].data);
+        const tradeCount = seriesData.filter(
+          (d) => d.trade === "BUY" || d.trade === "SELL"
+        ).length;
+        this.zoomCondition = tradeCount <= 15;
+      } else {
+        this.zoomCondition = false;
+      }
+
+      if (this.zoomCondition) {
         this.setMarks();
       } else {
         this.clearMarks();
@@ -845,6 +858,85 @@ export default {
       }
     },
 
+    computeZoomCondition(value) {
+      if (!value || !value.from || !value.to) return false;
+      const visibleSec = value.to - value.from;
+
+      // 1. If an individual chart is selected
+      if (this.linesEnabled.length === 1) {
+        const line = this.linesEnabled[0];
+        const seriesData = this.prepareSeriesData(line.data);
+        if (!seriesData || seriesData.length === 0) return false;
+
+        const tradePoints = seriesData.filter(
+          (d) => d.trade === "BUY" || d.trade === "SELL"
+        );
+        const tradeCount = tradePoints.length;
+
+        // If this bot has few trades overall (<= 15 trades), they don't crowd each other:
+        // they should immediately be visible on this individual chart!
+        if (tradeCount <= 15) {
+          return true;
+        }
+
+        const firstTime = seriesData[0].time;
+        const lastTime = seriesData[seriesData.length - 1].time;
+        const botSpanSec = Math.max(1, lastTime - firstTime);
+
+        // If this bot started recently and has a short span (<= 6 hours / 21600s),
+        // its whole history is already a detailed view:
+        if (botSpanSec <= 21600) {
+          return true;
+        }
+
+        // For bots with long history and many trades (e.g. 50+ trades over 24h):
+        // Show trades if zoomed in relative to this bot's span (visible window <= 55% of bot span)
+        // OR if visible window <= 5 hours (18000s)
+        // OR if visible trades in current window <= 25 trades
+        const visibleTrades = tradePoints.filter(
+          (t) => t.time >= value.from && t.time <= value.to
+        );
+
+        if (
+          visibleSec <= 18000 ||
+          visibleSec <= botSpanSec * 0.55 ||
+          visibleTrades.length <= 25
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+
+      // 2. If multiple lines are enabled
+      // Only show markers when zoomed into a tight window (<= 3 hours / 10800s)
+      return visibleSec <= 10800;
+    },
+
+    zoomToLine(line) {
+      if (!chart || !line?.data || line.data.length === 0) return;
+      const seriesData = this.prepareSeriesData(line.data);
+      if (seriesData.length === 0) return;
+
+      const firstTime = seriesData[0].time;
+      const lastTime = seriesData[seriesData.length - 1].time;
+
+      if (firstTime && lastTime) {
+        if (lastTime > firstTime) {
+          const pad = Math.max(60, Math.floor((lastTime - firstTime) * 0.03));
+          chart.timeScale().setVisibleRange({
+            from: firstTime - pad,
+            to: lastTime + pad,
+          });
+        } else {
+          chart.timeScale().setVisibleRange({
+            from: firstTime - 300,
+            to: firstTime + 300,
+          });
+        }
+      }
+    },
+
     updateLineVisibility(index: number) {
       const line = this.lines[index];
       if (!line) return;
@@ -858,7 +950,25 @@ export default {
       // Total line
       this.updateLineTotal();
 
-      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+      if (this.linesEnabled.length === 1) {
+        this.zoomToLine(this.linesEnabled[0]);
+      } else if (this.linesEnabled.length === this.lines.length) {
+        chart?.timeScale().fitContent();
+      }
+
+      if (this.zoom) {
+        this.zoomCondition = this.computeZoomCondition(this.zoom);
+      } else if (this.linesEnabled.length === 1) {
+        const seriesData = this.prepareSeriesData(this.linesEnabled[0].data);
+        const tradeCount = seriesData.filter(
+          (d) => d.trade === "BUY" || d.trade === "SELL"
+        ).length;
+        this.zoomCondition = tradeCount <= 15;
+      } else {
+        this.zoomCondition = false;
+      }
+
+      if (this.zoomCondition) {
         this.setMarks();
       } else {
         this.clearMarks();
@@ -878,6 +988,7 @@ export default {
           l.disabled = false;
           lineSeries[i]?.applyOptions({ visible: true });
         });
+        chart?.timeScale().fitContent();
         this.clearMarks();
       } else {
         // Solo this line
@@ -885,13 +996,24 @@ export default {
           l.disabled = i !== index;
           lineSeries[i]?.applyOptions({ visible: i === index });
         });
-        this.setMarks();
+        this.zoomToLine(line);
+        if (this.zoom) {
+          this.zoomCondition = this.computeZoomCondition(this.zoom);
+        } else {
+          const seriesData = this.prepareSeriesData(line.data);
+          const tradeCount = seriesData.filter(
+            (d) => d.trade === "BUY" || d.trade === "SELL"
+          ).length;
+          this.zoomCondition = tradeCount <= 15;
+        }
+        if (this.zoomCondition) {
+          this.setMarks();
+        } else {
+          this.clearMarks();
+        }
       }
 
       this.updateLineTotal();
-      if (chart) {
-        chart.timeScale().fitContent();
-      }
     },
 
     selectBotChart(botName: string) {
@@ -911,10 +1033,22 @@ export default {
       this.isMonitorView = false;
 
       this.updateLineTotal();
-      this.setMarks();
+      this.zoomToLine(this.lines[targetIndex]);
 
-      if (chart) {
-        chart.timeScale().fitContent();
+      if (this.zoom) {
+        this.zoomCondition = this.computeZoomCondition(this.zoom);
+      } else {
+        const seriesData = this.prepareSeriesData(this.lines[targetIndex].data);
+        const tradeCount = seriesData.filter(
+          (d) => d.trade === "BUY" || d.trade === "SELL"
+        ).length;
+        this.zoomCondition = tradeCount <= 15;
+      }
+
+      if (this.zoomCondition) {
+        this.setMarks();
+      } else {
+        this.clearMarks();
       }
     },
 
@@ -1411,7 +1545,7 @@ export default {
 .top-bar-right {
   position: absolute;
   top: 7px;
-  right: 12px;
+  right: 82px;
   display: flex;
   align-items: center;
   z-index: 9999;
