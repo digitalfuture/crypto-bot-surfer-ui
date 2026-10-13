@@ -41,6 +41,31 @@
           useCommission ? "With Commission" : "Without Commission"
         }}</span>
       </div>
+
+      <!-- Live System & Bots Monitor Pill -->
+      <div
+        class="system-status-pill cursor-pointer"
+        :class="{
+          'system-status-pill--healthy': systemStatus.status === 'HEALTHY',
+          'system-status-pill--warning': systemStatus.status !== 'HEALTHY',
+        }"
+        @click="isDrawerOpen = !isDrawerOpen"
+        title="Live Bots & Health Monitor"
+      >
+        <span
+          class="status-pulse"
+          :class="systemStatus.status === 'HEALTHY' ? 'status-pulse--green' : 'status-pulse--yellow'"
+        />
+        <span class="status-pill-text">
+          {{ systemStatus.runningContainers || 5 }}/{{ systemStatus.totalContainers || 5 }} BOTS
+        </span>
+        <span
+          v-if="systemStatus.activePositionsCount > 0"
+          class="status-pos-badge"
+        >
+          {{ systemStatus.activePositionsCount }} ACTIVE
+        </span>
+      </div>
     </div>
 
     <!-- Legend toolbar-->
@@ -95,6 +120,16 @@
       >
         <div class="line__details">
           <span class="line__name" v-text="line.name" />
+
+          <!-- Micro position chip in legend -->
+          <span
+            v-if="getBotPosition(line.name)"
+            class="micro-pos-tag"
+            :class="getBotPosition(line.name).side === 'LONG' ? 'micro-pos-tag--long' : 'micro-pos-tag--short'"
+          >
+            {{ getBotPosition(line.name).side }} {{ getBotPosition(line.name).symbol }}
+          </span>
+
           <span class="line__last-value" v-text="getLegendValue(index)" />
           <span
             class="round"
@@ -108,6 +143,117 @@
         </div>
       </div>
     </section>
+
+    <!-- Drawer Backdrop -->
+    <div
+      v-if="isDrawerOpen"
+      class="drawer-backdrop"
+      @click="isDrawerOpen = false"
+    />
+
+    <!-- Slide-out Monitor Drawer -->
+    <div
+      class="monitor-drawer"
+      :class="{ 'monitor-drawer--open': isDrawerOpen }"
+    >
+      <div class="drawer-header">
+        <div class="drawer-header__title-group">
+          <div class="drawer-title">
+            <span class="drawer-dot green"></span>
+            SYSTEM & BOTS MONITOR
+          </div>
+          <div class="drawer-subtitle">
+            Watchdog 24/7 • {{ systemStatus.runningContainers }}/{{ systemStatus.totalContainers }} containers active
+          </div>
+        </div>
+        <button class="drawer-close-btn cursor-pointer" @click="isDrawerOpen = false">✕</button>
+      </div>
+
+      <div class="drawer-summary">
+        <div class="summary-card">
+          <div class="summary-label">TOTAL EQUITY</div>
+          <div class="summary-value" :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
+            {{ totalProfit }}%
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">IN POSITION</div>
+          <div class="summary-value text-accent">
+            {{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 5 }}
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">WATCHDOG</div>
+          <div class="summary-value" :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
+            {{ systemStatus.status }}
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-bot-list">
+        <div
+          v-for="bot in botStatusList"
+          :key="bot.id"
+          class="bot-card"
+          :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
+        >
+          <div class="bot-card__header">
+            <div class="bot-card__name">
+              <span class="bot-color-bar" :style="{ backgroundColor: getBotColor(bot.name) }"></span>
+              {{ bot.name }}
+            </div>
+            <div class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
+              {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
+            </div>
+          </div>
+
+          <!-- Active position info -->
+          <div v-if="bot.position" class="bot-card__pos-details">
+            <div class="pos-token-row">
+              <span class="pos-side-pill" :class="bot.position.side === 'LONG' ? 'side--long' : 'side--short'">
+                {{ bot.position.side }}
+              </span>
+              <span class="pos-symbol">{{ bot.position.symbol }}</span>
+              <span class="pos-entry">Entry: {{ bot.position.entryPrice }}</span>
+            </div>
+
+            <div class="pos-targets-grid">
+              <div v-if="bot.position.stopLoss" class="target-item target--sl">
+                <span class="target-label">Stop-Loss</span>
+                <span class="target-val">{{ formatTarget(bot.position.stopLoss) }}</span>
+              </div>
+              <div v-if="bot.position.takeProfit" class="target-item target--tp">
+                <span class="target-label">Take-Profit</span>
+                <span class="target-val">{{ formatTarget(bot.position.takeProfit) }}</span>
+              </div>
+              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="target-item target--trail">
+                <span class="target-label">Trail Peak</span>
+                <span class="target-val">{{ formatTarget(bot.position.shortPrice) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="bot-card__scanning">
+            <span class="scanning-icon">🔍</span> Scanning market for entry setups
+          </div>
+
+          <div class="bot-card__footer">
+            <span class="footer-trades">{{ bot.totalTrades }} trades executed</span>
+            <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        <div class="drawer-footer__info">
+          <span>⚡ Host Watchdog running on dnatrade</span>
+          <span>Auto-recovers containers on failure</span>
+        </div>
+        <button class="drawer-refresh-btn cursor-pointer" @click="fetchBotStatus">
+          🔄 Refresh
+        </button>
+      </div>
+    </div>
   </template>
 </template>
 
@@ -152,10 +298,20 @@ export default {
       serverLines: [],
       updateTimeout: 1000 * 60 * 3,
       updateInterval: null,
+      statusInterval: null,
       lineWidth: 2.5,
       isFullScreen: false,
       isLineMarked: false,
       useCommission: true,
+      isDrawerOpen: false,
+      botStatusList: [],
+      systemStatus: {
+        status: "HEALTHY",
+        runningContainers: 6,
+        totalContainers: 6,
+        timestamp: "",
+        activePositionsCount: 0,
+      },
 
       lines: [],
 
@@ -842,21 +998,79 @@ export default {
         this.serverLines = [];
       }
     },
+
+    async fetchBotStatus() {
+      try {
+        const response = await fetch("/status");
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.system) {
+            this.systemStatus = data.system;
+          }
+          if (Array.isArray(data?.bots)) {
+            this.botStatusList = data.bots;
+          }
+        }
+      } catch (error) {
+        console.warn("Could not fetch bot status:", error);
+      }
+    },
+
+    getBotPosition(lineName: string) {
+      if (!lineName || !this.botStatusList) return null;
+      const clean = lineName.trim().toUpperCase();
+      const found = this.botStatusList.find(
+        (b) => b.name?.toUpperCase() === clean || b.id?.toUpperCase() === clean
+      );
+      return found?.position || null;
+    },
+
+    getBotColor(botName: string) {
+      const clean = botName?.trim().toUpperCase();
+      const line = this.lines.find((l) => l.name?.toUpperCase() === clean);
+      return line?.color || "#888";
+    },
+
+    formatTarget(val: number) {
+      if (val == null || isNaN(val)) return "-";
+      if (val < 0.001) return val.toFixed(8);
+      if (val < 1) return val.toFixed(6);
+      return val.toFixed(4);
+    },
+
+    formatTime(dateStr: string) {
+      if (!dateStr) return "";
+      try {
+        const d = new Date(dateStr);
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } catch {
+        return dateStr;
+      }
+    },
   },
 
   //// Life cycle
   async mounted() {
     await this.fetchData();
+    this.fetchBotStatus();
 
     this.initChart();
     this.setupResizeListener();
     this.setupChartUpdate();
+
+    // Auto-refresh bot status every 20 seconds
+    this.statusInterval = setInterval(() => {
+      this.fetchBotStatus();
+    }, 20000);
   },
 
   unmounted() {
     chart.remove();
     chart = null;
     clearInterval(this.updateInterval);
+    if (this.statusInterval) {
+      clearInterval(this.statusInterval);
+    }
   },
 };
 </script>
@@ -937,6 +1151,63 @@ export default {
         visibility: visible;
         opacity: 1;
       }
+    }
+  }
+
+  .system-status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(40, 40, 44, 0.75);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    padding: 3px 10px;
+    margin-left: 12px;
+    color: #eee;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+    user-select: none;
+
+    &:hover {
+      background: rgba(50, 50, 56, 0.95);
+      border-color: rgba(255, 255, 255, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .status-pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+      display: inline-block;
+
+      &--green {
+        background-color: #22c55e;
+        box-shadow: 0 0 8px #22c55e;
+      }
+
+      &--yellow {
+        background-color: #eab308;
+        box-shadow: 0 0 8px #eab308;
+      }
+    }
+
+    .status-pill-text {
+      white-space: nowrap;
+    }
+
+    .status-pos-badge {
+      background: rgba(59, 130, 246, 0.25);
+      color: #60a5fa;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: bold;
+      white-space: nowrap;
     }
   }
 }
@@ -1058,6 +1329,7 @@ export default {
 .line__details {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin: 12px;
   padding-inline: 5px;
   flex-wrap: nowrap;
@@ -1068,6 +1340,28 @@ export default {
     background: var(--background-color);
     padding-inline: 7px;
     white-space: nowrap;
+  }
+
+  .micro-pos-tag {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+
+    &--long {
+      background: rgba(34, 197, 94, 0.18);
+      color: #16a34a;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+
+    &--short {
+      background: rgba(239, 68, 68, 0.18);
+      color: #dc2626;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
   }
 
   .line__last-value {
@@ -1131,5 +1425,300 @@ export default {
 // hide Lightweight Chart logo
 #tv-attr-logo {
   display: none !important;
+}
+
+// ==========================================
+// Slide-Out Monitor Drawer & Backdrop
+// ==========================================
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+.monitor-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 92vw;
+  background: #18181b;
+  color: #f4f4f5;
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.65);
+  border-left: 1px solid #27272a;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &--open {
+    transform: translateX(0);
+  }
+
+  .drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid #27272a;
+    background: #141416;
+
+    .drawer-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fafafa;
+    }
+
+    .drawer-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+    }
+
+    .drawer-subtitle {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 4px;
+    }
+
+    .drawer-close-btn {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #a1a1aa;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+
+      &:hover {
+        background: #3f3f46;
+        color: #fff;
+      }
+    }
+  }
+
+  .drawer-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 14px 18px;
+    background: #1e1e24;
+    border-bottom: 1px solid #27272a;
+
+    .summary-card {
+      text-align: center;
+      padding: 8px 4px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.2);
+
+      .summary-label {
+        font-size: 10px;
+        color: #a1a1aa;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+      }
+
+      .summary-value {
+        font-size: 14px;
+        font-weight: 700;
+        margin-top: 4px;
+      }
+    }
+  }
+
+  .drawer-bot-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .bot-card {
+      background: #202025;
+      border: 1px solid #2e2e34;
+      border-radius: 8px;
+      padding: 12px 14px;
+      transition: border-color 0.2s;
+
+      &--in-pos {
+        border-color: rgba(59, 130, 246, 0.45);
+        background: #22222a;
+      }
+
+      .bot-card__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .bot-card__name {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          color: #fafafa;
+        }
+
+        .bot-color-bar {
+          width: 4px;
+          height: 14px;
+          border-radius: 2px;
+          display: inline-block;
+        }
+
+        .bot-card__pnl {
+          font-size: 12px;
+          font-weight: 700;
+        }
+      }
+
+      .bot-card__pos-details {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+
+        .pos-token-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+
+          .pos-side-pill {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+
+            &.side--long {
+              background: rgba(34, 197, 94, 0.2);
+              color: #4ade80;
+              border: 1px solid rgba(34, 197, 94, 0.35);
+            }
+
+            &.side--short {
+              background: rgba(239, 68, 68, 0.2);
+              color: #f87171;
+              border: 1px solid rgba(239, 68, 68, 0.35);
+            }
+          }
+
+          .pos-symbol {
+            font-weight: 700;
+            color: #fff;
+          }
+
+          .pos-entry {
+            color: #a1a1aa;
+            font-size: 11px;
+            margin-left: auto;
+          }
+        }
+
+        .pos-targets-grid {
+          display: flex;
+          gap: 12px;
+          margin-top: 8px;
+          font-size: 10px;
+
+          .target-item {
+            display: flex;
+            flex-direction: column;
+
+            .target-label {
+              color: #71717a;
+            }
+
+            .target-val {
+              font-weight: 600;
+              margin-top: 2px;
+            }
+
+            &.target--sl .target-val { color: #f87171; }
+            &.target--tp .target-val { color: #4ade80; }
+            &.target--trail .target-val { color: #60a5fa; }
+          }
+        }
+      }
+
+      .bot-card__scanning {
+        margin-top: 8px;
+        font-size: 11px;
+        color: #71717a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .bot-card__footer {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 10px;
+        color: #71717a;
+      }
+    }
+  }
+
+  .drawer-footer {
+    padding: 14px 18px;
+    border-top: 1px solid #27272a;
+    background: #141416;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .drawer-footer__info {
+      display: flex;
+      flex-direction: column;
+      font-size: 10px;
+      color: #71717a;
+      gap: 2px;
+    }
+
+    .drawer-refresh-btn {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #d4d4d8;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.2s;
+
+      &:hover {
+        background: #3f3f46;
+        color: #fff;
+      }
+    }
+  }
+}
+
+.text-green { color: #4ade80; }
+.text-red { color: #f87171; }
+.text-yellow { color: #facc15; }
+.text-accent { color: #60a5fa; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>
