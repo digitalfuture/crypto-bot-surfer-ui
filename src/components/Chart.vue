@@ -39,6 +39,14 @@
       </div>
 
       <div class="summary-right">
+        <button
+          class="monitor-action-btn cursor-pointer"
+          :class="{ 'monitor-action-btn--active': !useCommission }"
+          @click="toggleCommission"
+          :title="useCommission ? 'Commission included. Click to exclude' : 'Commission excluded. Click to include'"
+        >
+          COMMISSION: {{ useCommission ? 'ON' : 'OFF' }}
+        </button>
         <button class="monitor-action-btn cursor-pointer" @click="refreshAllData" title="Refresh all data">
           REFRESH
         </button>
@@ -60,8 +68,8 @@
 
         <div class="bot-card__header">
           <span class="bot-card__name">{{ bot.name }}</span>
-          <span class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
-            {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
+          <span class="bot-card__pnl" :class="getBotPnl(bot) >= 0 ? 'text-green' : 'text-red'">
+            {{ getBotPnl(bot) > 0 ? '+' : '' }}{{ getBotPnl(bot).toFixed(2) }}%
           </span>
         </div>
 
@@ -132,12 +140,15 @@
         @click="isFullScreen = !isFullScreen"
       />
 
-      <div class="use-commission-container">
+      <div
+        class="use-commission-container cursor-pointer"
+        @click="toggleCommission"
+        :title="useCommission ? 'With Commission (click to disable)' : 'Without Commission (click to enable)'"
+      >
         <img
           :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
           alt="DNATRADE"
           class="use-commission-button cursor-pointer"
-          @click="useCommission = !useCommission"
         />
 
         <span class="use-commission-tip">{{
@@ -1070,6 +1081,26 @@ export default {
       }
     },
 
+    toggleCommission() {
+      this.useCommission = !this.useCommission;
+    },
+
+    getBotPnl(bot) {
+      if (!bot) return 0;
+      const clean = (bot.name || bot.id || "").trim().toUpperCase();
+      const lineIndex = this.lines.findIndex(
+        (l) => l.name?.trim().toUpperCase() === clean
+      );
+      if (lineIndex !== -1 && this.linesData[lineIndex]?.length > 0) {
+        const lineData = this.linesData[lineIndex];
+        const lastPoint = lineData[lineData.length - 1];
+        if (lastPoint && lastPoint.value != null && !isNaN(lastPoint.value)) {
+          return lastPoint.value;
+        }
+      }
+      return bot.totalProfit ?? 0;
+    },
+
     toggleMonitorView() {
       this.isMonitorView = !this.isMonitorView;
       if (!this.isMonitorView) {
@@ -1594,6 +1625,12 @@ export default {
         &:hover {
           background: rgba(255, 255, 255, 0.15);
           border-color: white;
+        }
+
+        &--active {
+          background: rgba(250, 204, 21, 0.2);
+          border-color: #facc15;
+          color: #facc15;
         }
 
         &--close {
