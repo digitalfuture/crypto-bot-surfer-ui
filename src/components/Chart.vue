@@ -22,11 +22,11 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          BOTS: <strong>{{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} RUNNING</strong>
+          BOTS: <strong>{{ systemStatus.runningBots || botStatusList.length || 11 }}/{{ systemStatus.totalBots || botStatusList.length || 11 }} RUNNING</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 8 }}</strong>
+          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 11 }}</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
@@ -151,7 +151,7 @@
           :class="systemStatus.status === 'HEALTHY' ? 'status-indicator--green' : 'status-indicator--yellow'"
         />
         <span class="status-btn-text">
-          {{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} BOTS
+          {{ systemStatus.runningBots || botStatusList.length || 11 }}/{{ systemStatus.totalBots || botStatusList.length || 11 }} BOTS
         </span>
         <span
           v-if="systemStatus.activePositionsCount > 0"

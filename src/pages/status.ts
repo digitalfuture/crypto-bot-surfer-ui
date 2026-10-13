@@ -183,7 +183,7 @@ export const GET: APIRoute = async () => {
       });
     }
 
-    // Sort bots by standard order: VOLATILITY, CHANNEL, TREND, PULLBACK, SCALPER, ORDERBOOK-WALL, ORDERBOOK-IMBALANCE, ORDERBOOK-ABSORPTION
+    // Sort bots by standard order: VOLATILITY, CHANNEL, TREND, PULLBACK, SCALPER, ORDERBOOK-WALL, ORDERBOOK-IMBALANCE, ORDERBOOK-ABSORPTION, MM-INVENTORY, LIQUIDITY-SWEEP, ORDERBOOK-ICEBERG
     const order = [
       "volatility",
       "channel",
@@ -196,6 +196,12 @@ export const GET: APIRoute = async () => {
       "wall",
       "imbalance",
       "absorption",
+      "mm-inventory",
+      "inventory",
+      "liquidity-sweep",
+      "sweep",
+      "orderbook-iceberg",
+      "iceberg",
     ];
     bots.sort((a, b) => {
       const idxA = order.indexOf(a.id);
@@ -206,7 +212,7 @@ export const GET: APIRoute = async () => {
     const systemStatus: IStatusResponse["system"] = {
       status: watchdogData?.status || "HEALTHY",
       runningBots: watchdogData?.runningBots ?? bots.length,
-      totalBots: watchdogData?.totalBots ?? 8,
+      totalBots: watchdogData?.totalBots ?? Math.max(11, bots.length),
       uiStatus: watchdogData?.uiStatus ?? "running",
       timestamp: watchdogData?.timestamp || new Date().toISOString(),
       activePositionsCount,
