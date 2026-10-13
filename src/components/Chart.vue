@@ -38,13 +38,15 @@
       </div>
     </div>
 
-    <!-- 8 Bots Flat Grid -->
+    <!-- 11 Bots Flat Grid -->
     <div class="monitor-bots-grid">
       <div
         v-for="bot in botStatusList"
         :key="bot.id"
-        class="bot-card"
+        class="bot-card cursor-pointer"
         :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
+        @click="selectBotChart(bot.name)"
+        :title="`Click to view ${bot.name} chart and trades`"
       >
         <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
 
@@ -220,6 +222,8 @@
           linesData[index]?.[linesData[index]?.length - 1] &&
             updateLineVisibility(index)
         "
+        @dblclick="soloLine(index)"
+        :title="'Click to toggle, double-click to view only this chart and trades'"
       >
         <div class="line__details">
           <span class="line__name" v-text="line.name" />
@@ -470,12 +474,8 @@ export default {
     zoomCondition() {
       if (this.hasLineTotalOnly) return;
 
-      if (this.linesEnabled.length === 1) {
-        if (this.zoomCondition) {
-          this.setMarks();
-        } else {
-          this.clearMarks();
-        }
+      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+        this.setMarks();
       } else {
         this.clearMarks();
       }
@@ -484,8 +484,8 @@ export default {
     },
 
     linesEnabled() {
-      if (this.linesEnabled.length === 1) {
-        if (this.zoomCondition) this.setMarks();
+      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+        this.setMarks();
       } else {
         this.clearMarks();
       }
@@ -538,6 +538,10 @@ export default {
 
       this.setupZoomListener();
       this.setupAnnotations();
+
+      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+        this.setMarks();
+      }
     },
 
     /// Setup lines
@@ -818,12 +822,19 @@ export default {
 
       chart.timeScale().fitContent();
       this.setupZoomListener();
+
+      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+        this.setMarks();
+      }
     },
 
     //// Updates
     updateChart() {
       this.updateLines();
       this.updateLineTotal();
+      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+        this.setMarks();
+      }
     },
 
     updateLineTotalVisibility() {
@@ -846,6 +857,65 @@ export default {
 
       // Total line
       this.updateLineTotal();
+
+      if (this.linesEnabled.length === 1 || this.zoomCondition) {
+        this.setMarks();
+      } else {
+        this.clearMarks();
+      }
+    },
+
+    soloLine(index: number) {
+      const line = this.lines[index];
+      if (!line) return;
+
+      const isAlreadySolo =
+        this.linesEnabled.length === 1 && this.linesEnabled[0] === line;
+
+      if (isAlreadySolo) {
+        // Re-enable all lines
+        this.lines.forEach((l, i) => {
+          l.disabled = false;
+          lineSeries[i]?.applyOptions({ visible: true });
+        });
+        this.clearMarks();
+      } else {
+        // Solo this line
+        this.lines.forEach((l, i) => {
+          l.disabled = i !== index;
+          lineSeries[i]?.applyOptions({ visible: i === index });
+        });
+        this.setMarks();
+      }
+
+      this.updateLineTotal();
+      if (chart) {
+        chart.timeScale().fitContent();
+      }
+    },
+
+    selectBotChart(botName: string) {
+      const clean = botName?.trim().toUpperCase();
+      const targetIndex = this.lines.findIndex(
+        (l) => l.name?.toUpperCase() === clean
+      );
+      if (targetIndex === -1) return;
+
+      // Solo this line
+      this.lines.forEach((l, i) => {
+        l.disabled = i !== targetIndex;
+        lineSeries[i]?.applyOptions({ visible: i === targetIndex });
+      });
+
+      // Switch to Chart View
+      this.isMonitorView = false;
+
+      this.updateLineTotal();
+      this.setMarks();
+
+      if (chart) {
+        chart.timeScale().fitContent();
+      }
     },
 
     updateLines() {
@@ -977,27 +1047,55 @@ export default {
 
     // Line marks
     setMarks() {
-      const line = this.linesEnabled[0];
-      const index = this.lines.indexOf(line);
-      const lineData = this.prepareSeriesData(line.data);
-      const markers = lineData
-        .filter(({ trade }) => trade === "BUY" || trade === "SELL")
-        .map(({ trade, time }) => ({
-          time,
-          position: trade === "BUY" ? "belowBar" : "aboveBar",
-          color: trade === "BUY" ? "green" : "red",
-          shape: trade === "BUY" ? "arrowUp" : "arrowDown",
-          id: `${time}-${trade}`,
-        }));
+      // Clear markers on all series first
+      lineSeries.forEach((s) => s?.setMarkers([]));
+      this.lineSeriesMarked = null;
+      this.isLineMarked = false;
 
-      this.lineSeriesMarked = lineSeries[index];
-      this.lineSeriesMarked?.setMarkers(markers);
-      this.isLineMarked = true;
+      if (this.linesEnabled.length === 1) {
+        const line = this.linesEnabled[0];
+        const index = this.lines.indexOf(line);
+        if (index === -1 || !lineSeries[index]) return;
+
+        const lineData = this.prepareSeriesData(line.data);
+        const markers = lineData
+          .filter(({ trade }) => trade === "BUY" || trade === "SELL")
+          .map(({ trade, time }) => ({
+            time,
+            position: trade === "BUY" ? "belowBar" : "aboveBar",
+            color: trade === "BUY" ? "green" : "red",
+            shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+            id: `${time}-${trade}`,
+          }));
+
+        this.lineSeriesMarked = lineSeries[index];
+        this.lineSeriesMarked?.setMarkers(markers);
+        this.isLineMarked = true;
+      } else if (this.zoomCondition && this.linesEnabled.length > 0) {
+        this.linesEnabled.forEach((line) => {
+          const index = this.lines.indexOf(line);
+          if (index !== -1 && lineSeries[index]) {
+            const lineData = this.prepareSeriesData(line.data);
+            const markers = lineData
+              .filter(({ trade }) => trade === "BUY" || trade === "SELL")
+              .map(({ trade, time }) => ({
+                time,
+                position: trade === "BUY" ? "belowBar" : "aboveBar",
+                color: trade === "BUY" ? "green" : "red",
+                shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+                id: `${time}-${trade}`,
+              }));
+            lineSeries[index]?.setMarkers(markers);
+          }
+        });
+        this.isLineMarked = true;
+      }
     },
 
     clearMarks() {
-      this.lineSeriesMarked?.setMarkers([]);
+      lineSeries.forEach((s) => s?.setMarkers([]));
       this.lineSeriesMarked = null;
+      this.isLineMarked = false;
     },
 
     //// Colors
