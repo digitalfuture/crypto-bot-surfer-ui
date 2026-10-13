@@ -1,9 +1,110 @@
 <template>
   <div
-    v-show="!isLoading && lines.length > 0"
+    v-show="!isLoading && lines.length > 0 && !isMonitorView"
     class="chart cursor-pointer"
     id="chart-container"
   />
+
+  <!-- Flat System & Bots Monitor View (replaces chart) -->
+  <div
+    v-if="!isLoading && lines.length > 0 && isMonitorView"
+    class="monitor-view"
+    :style="{ height: isFullScreen ? 'calc(100vh - 120px)' : '335px' }"
+  >
+    <!-- Flat Summary Bar -->
+    <div class="monitor-summary-bar">
+      <div class="summary-left">
+        <span class="summary-item">
+          WATCHDOG:
+          <strong :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
+            {{ systemStatus.status }}
+          </strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          BOTS: <strong>{{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} RUNNING</strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 5 }}</strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          TOTAL EQUITY:
+          <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
+            {{ totalProfit }}%
+          </strong>
+        </span>
+      </div>
+
+      <div class="summary-right">
+        <button class="monitor-action-btn cursor-pointer" @click="fetchBotStatus" title="Refresh bot status">
+          REFRESH
+        </button>
+        <button class="monitor-action-btn monitor-action-btn--close cursor-pointer" @click="toggleMonitorView" title="Back to chart">
+          ✕ CHART
+        </button>
+      </div>
+    </div>
+
+    <!-- 5 Bots Flat Grid -->
+    <div class="monitor-bots-grid">
+      <div
+        v-for="bot in botStatusList"
+        :key="bot.id"
+        class="bot-card"
+        :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
+      >
+        <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
+
+        <div class="bot-card__header">
+          <span class="bot-card__name">{{ bot.name }}</span>
+          <span class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
+            {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
+          </span>
+        </div>
+
+        <div class="bot-card__body">
+          <template v-if="bot.position">
+            <div class="pos-row pos-row--main">
+              <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
+                {{ bot.position.side }}
+              </span>
+              <span class="pos-symbol">{{ bot.position.symbol }}</span>
+            </div>
+
+            <div class="pos-details-grid">
+              <div class="detail-row">
+                <span class="detail-label">ENTRY</span>
+                <span class="detail-val">{{ bot.position.entryPrice }}</span>
+              </div>
+              <div v-if="bot.position.stopLoss" class="detail-row">
+                <span class="detail-label">SL</span>
+                <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
+              </div>
+              <div v-if="bot.position.takeProfit" class="detail-row">
+                <span class="detail-label">TP</span>
+                <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
+              </div>
+              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
+                <span class="detail-label">PEAK</span>
+                <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="bot-card__scanning">
+            SCANNING FOR SETUPS
+          </div>
+        </div>
+
+        <div class="bot-card__footer">
+          <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
+          <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div v-if="isLoading" class="loader-container">
     <div class="loader">
@@ -42,28 +143,28 @@
         }}</span>
       </div>
 
-      <!-- Live System & Bots Monitor Pill -->
+      <!-- Flat System & Bots Monitor Button / Plaque -->
       <div
-        class="system-status-pill cursor-pointer"
-        :class="{
-          'system-status-pill--healthy': systemStatus.status === 'HEALTHY',
-          'system-status-pill--warning': systemStatus.status !== 'HEALTHY',
-        }"
-        @click="isDrawerOpen = !isDrawerOpen"
-        title="Live Bots & Health Monitor"
+        class="system-status-btn cursor-pointer"
+        :class="{ 'system-status-btn--active': isMonitorView }"
+        @click="toggleMonitorView"
+        :title="isMonitorView ? 'Switch to Chart' : 'Switch to System & Bots Monitor'"
       >
         <span
-          class="status-pulse"
-          :class="systemStatus.status === 'HEALTHY' ? 'status-pulse--green' : 'status-pulse--yellow'"
+          class="status-indicator"
+          :class="systemStatus.status === 'HEALTHY' ? 'status-indicator--green' : 'status-indicator--yellow'"
         />
-        <span class="status-pill-text">
+        <span class="status-btn-text">
           {{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} BOTS
         </span>
         <span
           v-if="systemStatus.activePositionsCount > 0"
-          class="status-pos-badge"
+          class="status-btn-badge"
         >
           {{ systemStatus.activePositionsCount }} ACTIVE
+        </span>
+        <span v-if="isMonitorView" class="status-view-active">
+          • MONITOR
         </span>
       </div>
     </div>
@@ -144,117 +245,6 @@
         </div>
       </div>
     </section>
-
-    <!-- Drawer Backdrop -->
-    <div
-      v-if="isDrawerOpen"
-      class="drawer-backdrop"
-      @click="isDrawerOpen = false"
-    />
-
-    <!-- Slide-out Monitor Drawer -->
-    <div
-      class="monitor-drawer"
-      :class="{ 'monitor-drawer--open': isDrawerOpen }"
-    >
-      <div class="drawer-header">
-        <div class="drawer-header__title-group">
-          <div class="drawer-title">
-            <span class="drawer-dot green"></span>
-            SYSTEM & BOTS MONITOR
-          </div>
-          <div class="drawer-subtitle">
-            Watchdog 24/7 • {{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} bots active
-          </div>
-        </div>
-        <button class="drawer-close-btn cursor-pointer" @click="isDrawerOpen = false">✕</button>
-      </div>
-
-      <div class="drawer-summary">
-        <div class="summary-card">
-          <div class="summary-label">TOTAL EQUITY</div>
-          <div class="summary-value" :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
-            {{ totalProfit }}%
-          </div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">IN POSITION</div>
-          <div class="summary-value text-accent">
-            {{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 5 }}
-          </div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">WATCHDOG</div>
-          <div class="summary-value" :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
-            {{ systemStatus.status }}
-          </div>
-        </div>
-      </div>
-
-      <div class="drawer-bot-list">
-        <div
-          v-for="bot in botStatusList"
-          :key="bot.id"
-          class="bot-card"
-          :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
-        >
-          <div class="bot-card__header">
-            <div class="bot-card__name">
-              <span class="bot-color-bar" :style="{ backgroundColor: getBotColor(bot.name) }"></span>
-              {{ bot.name }}
-            </div>
-            <div class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
-              {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
-            </div>
-          </div>
-
-          <!-- Active position info -->
-          <div v-if="bot.position" class="bot-card__pos-details">
-            <div class="pos-token-row">
-              <span class="pos-side-pill" :class="bot.position.side === 'LONG' ? 'side--long' : 'side--short'">
-                {{ bot.position.side }}
-              </span>
-              <span class="pos-symbol">{{ bot.position.symbol }}</span>
-              <span class="pos-entry">Entry: {{ bot.position.entryPrice }}</span>
-            </div>
-
-            <div class="pos-targets-grid">
-              <div v-if="bot.position.stopLoss" class="target-item target--sl">
-                <span class="target-label">Stop-Loss</span>
-                <span class="target-val">{{ formatTarget(bot.position.stopLoss) }}</span>
-              </div>
-              <div v-if="bot.position.takeProfit" class="target-item target--tp">
-                <span class="target-label">Take-Profit</span>
-                <span class="target-val">{{ formatTarget(bot.position.takeProfit) }}</span>
-              </div>
-              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="target-item target--trail">
-                <span class="target-label">Trail Peak</span>
-                <span class="target-val">{{ formatTarget(bot.position.shortPrice) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div v-else class="bot-card__scanning">
-            <span class="scanning-icon">🔍</span> Scanning market for entry setups
-          </div>
-
-          <div class="bot-card__footer">
-            <span class="footer-trades">{{ bot.totalTrades }} trades executed</span>
-            <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="drawer-footer">
-        <div class="drawer-footer__info">
-          <span>⚡ Host Watchdog running on dnatrade</span>
-          <span>Auto-recovers containers on failure</span>
-        </div>
-        <button class="drawer-refresh-btn cursor-pointer" @click="fetchBotStatus">
-          🔄 Refresh
-        </button>
-      </div>
-    </div>
   </template>
 </template>
 
@@ -304,7 +294,7 @@ export default {
       isFullScreen: false,
       isLineMarked: false,
       useCommission: true,
-      isDrawerOpen: false,
+      isMonitorView: false,
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
@@ -1048,6 +1038,22 @@ export default {
         return dateStr;
       }
     },
+
+    toggleMonitorView() {
+      this.isMonitorView = !this.isMonitorView;
+      if (!this.isMonitorView) {
+        this.$nextTick(() => {
+          if (chart) {
+            chart.resize(
+              window.innerWidth - 20,
+              this.chartOptions.height,
+              true
+            );
+            chart.timeScale().fitContent();
+          }
+        });
+      }
+    },
   },
 
   //// Life cycle
@@ -1155,59 +1161,64 @@ export default {
     }
   }
 
-  .system-status-pill {
-    display: flex;
+  .system-status-btn {
+    display: inline-flex;
     align-items: center;
-    gap: 7px;
-    background: rgba(40, 40, 44, 0.75);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 16px;
-    padding: 3px 10px;
-    margin-left: 12px;
-    color: #eee;
+    gap: 6px;
+    height: 25px;
+    background: dimgray;
+    color: white;
+    text-transform: uppercase;
+    padding: 0 8px;
     font-size: 11px;
     font-weight: 600;
+    margin-left: 8px;
     letter-spacing: 0.5px;
-    transition: all 0.2s ease;
     user-select: none;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    transition: background 0.15s ease;
 
     &:hover {
-      background: rgba(50, 50, 56, 0.95);
-      border-color: rgba(255, 255, 255, 0.35);
-      transform: translateY(-1px);
+      background: grey;
     }
 
-    .status-pulse {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: #22c55e;
-      box-shadow: 0 0 8px #22c55e;
+    &--active {
+      background: #333;
+      color: #fff;
+    }
+
+    .status-indicator {
+      width: 7px;
+      height: 7px;
       display: inline-block;
 
       &--green {
-        background-color: #22c55e;
-        box-shadow: 0 0 8px #22c55e;
+        background-color: green;
       }
 
       &--yellow {
-        background-color: #eab308;
-        box-shadow: 0 0 8px #eab308;
+        background-color: #d97706;
       }
     }
 
-    .status-pill-text {
+    .status-btn-text {
       white-space: nowrap;
     }
 
-    .status-pos-badge {
-      background: rgba(59, 130, 246, 0.25);
-      color: #60a5fa;
-      padding: 1px 6px;
-      border-radius: 10px;
+    .status-btn-badge {
+      background: var(--background-color);
+      color: dimgray;
+      padding: 1px 5px;
       font-size: 10px;
       font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .status-view-active {
+      font-size: 10px;
+      opacity: 0.85;
       white-space: nowrap;
     }
   }
@@ -1426,297 +1437,212 @@ export default {
 }
 
 // ==========================================
-// Slide-Out Monitor Drawer & Backdrop
+// Flat System & Bots Monitor View (in place of chart)
 // ==========================================
-.drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 10000;
-  animation: fadeIn 0.2s ease;
-}
-
-.monitor-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 400px;
-  max-width: 92vw;
-  background: #18181b;
-  color: #f4f4f5;
-  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.65);
-  border-left: 1px solid #27272a;
-  z-index: 10001;
+.monitor-view {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  transform: translateX(100%);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--background-color);
+  font-family: Arial, sans-serif;
+  text-transform: uppercase;
+  color: dimgray;
+  overflow: hidden;
 
-  &--open {
-    transform: translateX(0);
-  }
-
-  .drawer-header {
+  .monitor-summary-bar {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    padding: 18px 20px;
-    border-bottom: 1px solid #27272a;
-    background: #141416;
+    align-items: center;
+    background: dimgray;
+    color: white;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
 
-    .drawer-title {
+    .summary-left {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      color: #fafafa;
-    }
+      gap: 10px;
+      flex-wrap: wrap;
 
-    .drawer-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-      box-shadow: 0 0 6px #22c55e;
-    }
-
-    .drawer-subtitle {
-      font-size: 11px;
-      color: #71717a;
-      margin-top: 4px;
-    }
-
-    .drawer-close-btn {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      color: #a1a1aa;
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-
-      &:hover {
-        background: #3f3f46;
-        color: #fff;
+      .summary-sep {
+        opacity: 0.5;
       }
     }
-  }
 
-  .drawer-summary {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    padding: 14px 18px;
-    background: #1e1e24;
-    border-bottom: 1px solid #27272a;
+    .summary-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
 
-    .summary-card {
-      text-align: center;
-      padding: 8px 4px;
-      border-radius: 6px;
-      background: rgba(0, 0, 0, 0.2);
-
-      .summary-label {
+      .monitor-action-btn {
+        background: transparent;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        padding: 3px 8px;
         font-size: 10px;
-        color: #a1a1aa;
-        font-weight: 600;
-        letter-spacing: 0.3px;
-      }
+        font-weight: bold;
+        text-transform: uppercase;
+        border-radius: 0;
+        box-shadow: none;
 
-      .summary-value {
-        font-size: 14px;
-        font-weight: 700;
-        margin-top: 4px;
+        &:hover {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: white;
+        }
+
+        &--close {
+          background: rgba(0, 0, 0, 0.25);
+          border-color: rgba(255, 255, 255, 0.6);
+        }
       }
     }
   }
 
-  .drawer-bot-list {
+  .monitor-bots-grid {
     flex: 1;
-    overflow-y: auto;
-    padding: 14px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    min-height: 0;
+
+    @media (max-width: 900px) {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      overflow-y: auto;
+    }
 
     .bot-card {
-      background: #202025;
-      border: 1px solid #2e2e34;
-      border-radius: 8px;
-      padding: 12px 14px;
-      transition: border-color 0.2s;
+      background: var(--background-color);
+      border: 1px solid dimgray;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      position: relative;
+      box-sizing: border-box;
 
       &--in-pos {
-        border-color: rgba(59, 130, 246, 0.45);
-        background: #22222a;
+        border-color: dimgray;
+      }
+
+      .bot-card__color-bar {
+        height: 4px;
+        width: 100%;
+        flex-shrink: 0;
       }
 
       .bot-card__header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(105, 105, 105, 0.25);
+        background: rgba(105, 105, 105, 0.08);
 
         .bot-card__name {
-          display: flex;
-          align-items: center;
-          gap: 8px;
           font-size: 12px;
-          font-weight: 700;
+          font-weight: bold;
+          color: dimgray;
           letter-spacing: 0.5px;
-          color: #fafafa;
-        }
-
-        .bot-color-bar {
-          width: 4px;
-          height: 14px;
-          border-radius: 2px;
-          display: inline-block;
         }
 
         .bot-card__pnl {
           font-size: 12px;
-          font-weight: 700;
+          font-weight: bold;
         }
       }
 
-      .bot-card__pos-details {
-        margin-top: 10px;
-        padding-top: 8px;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      .bot-card__body {
+        flex: 1;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
 
-        .pos-token-row {
+        .pos-row--main {
           display: flex;
           align-items: center;
-          gap: 8px;
-          font-size: 12px;
+          gap: 6px;
+          margin-bottom: 8px;
 
-          .pos-side-pill {
+          .pos-side {
             font-size: 10px;
-            font-weight: 800;
-            padding: 2px 6px;
-            border-radius: 4px;
+            font-weight: bold;
+            padding: 2px 5px;
+            color: white;
 
-            &.side--long {
-              background: rgba(34, 197, 94, 0.2);
-              color: #4ade80;
-              border: 1px solid rgba(34, 197, 94, 0.35);
+            &--long {
+              background: green;
             }
 
-            &.side--short {
-              background: rgba(239, 68, 68, 0.2);
-              color: #f87171;
-              border: 1px solid rgba(239, 68, 68, 0.35);
+            &--short {
+              background: red;
             }
           }
 
           .pos-symbol {
-            font-weight: 700;
-            color: #fff;
-          }
-
-          .pos-entry {
-            color: #a1a1aa;
-            font-size: 11px;
-            margin-left: auto;
+            font-size: 12px;
+            font-weight: bold;
+            color: #222;
           }
         }
 
-        .pos-targets-grid {
-          display: flex;
-          gap: 12px;
-          margin-top: 8px;
+        .pos-details-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 3px;
           font-size: 10px;
 
-          .target-item {
+          .detail-row {
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px dashed rgba(105, 105, 105, 0.15);
+            padding-bottom: 2px;
 
-            .target-label {
-              color: #71717a;
-            }
-
-            .target-val {
+            .detail-label {
+              color: grey;
               font-weight: 600;
-              margin-top: 2px;
             }
 
-            &.target--sl .target-val { color: #f87171; }
-            &.target--tp .target-val { color: #4ade80; }
-            &.target--trail .target-val { color: #60a5fa; }
+            .detail-val {
+              font-weight: bold;
+              color: #333;
+            }
           }
         }
-      }
 
-      .bot-card__scanning {
-        margin-top: 8px;
-        font-size: 11px;
-        color: #71717a;
-        display: flex;
-        align-items: center;
-        gap: 6px;
+        .bot-card__scanning {
+          font-size: 11px;
+          color: grey;
+          text-align: center;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          padding: 12px 0;
+        }
       }
 
       .bot-card__footer {
         display: flex;
         justify-content: space-between;
-        margin-top: 10px;
-        padding-top: 6px;
-        border-top: 1px solid rgba(255, 255, 255, 0.04);
-        font-size: 10px;
-        color: #71717a;
-      }
-    }
-  }
-
-  .drawer-footer {
-    padding: 14px 18px;
-    border-top: 1px solid #27272a;
-    background: #141416;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    .drawer-footer__info {
-      display: flex;
-      flex-direction: column;
-      font-size: 10px;
-      color: #71717a;
-      gap: 2px;
-    }
-
-    .drawer-refresh-btn {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      color: #d4d4d8;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      transition: all 0.2s;
-
-      &:hover {
-        background: #3f3f46;
-        color: #fff;
+        align-items: center;
+        padding: 6px 10px;
+        border-top: 1px solid rgba(105, 105, 105, 0.2);
+        font-size: 9px;
+        color: grey;
+        font-weight: 600;
+        background: rgba(105, 105, 105, 0.04);
+        flex-shrink: 0;
       }
     }
   }
 }
 
-.text-green { color: #4ade80; }
-.text-red { color: #f87171; }
-.text-yellow { color: #facc15; }
-.text-accent { color: #60a5fa; }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+.text-green { color: green; }
+.text-red { color: red; }
+.text-yellow { color: #d97706; }
 </style>
