@@ -1751,6 +1751,10 @@ export default {
         }
 
         .bot-card__scanning {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           font-size: 10px;
           color: grey;
           text-align: center;
