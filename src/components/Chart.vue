@@ -1,111 +1,4 @@
 <template>
-  <div
-    v-show="!isLoading && lines.length > 0 && !isMonitorView"
-    class="chart cursor-pointer"
-    id="chart-container"
-  />
-
-  <!-- Flat System & Bots Monitor View (replaces chart) -->
-  <div
-    v-if="!isLoading && lines.length > 0 && isMonitorView"
-    class="monitor-view"
-    :style="{ height: isFullScreen ? 'calc(100vh - 120px)' : '335px' }"
-  >
-    <!-- Flat Summary Bar -->
-    <div class="monitor-summary-bar">
-      <div class="summary-left">
-        <span class="summary-item">
-          WATCHDOG:
-          <strong :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
-            {{ systemStatus.status }}
-          </strong>
-        </span>
-        <span class="summary-sep">|</span>
-        <span class="summary-item">
-          BOTS: <strong>{{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} RUNNING</strong>
-        </span>
-        <span class="summary-sep">|</span>
-        <span class="summary-item">
-          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 8 }}</strong>
-        </span>
-        <span class="summary-sep">|</span>
-        <span class="summary-item">
-          TOTAL EQUITY:
-          <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
-            {{ totalProfit }}%
-          </strong>
-        </span>
-      </div>
-
-      <div class="summary-right">
-        <button class="monitor-action-btn cursor-pointer" @click="fetchBotStatus" title="Refresh bot status">
-          REFRESH
-        </button>
-        <button class="monitor-action-btn monitor-action-btn--close cursor-pointer" @click="toggleMonitorView" title="Back to chart">
-          ✕ CHART
-        </button>
-      </div>
-    </div>
-
-    <!-- 8 Bots Flat Grid -->
-    <div class="monitor-bots-grid">
-      <div
-        v-for="bot in botStatusList"
-        :key="bot.id"
-        class="bot-card"
-        :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
-      >
-        <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
-
-        <div class="bot-card__header">
-          <span class="bot-card__name">{{ bot.name }}</span>
-          <span class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
-            {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
-          </span>
-        </div>
-
-        <div class="bot-card__body">
-          <template v-if="bot.position">
-            <div class="pos-row pos-row--main">
-              <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
-                {{ bot.position.side }}
-              </span>
-              <span class="pos-symbol">{{ bot.position.symbol }}</span>
-            </div>
-
-            <div class="pos-details-grid">
-              <div class="detail-row">
-                <span class="detail-label">ENTRY</span>
-                <span class="detail-val">{{ bot.position.entryPrice }}</span>
-              </div>
-              <div v-if="bot.position.stopLoss" class="detail-row">
-                <span class="detail-label">SL</span>
-                <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
-              </div>
-              <div v-if="bot.position.takeProfit" class="detail-row">
-                <span class="detail-label">TP</span>
-                <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
-              </div>
-              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
-                <span class="detail-label">PEAK</span>
-                <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
-              </div>
-            </div>
-          </template>
-
-          <div v-else class="bot-card__scanning">
-            SCANNING FOR SETUPS
-          </div>
-        </div>
-
-        <div class="bot-card__footer">
-          <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
-          <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div v-if="isLoading" class="loader-container">
     <div class="loader">
       <div>DNA</div>
@@ -122,7 +15,11 @@
       <span class="annotation--price" />
     </div>
 
-    <div class="top-bar-menu">
+    <!-- Top Bar Controls -->
+    <div
+      class="top-bar-menu"
+      :class="{ 'top-bar-menu--monitor': isMonitorView }"
+    >
       <img
         :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
         alt="DNATRADE"
@@ -169,8 +66,116 @@
       </div>
     </div>
 
-    <!-- Legend toolbar-->
-    <div class="info-container">
+    <!-- Chart container (shown when NOT in monitor view) -->
+    <div
+      v-show="!isMonitorView"
+      class="chart cursor-pointer"
+      id="chart-container"
+    />
+
+    <!-- Flat System & Bots Monitor View (replaces chart when active) -->
+    <div
+      v-if="isMonitorView"
+      class="monitor-view"
+      :style="{ minHeight: isFullScreen ? 'calc(100vh - 80px)' : '340px' }"
+    >
+      <!-- Flat Summary Bar -->
+      <div class="monitor-summary-bar">
+        <div class="summary-left">
+          <span class="summary-item">
+            WATCHDOG:
+            <strong :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
+              {{ systemStatus.status }}
+            </strong>
+          </span>
+          <span class="summary-sep">|</span>
+          <span class="summary-item">
+            BOTS: <strong>{{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} RUNNING</strong>
+          </span>
+          <span class="summary-sep">|</span>
+          <span class="summary-item">
+            IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 8 }}</strong>
+          </span>
+          <span class="summary-sep">|</span>
+          <span class="summary-item">
+            TOTAL EQUITY:
+            <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
+              {{ totalProfit }}%
+            </strong>
+          </span>
+        </div>
+
+        <div class="summary-right">
+          <button class="monitor-action-btn cursor-pointer" @click="refreshAllData" title="Refresh all data">
+            REFRESH
+          </button>
+          <button class="monitor-action-btn monitor-action-btn--close cursor-pointer" @click="toggleMonitorView" title="Back to chart">
+            ✕ CHART
+          </button>
+        </div>
+      </div>
+
+      <!-- 8 Bots Flat Grid -->
+      <div class="monitor-bots-grid">
+        <div
+          v-for="bot in botStatusList"
+          :key="bot.id"
+          class="bot-card"
+          :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
+        >
+          <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
+
+          <div class="bot-card__header">
+            <span class="bot-card__name">{{ bot.name }}</span>
+            <span class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
+              {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
+            </span>
+          </div>
+
+          <div class="bot-card__body">
+            <template v-if="bot.position">
+              <div class="pos-row pos-row--main">
+                <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
+                  {{ bot.position.side }}
+                </span>
+                <span class="pos-symbol">{{ bot.position.symbol }}</span>
+              </div>
+
+              <div class="pos-details-grid">
+                <div class="detail-row">
+                  <span class="detail-label">ENTRY</span>
+                  <span class="detail-val">{{ bot.position.entryPrice }}</span>
+                </div>
+                <div v-if="bot.position.stopLoss" class="detail-row">
+                  <span class="detail-label">SL</span>
+                  <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
+                </div>
+                <div v-if="bot.position.takeProfit" class="detail-row">
+                  <span class="detail-label">TP</span>
+                  <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
+                </div>
+                <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
+                  <span class="detail-label">PEAK</span>
+                  <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
+                </div>
+              </div>
+            </template>
+
+            <div v-else class="bot-card__scanning">
+              SCANNING FOR SETUPS
+            </div>
+          </div>
+
+          <div class="bot-card__footer">
+            <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
+            <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend toolbar (hidden when in monitor view) -->
+    <div v-show="!isMonitorView" class="info-container">
       <!-- Open files -->
       <input
         type="file"
@@ -202,8 +207,8 @@
       </div>
     </div>
 
-    <!-- Tickers lines-->
-    <section ref="legend" class="legend">
+    <!-- Tickers lines (hidden when in monitor view) -->
+    <section v-show="!isMonitorView" ref="legend" class="legend">
       <div
         v-for="(line, index) in lines"
         :key="index"
@@ -287,9 +292,7 @@ export default {
     return {
       isLoading: true,
       serverLines: [],
-      updateTimeout: 1000 * 60 * 3,
-      updateInterval: null,
-      statusInterval: null,
+      refreshInterval: null,
       lineWidth: 2.5,
       isFullScreen: false,
       isLineMarked: false,
@@ -743,12 +746,16 @@ export default {
     // Convert server data to lines
     convertServerDataToLines({ isUpdate }) {
       const lines: ILine[] = this.serverLines.map(
-        (file: IServerLine, index: number): ILine => ({
-          name: file.name.split(".")[0].replace(/^trades[-_]/i, ""),
-          data: file.data.map((item: string): string[] => item.split(",")),
-          color: this.getColor(index),
-          disabled: isUpdate ? (this.lines[index]?.disabled ?? true) : true,
-        })
+        (file: IServerLine, index: number): ILine => {
+          const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
+          const existingLine = this.lines.find((l: ILine) => l.name === lineName);
+          return {
+            name: lineName,
+            data: file.data.map((item: string): string[] => item.split(",")),
+            color: this.getColor(index),
+            disabled: isUpdate ? (existingLine?.disabled ?? true) : true,
+          };
+        }
       );
 
       this.lines = lines;
@@ -838,7 +845,20 @@ export default {
 
       for (const [index, line] of this.lines.entries()) {
         const seriesData = this.prepareSeriesData(line.data);
-        lineSeries[index].setData(seriesData);
+        if (lineSeries[index]) {
+          lineSeries[index].setData(seriesData);
+        } else if (chart) {
+          const newLineSeries = chart.addLineSeries({
+            color: line.color,
+            priceScaleId: "right",
+            lineWidth: this.lineWidth,
+            visible: !this.hasLineTotalOnly && !line.disabled,
+            priceLineVisible: false,
+            lastValueVisible: true,
+          });
+          newLineSeries.setData(seriesData);
+          lineSeries.push(newLineSeries);
+        }
         linesData.push(seriesData);
       }
 
@@ -846,21 +866,24 @@ export default {
     },
 
     updateLineTotal() {
-      lineSeriesTotal.applyOptions({
+      lineSeriesTotal?.applyOptions({
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
       });
 
       const seriesDataTotal = this.prepareSeriesDataTotal();
-      lineSeriesTotal.setData(seriesDataTotal);
+      lineSeriesTotal?.setData(seriesDataTotal);
+    },
+
+    async refreshAllData() {
+      await Promise.all([this.fetchData(), this.fetchBotStatus()]);
+      this.convertServerDataToLines({ isUpdate: true });
+      this.updateChart();
     },
 
     setupChartUpdate() {
-      this.updateInterval = setInterval(async () => {
-        await this.fetchData();
-
-        this.convertServerDataToLines({ isUpdate: true });
-        this.updateChart();
-      }, this.updateTimeout);
+      this.refreshInterval = setInterval(async () => {
+        await this.refreshAllData();
+      }, 20000);
     },
 
     //// Listeners
@@ -1052,6 +1075,8 @@ export default {
             chart.timeScale().fitContent();
           }
         });
+      } else {
+        this.refreshAllData();
       }
     },
   },
@@ -1064,19 +1089,13 @@ export default {
     this.initChart();
     this.setupResizeListener();
     this.setupChartUpdate();
-
-    // Auto-refresh bot status every 20 seconds
-    this.statusInterval = setInterval(() => {
-      this.fetchBotStatus();
-    }, 20000);
   },
 
   unmounted() {
-    chart.remove();
+    chart?.remove();
     chart = null;
-    clearInterval(this.updateInterval);
-    if (this.statusInterval) {
-      clearInterval(this.statusInterval);
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
     }
   },
 };
@@ -1127,6 +1146,35 @@ export default {
   display: flex;
   align-items: center;
   z-index: 9999;
+
+  &--monitor {
+    position: relative;
+    top: auto;
+    left: auto;
+    padding: 8px 10px 0 10px;
+    margin-bottom: 2px;
+  }
+
+  @media (max-width: 768px) {
+    left: 8px;
+    top: 6px;
+    flex-wrap: wrap;
+    gap: 4px;
+
+    &--monitor {
+      padding: 6px 8px 0 8px;
+    }
+
+    .system-status-btn {
+      margin-left: 0;
+      font-size: 10px;
+      padding: 0 6px;
+
+      .status-view-active {
+        display: none;
+      }
+    }
+  }
 
   .full-screen-button {
     width: 32px;
@@ -1442,14 +1490,17 @@ export default {
 .monitor-view {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 6px 10px 16px 10px;
   display: flex;
   flex-direction: column;
   background: var(--background-color);
   font-family: Arial, sans-serif;
   text-transform: uppercase;
   color: dimgray;
-  overflow: hidden;
+
+  @media (max-width: 768px) {
+    padding: 6px 8px 16px 8px;
+  }
 
   .monitor-summary-bar {
     display: flex;
@@ -1463,6 +1514,35 @@ export default {
     letter-spacing: 0.5px;
     margin-bottom: 8px;
     flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      padding: 8px 10px;
+
+      .summary-left {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 10px;
+
+        .summary-sep {
+          display: none;
+        }
+
+        .summary-item {
+          background: rgba(0, 0, 0, 0.2);
+          padding: 2px 5px;
+        }
+      }
+
+      .summary-right {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+    }
 
     .summary-left {
       display: flex;
@@ -1510,10 +1590,14 @@ export default {
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     gap: 8px;
     min-height: 0;
-    overflow-y: auto;
 
-    @media (max-width: 900px) {
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    @media (max-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    @media (max-width: 420px) {
+      grid-template-columns: 1fr;
     }
 
     .bot-card {
@@ -1524,6 +1608,7 @@ export default {
       padding: 0;
       position: relative;
       box-sizing: border-box;
+      min-width: 0;
 
       &--in-pos {
         border-color: dimgray;
@@ -1551,18 +1636,21 @@ export default {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          min-width: 0;
         }
 
         .bot-card__pnl {
           font-size: 11px;
           font-weight: bold;
           white-space: nowrap;
+          flex-shrink: 0;
+          margin-left: 4px;
         }
       }
 
       .bot-card__body {
         flex: 1;
-        padding: 10px;
+        padding: 8px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -1571,7 +1659,7 @@ export default {
           display: flex;
           align-items: center;
           gap: 6px;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
 
           .pos-side {
             font-size: 10px;
@@ -1589,7 +1677,7 @@ export default {
           }
 
           .pos-symbol {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             color: #222;
           }
@@ -1621,12 +1709,12 @@ export default {
         }
 
         .bot-card__scanning {
-          font-size: 11px;
+          font-size: 10px;
           color: grey;
           text-align: center;
           font-weight: 600;
           letter-spacing: 0.5px;
-          padding: 12px 0;
+          padding: 8px 0;
         }
       }
 
@@ -1634,7 +1722,7 @@ export default {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 6px 10px;
+        padding: 5px 8px;
         border-top: 1px solid rgba(105, 105, 105, 0.2);
         font-size: 9px;
         color: grey;

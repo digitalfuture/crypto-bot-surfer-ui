@@ -40,23 +40,50 @@ export const GET: APIRoute = async () => {
     const files = await readdir(directoryPath);
     const fileList: IServerLine[] = [];
 
-    for (const fileName of files) {
-      if (fileName.endsWith(".csv")) {
-        const filePath = join(directoryPath, fileName);
-        const fileData = await readFile(filePath, { encoding: "utf8" });
+    const order = [
+      "volatility",
+      "channel",
+      "trend",
+      "pullback",
+      "scalper",
+      "orderbook-wall",
+      "orderbook-imbalance",
+      "orderbook-absorption",
+      "wall",
+      "imbalance",
+      "absorption",
+    ];
 
-        const rows = fileData
-          .trim()
-          .split(/\r?\n/)
-          .slice(1)
-          .filter((line) => line.trim().length > 0)
-          .slice(-10000);
+    const csvFiles = files.filter((f) => f.endsWith(".csv"));
+    csvFiles.sort((a, b) => {
+      const idA = a
+        .replace(/\.csv$/i, "")
+        .replace(/^trades[-_]/i, "")
+        .toLowerCase();
+      const idB = b
+        .replace(/\.csv$/i, "")
+        .replace(/^trades[-_]/i, "")
+        .toLowerCase();
+      const idxA = order.indexOf(idA);
+      const idxB = order.indexOf(idB);
+      return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+    });
 
-        fileList.push({
-          name: fileName,
-          data: rows,
-        });
-      }
+    for (const fileName of csvFiles) {
+      const filePath = join(directoryPath, fileName);
+      const fileData = await readFile(filePath, { encoding: "utf8" });
+
+      const rows = fileData
+        .trim()
+        .split(/\r?\n/)
+        .slice(1)
+        .filter((line) => line.trim().length > 0)
+        .slice(-10000);
+
+      fileList.push({
+        name: fileName,
+        data: rows,
+      });
     }
 
     return new Response(JSON.stringify(fileList), {
