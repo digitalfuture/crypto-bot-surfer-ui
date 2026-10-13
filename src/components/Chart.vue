@@ -115,14 +115,6 @@
 
     <!-- Top Bar Controls -->
     <div class="top-bar-menu">
-      <img
-        :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
-        alt="DNATRADE"
-        class="full-screen-button cursor-pointer"
-        :style="{ visibility: isMonitorView ? 'hidden' : 'visible', pointerEvents: isMonitorView ? 'none' : 'auto' }"
-        @click="isFullScreen = !isFullScreen"
-      />
-
       <div
         class="use-commission-container cursor-pointer"
         @click="toggleCommission"
@@ -163,6 +155,20 @@
           • MONITOR
         </span>
       </div>
+    </div>
+
+    <!-- Top Right: Fullscreen Toggle Button -->
+    <div
+      class="top-bar-right"
+      :style="{ visibility: isMonitorView ? 'hidden' : 'visible', pointerEvents: isMonitorView ? 'none' : 'auto' }"
+    >
+      <img
+        :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
+        alt="DNATRADE"
+        class="full-screen-button cursor-pointer"
+        @click="isFullScreen = !isFullScreen"
+        :title="isFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen'"
+      />
     </div>
 
     <!-- Legend toolbar (hidden when in monitor view) -->
@@ -1195,12 +1201,6 @@ export default {
     }
   }
 
-  .full-screen-button {
-    width: 28px;
-    height: auto;
-    flex-shrink: 0;
-  }
-
   .use-commission-container {
     position: relative;
     display: inline-flex;
@@ -1306,6 +1306,30 @@ export default {
       font-size: 10px;
       opacity: 0.85;
       white-space: nowrap;
+    }
+  }
+}
+
+.top-bar-right {
+  position: absolute;
+  top: 7px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  z-index: 9999;
+
+  .full-screen-button {
+    width: 28px;
+    height: auto;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 768px) {
+    top: 6px;
+    right: 8px;
+
+    .full-screen-button {
+      width: 24px;
     }
   }
 }
