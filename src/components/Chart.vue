@@ -36,15 +36,6 @@
           </strong>
         </span>
       </div>
-
-      <div class="summary-right">
-        <button class="monitor-action-btn cursor-pointer" @click="refreshAllData" title="Refresh all data">
-          REFRESH
-        </button>
-        <button class="monitor-action-btn monitor-action-btn--close cursor-pointer" @click="toggleMonitorView" title="Back to chart">
-          ✕ CHART
-        </button>
-      </div>
     </div>
 
     <!-- 8 Bots Flat Grid -->
@@ -174,6 +165,16 @@
       </div>
     </div>
 
+    <!-- Top Right Refresh Button -->
+    <button
+      class="top-bar-refresh-btn cursor-pointer"
+      :class="{ 'top-bar-refresh-btn--loading': isRefreshing }"
+      @click="refreshAllData"
+      title="Refresh all data"
+    >
+      {{ isRefreshing ? 'REFRESHING...' : 'REFRESH' }}
+    </button>
+
     <!-- Legend toolbar (hidden when in monitor view) -->
     <div v-show="!isMonitorView" class="info-container">
       <!-- Open files -->
@@ -298,6 +299,7 @@ export default {
       isLineMarked: false,
       useCommission: true,
       isMonitorView: false,
+      isRefreshing: false,
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
@@ -885,9 +887,14 @@ export default {
     },
 
     async refreshAllData() {
-      await Promise.all([this.fetchData(), this.fetchBotStatus()]);
-      this.convertServerDataToLines({ isUpdate: true });
-      this.updateChart();
+      this.isRefreshing = true;
+      try {
+        await Promise.all([this.fetchData(), this.fetchBotStatus()]);
+        this.convertServerDataToLines({ isUpdate: true });
+        this.updateChart();
+      } finally {
+        this.isRefreshing = false;
+      }
     },
 
     setupChartUpdate() {
@@ -1313,6 +1320,51 @@ export default {
   }
 }
 
+.top-bar-refresh-btn {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 25px;
+  background: dimgray;
+  color: white;
+  text-transform: uppercase;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  user-select: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  cursor: pointer;
+  z-index: 9999;
+  transition: background 0.15s ease, opacity 0.15s ease;
+
+  &:hover {
+    background: grey;
+  }
+
+  &:active {
+    background: #333;
+  }
+
+  &--loading {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  @media (max-width: 768px) {
+    top: 6px;
+    right: 8px;
+    height: 24px;
+    font-size: 10px;
+    padding: 0 8px;
+  }
+}
+
 .loader-container {
   width: 100vw;
   height: 100vh;
@@ -1581,12 +1633,6 @@ export default {
           padding: 2px 5px;
         }
       }
-
-      .summary-right {
-        display: flex;
-        justify-content: flex-end;
-        gap: 6px;
-      }
     }
 
     .summary-left {
@@ -1597,34 +1643,6 @@ export default {
 
       .summary-sep {
         opacity: 0.5;
-      }
-    }
-
-    .summary-right {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-
-      .monitor-action-btn {
-        background: transparent;
-        color: white;
-        border: 1px solid rgba(255, 255, 255, 0.4);
-        padding: 3px 8px;
-        font-size: 10px;
-        font-weight: bold;
-        text-transform: uppercase;
-        border-radius: 0;
-        box-shadow: none;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: white;
-        }
-
-        &--close {
-          background: rgba(0, 0, 0, 0.25);
-          border-color: rgba(255, 255, 255, 0.6);
-        }
       }
     }
   }
