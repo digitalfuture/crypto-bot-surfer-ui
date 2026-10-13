@@ -22,11 +22,11 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          BOTS: <strong>{{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} RUNNING</strong>
+          BOTS: <strong>{{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} RUNNING</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 5 }}</strong>
+          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 8 }}</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
@@ -47,7 +47,7 @@
       </div>
     </div>
 
-    <!-- 5 Bots Flat Grid -->
+    <!-- 8 Bots Flat Grid -->
     <div class="monitor-bots-grid">
       <div
         v-for="bot in botStatusList"
@@ -155,7 +155,7 @@
           :class="systemStatus.status === 'HEALTHY' ? 'status-indicator--green' : 'status-indicator--yellow'"
         />
         <span class="status-btn-text">
-          {{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} BOTS
+          {{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} BOTS
         </span>
         <span
           v-if="systemStatus.activePositionsCount > 0"
@@ -298,8 +298,8 @@ export default {
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
-        runningBots: 5,
-        totalBots: 5,
+        runningBots: 8,
+        totalBots: 8,
         timestamp: "",
         activePositionsCount: 0,
       },
@@ -1507,13 +1507,13 @@ export default {
   .monitor-bots-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     gap: 8px;
     min-height: 0;
+    overflow-y: auto;
 
     @media (max-width: 900px) {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      overflow-y: auto;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 
     .bot-card {
@@ -1544,15 +1544,19 @@ export default {
         background: rgba(105, 105, 105, 0.08);
 
         .bot-card__name {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: bold;
           color: dimgray;
           letter-spacing: 0.5px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .bot-card__pnl {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: bold;
+          white-space: nowrap;
         }
       }
 
