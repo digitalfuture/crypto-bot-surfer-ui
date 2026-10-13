@@ -165,22 +165,6 @@
       </div>
     </div>
 
-    <!-- Top Right Refresh Button -->
-    <div
-      class="top-bar-refresh-container cursor-pointer"
-      @click="refreshAllData"
-      title="Refresh data"
-    >
-      <img
-        src="/icons/refresh.svg"
-        alt="Refresh"
-        class="top-bar-refresh-icon cursor-pointer"
-        :class="{ 'top-bar-refresh-icon--spinning': isRefreshing }"
-      />
-
-      <span class="top-bar-refresh-tip">{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
-    </div>
-
     <!-- Legend toolbar (hidden when in monitor view) -->
     <div v-show="!isMonitorView" class="info-container">
       <!-- Open files -->
@@ -1323,77 +1307,6 @@ export default {
       opacity: 0.85;
       white-space: nowrap;
     }
-  }
-}
-
-.top-bar-refresh-container {
-  position: absolute;
-  top: 7px;
-  right: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  flex-shrink: 0;
-
-  @media (max-width: 768px) {
-    top: 6px;
-    right: 8px;
-  }
-
-  .top-bar-refresh-icon {
-    width: 25px;
-    height: auto;
-    opacity: 0.85;
-    transition: opacity 0.2s ease;
-
-    &:hover {
-      opacity: 1;
-    }
-
-    &--spinning {
-      animation: spin-refresh 0.8s linear infinite;
-      pointer-events: none;
-    }
-  }
-
-  .top-bar-refresh-tip {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    display: flex;
-    align-items: center;
-    visibility: hidden;
-    background: grey;
-    color: white;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    opacity: 0;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 10000;
-    font-size: 10px;
-
-    @media (max-width: 768px) {
-      display: none;
-    }
-  }
-
-  &:hover {
-    .top-bar-refresh-tip {
-      visibility: visible;
-      opacity: 1;
-    }
-  }
-}
-
-@keyframes spin-refresh {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
   }
 }
 
