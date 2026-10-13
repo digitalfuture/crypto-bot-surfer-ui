@@ -134,6 +134,7 @@
     <!-- Top Bar Controls -->
     <div class="top-bar-menu">
       <img
+        v-if="!isMonitorView"
         :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
         alt="DNATRADE"
         class="full-screen-button cursor-pointer"
