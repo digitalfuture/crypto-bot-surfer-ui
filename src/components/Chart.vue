@@ -126,8 +126,9 @@
             v-if="getBotPosition(line.name)"
             class="micro-pos-tag"
             :class="getBotPosition(line.name).side === 'LONG' ? 'micro-pos-tag--long' : 'micro-pos-tag--short'"
+            :title="`${getBotPosition(line.name).side} ${getBotPosition(line.name).symbol}`"
           >
-            {{ getBotPosition(line.name).side }} {{ getBotPosition(line.name).symbol }}
+            {{ getBotPosition(line.name).symbol }}
           </span>
 
           <span class="line__last-value" v-text="getLegendValue(index)" />
@@ -1343,24 +1344,21 @@ export default {
   }
 
   .micro-pos-tag {
-    font-size: 10px;
-    font-weight: 800;
-    padding: 1px 6px;
-    border-radius: 4px;
+    background: var(--background-color);
+    font-size: 11px;
+    font-weight: 600;
+    padding-inline: 7px;
     margin-left: 6px;
     letter-spacing: 0.3px;
     white-space: nowrap;
+    border: none;
 
     &--long {
-      background: rgba(34, 197, 94, 0.18);
-      color: #16a34a;
-      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: green;
     }
 
     &--short {
-      background: rgba(239, 68, 68, 0.18);
-      color: #dc2626;
-      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: red;
     }
   }
 
