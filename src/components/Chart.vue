@@ -1,4 +1,112 @@
 <template>
+  <!-- Chart container: ALWAYS in DOM so createChart never fails -->
+  <div
+    v-show="!isLoading && lines.length > 0 && !isMonitorView"
+    class="chart cursor-pointer"
+    id="chart-container"
+  />
+
+  <!-- Flat System & Bots Monitor View (replaces chart when active) -->
+  <div
+    v-if="!isLoading && lines.length > 0 && isMonitorView"
+    class="monitor-view"
+    :style="{ minHeight: isFullScreen ? 'calc(100vh - 80px)' : '340px' }"
+  >
+    <!-- Flat Summary Bar -->
+    <div class="monitor-summary-bar">
+      <div class="summary-left">
+        <span class="summary-item">
+          WATCHDOG:
+          <strong :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
+            {{ systemStatus.status }}
+          </strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          BOTS: <strong>{{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} RUNNING</strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 8 }}</strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          TOTAL EQUITY:
+          <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
+            {{ totalProfit }}%
+          </strong>
+        </span>
+      </div>
+
+      <div class="summary-right">
+        <button class="monitor-action-btn cursor-pointer" @click="refreshAllData" title="Refresh all data">
+          REFRESH
+        </button>
+        <button class="monitor-action-btn monitor-action-btn--close cursor-pointer" @click="toggleMonitorView" title="Back to chart">
+          ✕ CHART
+        </button>
+      </div>
+    </div>
+
+    <!-- 8 Bots Flat Grid -->
+    <div class="monitor-bots-grid">
+      <div
+        v-for="bot in botStatusList"
+        :key="bot.id"
+        class="bot-card"
+        :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
+      >
+        <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
+
+        <div class="bot-card__header">
+          <span class="bot-card__name">{{ bot.name }}</span>
+          <span class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
+            {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
+          </span>
+        </div>
+
+        <div class="bot-card__body">
+          <template v-if="bot.position">
+            <div class="pos-row pos-row--main">
+              <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
+                {{ bot.position.side }}
+              </span>
+              <span class="pos-symbol">{{ bot.position.symbol }}</span>
+            </div>
+
+            <div class="pos-details-grid">
+              <div class="detail-row">
+                <span class="detail-label">ENTRY</span>
+                <span class="detail-val">{{ bot.position.entryPrice }}</span>
+              </div>
+              <div v-if="bot.position.stopLoss" class="detail-row">
+                <span class="detail-label">SL</span>
+                <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
+              </div>
+              <div v-if="bot.position.takeProfit" class="detail-row">
+                <span class="detail-label">TP</span>
+                <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
+              </div>
+              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
+                <span class="detail-label">PEAK</span>
+                <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="bot-card__scanning">
+            SCANNING FOR SETUPS
+          </div>
+        </div>
+
+        <div class="bot-card__footer">
+          <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
+          <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div v-if="isLoading" class="loader-container">
     <div class="loader">
       <div>DNA</div>
@@ -7,7 +115,7 @@
     </div>
   </div>
 
-  <div v-else-if="lines.length === 0" class="no-data">NO DATA</div>
+  <div v-else-if="!isLoading && lines.length === 0" class="no-data">NO DATA</div>
 
   <template v-else>
     <div class="annotation" style="display: none">
@@ -16,10 +124,7 @@
     </div>
 
     <!-- Top Bar Controls -->
-    <div
-      class="top-bar-menu"
-      :class="{ 'top-bar-menu--monitor': isMonitorView }"
-    >
+    <div class="top-bar-menu">
       <img
         :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
         alt="DNATRADE"
@@ -63,114 +168,6 @@
         <span v-if="isMonitorView" class="status-view-active">
           • MONITOR
         </span>
-      </div>
-    </div>
-
-    <!-- Chart container (shown when NOT in monitor view) -->
-    <div
-      v-show="!isMonitorView"
-      class="chart cursor-pointer"
-      id="chart-container"
-    />
-
-    <!-- Flat System & Bots Monitor View (replaces chart when active) -->
-    <div
-      v-if="isMonitorView"
-      class="monitor-view"
-      :style="{ minHeight: isFullScreen ? 'calc(100vh - 80px)' : '340px' }"
-    >
-      <!-- Flat Summary Bar -->
-      <div class="monitor-summary-bar">
-        <div class="summary-left">
-          <span class="summary-item">
-            WATCHDOG:
-            <strong :class="systemStatus.status === 'HEALTHY' ? 'text-green' : 'text-yellow'">
-              {{ systemStatus.status }}
-            </strong>
-          </span>
-          <span class="summary-sep">|</span>
-          <span class="summary-item">
-            BOTS: <strong>{{ systemStatus.runningBots || 8 }}/{{ systemStatus.totalBots || 8 }} RUNNING</strong>
-          </span>
-          <span class="summary-sep">|</span>
-          <span class="summary-item">
-            IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 8 }}</strong>
-          </span>
-          <span class="summary-sep">|</span>
-          <span class="summary-item">
-            TOTAL EQUITY:
-            <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
-              {{ totalProfit }}%
-            </strong>
-          </span>
-        </div>
-
-        <div class="summary-right">
-          <button class="monitor-action-btn cursor-pointer" @click="refreshAllData" title="Refresh all data">
-            REFRESH
-          </button>
-          <button class="monitor-action-btn monitor-action-btn--close cursor-pointer" @click="toggleMonitorView" title="Back to chart">
-            ✕ CHART
-          </button>
-        </div>
-      </div>
-
-      <!-- 8 Bots Flat Grid -->
-      <div class="monitor-bots-grid">
-        <div
-          v-for="bot in botStatusList"
-          :key="bot.id"
-          class="bot-card"
-          :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
-        >
-          <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
-
-          <div class="bot-card__header">
-            <span class="bot-card__name">{{ bot.name }}</span>
-            <span class="bot-card__pnl" :class="bot.totalProfit >= 0 ? 'text-green' : 'text-red'">
-              {{ bot.totalProfit > 0 ? '+' : '' }}{{ bot.totalProfit.toFixed(2) }}%
-            </span>
-          </div>
-
-          <div class="bot-card__body">
-            <template v-if="bot.position">
-              <div class="pos-row pos-row--main">
-                <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
-                  {{ bot.position.side }}
-                </span>
-                <span class="pos-symbol">{{ bot.position.symbol }}</span>
-              </div>
-
-              <div class="pos-details-grid">
-                <div class="detail-row">
-                  <span class="detail-label">ENTRY</span>
-                  <span class="detail-val">{{ bot.position.entryPrice }}</span>
-                </div>
-                <div v-if="bot.position.stopLoss" class="detail-row">
-                  <span class="detail-label">SL</span>
-                  <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
-                </div>
-                <div v-if="bot.position.takeProfit" class="detail-row">
-                  <span class="detail-label">TP</span>
-                  <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
-                </div>
-                <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
-                  <span class="detail-label">PEAK</span>
-                  <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
-                </div>
-              </div>
-            </template>
-
-            <div v-else class="bot-card__scanning">
-              SCANNING FOR SETUPS
-            </div>
-          </div>
-
-          <div class="bot-card__footer">
-            <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
-            <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -521,6 +518,16 @@ export default {
       this.convertServerDataToLines({ isUpdate: false });
 
       const chartContainer = document.getElementById("chart-container");
+      if (!chartContainer) {
+        console.error("chartContainer element not found");
+        return;
+      }
+      if (chart) {
+        chart.remove();
+        chart = null;
+      }
+      lineSeries = [];
+      lineSeriesTotal = null;
       chart = createChart(chartContainer, this.chartOptions);
 
       this.setupChartTotal();
@@ -1004,8 +1011,9 @@ export default {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const serverLines: IServerLine[] = await response.json();
-        this.isLoading = false;
         this.serverLines = serverLines;
+        this.convertServerDataToLines({ isUpdate: Boolean(chart) });
+        this.isLoading = false;
       } catch (error) {
         console.error("Error fetching lines:", error);
         this.isLoading = false;
@@ -1147,23 +1155,11 @@ export default {
   align-items: center;
   z-index: 9999;
 
-  &--monitor {
-    position: relative;
-    top: auto;
-    left: auto;
-    padding: 8px 10px 0 10px;
-    margin-bottom: 2px;
-  }
-
   @media (max-width: 768px) {
     left: 8px;
     top: 6px;
     flex-wrap: wrap;
     gap: 4px;
-
-    &--monitor {
-      padding: 6px 8px 0 8px;
-    }
 
     .system-status-btn {
       margin-left: 0;
@@ -1490,7 +1486,7 @@ export default {
 .monitor-view {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 10px 16px 10px;
+  padding: 42px 10px 16px 10px;
   display: flex;
   flex-direction: column;
   background: var(--background-color);
@@ -1499,7 +1495,7 @@ export default {
   color: dimgray;
 
   @media (max-width: 768px) {
-    padding: 6px 8px 16px 8px;
+    padding: 60px 8px 16px 8px;
   }
 
   .monitor-summary-bar {
