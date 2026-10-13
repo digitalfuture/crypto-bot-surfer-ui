@@ -166,7 +166,7 @@
           v-if="systemStatus.activePositionsCount > 0"
           class="status-btn-badge"
         >
-          {{ systemStatus.activePositionsCount }} ACTIVE
+          {{ systemStatus.activePositionsCount }} IN POS
         </span>
         <span v-if="isMonitorView" class="status-view-active">
           • MONITOR
@@ -1284,7 +1284,7 @@ export default {
       flex-shrink: 0;
 
       &--green {
-        background-color: green;
+        background-color: var(--green-color);
       }
 
       &--yellow {
@@ -1454,11 +1454,11 @@ export default {
     border: none;
 
     &--long {
-      color: green;
+      color: var(--green-color);
     }
 
     &--short {
-      color: red;
+      color: var(--red-color);
     }
   }
 
@@ -1477,11 +1477,11 @@ export default {
     background-color: var(--background-color);
 
     &--red {
-      background-color: red;
+      background-color: var(--red-color);
     }
 
     &--green {
-      background-color: green;
+      background-color: var(--green-color);
     }
   }
 }
@@ -1556,9 +1556,9 @@ export default {
     margin-bottom: 8px;
     flex-shrink: 0;
 
-    .text-green { color: #4ade80; }
-    .text-red { color: #f87171; }
-    .text-yellow { color: #facc15; }
+    .text-green { color: var(--green-color); }
+    .text-red { color: var(--red-color); }
+    .text-yellow { color: #d97706; }
 
     @media (max-width: 768px) {
       flex-direction: column;
@@ -1712,11 +1712,11 @@ export default {
             color: white;
 
             &--long {
-              background: green;
+              background: var(--green-color);
             }
 
             &--short {
-              background: red;
+              background: var(--red-color);
             }
           }
 
@@ -1782,7 +1782,7 @@ export default {
   }
 }
 
-.text-green { color: green; }
-.text-red { color: red; }
+.text-green { color: var(--green-color); }
+.text-red { color: var(--red-color); }
 .text-yellow { color: #d97706; }
 </style>
