@@ -10,7 +10,6 @@
   <div
     v-if="!isLoading && lines.length > 0 && isMonitorView"
     class="monitor-view"
-    :style="{ minHeight: isFullScreen ? 'calc(100vh - 80px)' : '340px' }"
   >
     <!-- Flat Summary Bar -->
     <div class="monitor-summary-bar">
@@ -39,14 +38,6 @@
       </div>
 
       <div class="summary-right">
-        <button
-          class="monitor-action-btn cursor-pointer"
-          :class="{ 'monitor-action-btn--active': !useCommission }"
-          @click="toggleCommission"
-          :title="useCommission ? 'Commission included. Click to exclude' : 'Commission excluded. Click to include'"
-        >
-          COMMISSION: {{ useCommission ? 'ON' : 'OFF' }}
-        </button>
         <button class="monitor-action-btn cursor-pointer" @click="refreshAllData" title="Refresh all data">
           REFRESH
         </button>
@@ -1628,12 +1619,6 @@ export default {
           border-color: white;
         }
 
-        &--active {
-          background: rgba(250, 204, 21, 0.2);
-          border-color: #facc15;
-          color: #facc15;
-        }
-
         &--close {
           background: rgba(0, 0, 0, 0.25);
           border-color: rgba(255, 255, 255, 0.6);
@@ -1643,13 +1628,12 @@ export default {
   }
 
   .monitor-bots-grid {
-    flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
+    align-content: start;
     gap: 8px;
-    min-height: 0;
 
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
       grid-template-columns: repeat(2, 1fr);
       gap: 6px;
     }
@@ -1682,7 +1666,7 @@ export default {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 8px 10px;
+        padding: 6px 10px;
         border-bottom: 1px solid rgba(105, 105, 105, 0.25);
         background: rgba(105, 105, 105, 0.08);
 
@@ -1708,10 +1692,10 @@ export default {
 
       .bot-card__body {
         flex: 1;
-        padding: 8px;
+        padding: 6px 8px;
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        justify-content: flex-start;
 
         .pos-row--main {
           display: flex;
