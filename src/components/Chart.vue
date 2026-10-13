@@ -57,7 +57,7 @@
           :class="systemStatus.status === 'HEALTHY' ? 'status-pulse--green' : 'status-pulse--yellow'"
         />
         <span class="status-pill-text">
-          {{ systemStatus.runningContainers || 5 }}/{{ systemStatus.totalContainers || 5 }} BOTS
+          {{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} BOTS
         </span>
         <span
           v-if="systemStatus.activePositionsCount > 0"
@@ -163,7 +163,7 @@
             SYSTEM & BOTS MONITOR
           </div>
           <div class="drawer-subtitle">
-            Watchdog 24/7 • {{ systemStatus.runningContainers }}/{{ systemStatus.totalContainers }} containers active
+            Watchdog 24/7 • {{ systemStatus.runningBots || 5 }}/{{ systemStatus.totalBots || 5 }} bots active
           </div>
         </div>
         <button class="drawer-close-btn cursor-pointer" @click="isDrawerOpen = false">✕</button>
@@ -307,8 +307,8 @@ export default {
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
-        runningContainers: 6,
-        totalContainers: 6,
+        runningBots: 5,
+        totalBots: 5,
         timestamp: "",
         activePositionsCount: 0,
       },

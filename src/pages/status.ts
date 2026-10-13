@@ -26,8 +26,9 @@ export interface IBotStatus {
 export interface IStatusResponse {
   system: {
     status: "HEALTHY" | "WARNING" | "OFFLINE";
-    runningContainers: number;
-    totalContainers: number;
+    runningBots: number;
+    totalBots: number;
+    uiStatus?: string;
     timestamp: string;
     activePositionsCount: number;
   };
@@ -192,8 +193,9 @@ export const GET: APIRoute = async () => {
 
     const systemStatus: IStatusResponse["system"] = {
       status: watchdogData?.status || "HEALTHY",
-      runningContainers: watchdogData?.runningContainers ?? (bots.length > 0 ? 6 : 0),
-      totalContainers: watchdogData?.totalContainers ?? 6,
+      runningBots: watchdogData?.runningBots ?? bots.length,
+      totalBots: watchdogData?.totalBots ?? 5,
+      uiStatus: watchdogData?.uiStatus ?? "running",
       timestamp: watchdogData?.timestamp || new Date().toISOString(),
       activePositionsCount,
     };
