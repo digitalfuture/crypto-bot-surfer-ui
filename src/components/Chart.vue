@@ -1153,18 +1153,21 @@ export default {
   left: 82px;
   display: flex;
   align-items: center;
+  gap: 8px;
   z-index: 9999;
+  flex-wrap: nowrap;
 
   @media (max-width: 768px) {
     left: 8px;
     top: 6px;
-    flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
+    flex-wrap: nowrap;
 
     .system-status-btn {
       margin-left: 0;
       font-size: 10px;
       padding: 0 6px;
+      height: 24px;
 
       .status-view-active {
         display: none;
@@ -1173,12 +1176,16 @@ export default {
   }
 
   .full-screen-button {
-    width: 32px;
+    width: 28px;
     height: auto;
+    flex-shrink: 0;
   }
 
   .use-commission-container {
-    display: flex;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
 
     .use-commission-button {
       width: 25px;
@@ -1186,15 +1193,26 @@ export default {
     }
 
     .use-commission-tip {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
       display: flex;
       align-items: center;
       visibility: hidden;
       background: grey;
       color: white;
       text-transform: uppercase;
-      padding: 0 8px;
+      padding: 2px 8px;
       opacity: 0;
       transition: opacity 0.3s ease, visibility 0.3s ease;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 10000;
+      font-size: 10px;
+
+      @media (max-width: 768px) {
+        display: none;
+      }
     }
 
     &:hover {
@@ -1208,6 +1226,7 @@ export default {
   .system-status-btn {
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
     gap: 6px;
     height: 25px;
     background: dimgray;
@@ -1216,7 +1235,7 @@ export default {
     padding: 0 8px;
     font-size: 11px;
     font-weight: 600;
-    margin-left: 8px;
+    margin-left: 0;
     letter-spacing: 0.5px;
     user-select: none;
     border: none;
@@ -1237,6 +1256,7 @@ export default {
       width: 7px;
       height: 7px;
       display: inline-block;
+      flex-shrink: 0;
 
       &--green {
         background-color: green;
@@ -1486,7 +1506,7 @@ export default {
 .monitor-view {
   width: 100%;
   box-sizing: border-box;
-  padding: 42px 10px 16px 10px;
+  padding: 40px 10px 16px 10px;
   display: flex;
   flex-direction: column;
   background: var(--background-color);
@@ -1495,7 +1515,7 @@ export default {
   color: dimgray;
 
   @media (max-width: 768px) {
-    padding: 60px 8px 16px 8px;
+    padding: 38px 8px 16px 8px;
   }
 
   .monitor-summary-bar {
@@ -1510,6 +1530,10 @@ export default {
     letter-spacing: 0.5px;
     margin-bottom: 8px;
     flex-shrink: 0;
+
+    .text-green { color: #4ade80; }
+    .text-red { color: #f87171; }
+    .text-yellow { color: #facc15; }
 
     @media (max-width: 768px) {
       flex-direction: column;
