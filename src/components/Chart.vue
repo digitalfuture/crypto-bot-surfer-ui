@@ -116,10 +116,10 @@
     <!-- Top Bar Controls -->
     <div class="top-bar-menu">
       <img
-        v-if="!isMonitorView"
         :src="isFullScreen ? '/icons/collapse.svg' : '/icons/expand.svg'"
         alt="DNATRADE"
         class="full-screen-button cursor-pointer"
+        :style="{ visibility: isMonitorView ? 'hidden' : 'visible', pointerEvents: isMonitorView ? 'none' : 'auto' }"
         @click="isFullScreen = !isFullScreen"
       />
 
@@ -166,14 +166,20 @@
     </div>
 
     <!-- Top Right Refresh Button -->
-    <button
-      class="top-bar-refresh-btn cursor-pointer"
-      :class="{ 'top-bar-refresh-btn--loading': isRefreshing }"
+    <div
+      class="top-bar-refresh-container cursor-pointer"
       @click="refreshAllData"
-      title="Refresh all data"
+      title="Refresh data"
     >
-      {{ isRefreshing ? 'REFRESHING...' : 'REFRESH' }}
-    </button>
+      <img
+        src="/icons/refresh.svg"
+        alt="Refresh"
+        class="top-bar-refresh-icon cursor-pointer"
+        :class="{ 'top-bar-refresh-icon--spinning': isRefreshing }"
+      />
+
+      <span class="top-bar-refresh-tip">{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
+    </div>
 
     <!-- Legend toolbar (hidden when in monitor view) -->
     <div v-show="!isMonitorView" class="info-container">
@@ -1320,48 +1326,74 @@ export default {
   }
 }
 
-.top-bar-refresh-btn {
+.top-bar-refresh-container {
   position: absolute;
   top: 7px;
-  right: 10px;
+  right: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 25px;
-  background: dimgray;
-  color: white;
-  text-transform: uppercase;
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  user-select: none;
-  border: none;
-  box-shadow: none;
-  border-radius: 0;
-  cursor: pointer;
   z-index: 9999;
-  transition: background 0.15s ease, opacity 0.15s ease;
-
-  &:hover {
-    background: grey;
-  }
-
-  &:active {
-    background: #333;
-  }
-
-  &--loading {
-    opacity: 0.6;
-    pointer-events: none;
-  }
+  flex-shrink: 0;
 
   @media (max-width: 768px) {
     top: 6px;
     right: 8px;
-    height: 24px;
+  }
+
+  .top-bar-refresh-icon {
+    width: 25px;
+    height: auto;
+    opacity: 0.85;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    &--spinning {
+      animation: spin-refresh 0.8s linear infinite;
+      pointer-events: none;
+    }
+  }
+
+  .top-bar-refresh-tip {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    display: flex;
+    align-items: center;
+    visibility: hidden;
+    background: grey;
+    color: white;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    opacity: 0;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10000;
     font-size: 10px;
-    padding: 0 8px;
+
+    @media (max-width: 768px) {
+      display: none;
+    }
+  }
+
+  &:hover {
+    .top-bar-refresh-tip {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes spin-refresh {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
