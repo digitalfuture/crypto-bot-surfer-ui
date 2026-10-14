@@ -180,7 +180,6 @@
       <div
         class="use-commission-container cursor-pointer"
         @click="toggleCommission"
-        :title="useCommission ? 'With Commission (click to disable)' : 'Without Commission (click to enable)'"
       >
         <img
           :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
@@ -1679,12 +1678,6 @@ export default {
     border: none;
     box-shadow: none;
     border-radius: 0;
-    transition: background 0.15s ease;
-
-    &:hover {
-      background: grey;
-    }
-
     &--active {
       background: #333;
       color: #fff;
@@ -2078,12 +2071,6 @@ export default {
       min-width: 0;
       user-select: none;
       -webkit-user-select: none;
-      transition: filter 0.15s ease, box-shadow 0.15s ease;
-
-      &:hover {
-        filter: brightness(0.98);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-      }
 
       &--in-pos {
         border: none;
@@ -2139,13 +2126,6 @@ export default {
           padding: 0;
           line-height: 1;
           cursor: pointer;
-          transition: all 0.15s ease;
-
-          &:hover {
-            background: #111827;
-            color: #fff;
-            border-color: #111827;
-          }
 
           &--active {
             background: #111827;
@@ -2231,12 +2211,6 @@ export default {
             text-transform: uppercase;
             margin-top: 2px;
             border-radius: 2px;
-            transition: background 0.15s ease, color 0.15s ease;
-
-            &:hover {
-              background: #ded8ce;
-              color: #111827;
-            }
           }
         }
 
