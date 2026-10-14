@@ -186,7 +186,9 @@ export const GET: APIRoute = async () => {
     // Sort bots by standard order: VOLATILITY, CHANNEL, TREND, PULLBACK, SCALPER, ORDERBOOK-WALL, ORDERBOOK-IMBALANCE, ORDERBOOK-ABSORPTION, MM-INVENTORY, LIQUIDITY-SWEEP, ORDERBOOK-ICEBERG
     const order = [
       "volatility",
+      "volatility2",
       "channel",
+      "channel2",
       "trend",
       "pullback",
       "scalper",

@@ -42,7 +42,9 @@ export const GET: APIRoute = async () => {
 
     const order = [
       "volatility",
+      "volatility2",
       "channel",
+      "channel2",
       "trend",
       "pullback",
       "scalper",
@@ -52,6 +54,12 @@ export const GET: APIRoute = async () => {
       "wall",
       "imbalance",
       "absorption",
+      "mm-inventory",
+      "inventory",
+      "liquidity-sweep",
+      "sweep",
+      "orderbook-iceberg",
+      "iceberg",
     ];
 
     const csvFiles = files.filter((f) => f.endsWith(".csv"));
