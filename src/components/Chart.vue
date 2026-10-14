@@ -218,10 +218,7 @@
         :class="{
           'line--disabled': hasLineTotalOnly,
         }"
-        @click="
-          linesData[index]?.[linesData[index]?.length - 1] &&
-            updateLineVisibility(index)
-        "
+        @click="updateLineVisibility(index)"
         @dblclick="soloLine(index)"
         :title="'Click to toggle, double-click to view only this chart and trades'"
       >
@@ -1613,6 +1610,8 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 1px;
+  user-select: none;
+  -webkit-user-select: none;
 
   .input {
     background: var(--background-color);
@@ -1654,6 +1653,8 @@ export default {
     justify-content: flex-end;
     align-items: center;
     background: var(--total-line-color);
+    user-select: none;
+    -webkit-user-select: none;
 
     &--disabled {
       background: none;
@@ -1671,11 +1672,20 @@ export default {
   text-transform: uppercase;
   gap: 1px;
   margin-top: 1px;
+  user-select: none;
+  -webkit-user-select: none;
+
+  * {
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 
 .line {
   flex-grow: 1;
   flex-basis: 0;
+  user-select: none;
+  -webkit-user-select: none;
 
   &--disabled {
     background-color: lightgrey !important;
@@ -1866,17 +1876,24 @@ export default {
     }
 
     .bot-card {
-      background: var(--background-color);
-      border: 1px solid dimgray;
+      background: lightgrey;
+      border: none;
       display: flex;
       flex-direction: column;
       padding: 0;
       position: relative;
       box-sizing: border-box;
       min-width: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: filter 0.15s ease;
+
+      &:hover {
+        filter: brightness(0.97);
+      }
 
       &--in-pos {
-        border-color: dimgray;
+        border: none;
       }
 
       .bot-card__color-bar {
@@ -1890,8 +1907,8 @@ export default {
         justify-content: space-between;
         align-items: center;
         padding: 6px 10px;
-        border-bottom: 1px solid rgba(105, 105, 105, 0.25);
         background: rgba(105, 105, 105, 0.08);
+        border-bottom: 1px solid rgba(105, 105, 105, 0.1);
 
         .bot-card__name {
           font-size: 11px;
@@ -1902,6 +1919,8 @@ export default {
           overflow: hidden;
           text-overflow: ellipsis;
           min-width: 0;
+          background: var(--background-color);
+          padding: 1px 6px;
         }
 
         .bot-card__pnl {
@@ -1910,6 +1929,8 @@ export default {
           white-space: nowrap;
           flex-shrink: 0;
           margin-left: 4px;
+          background: var(--background-color);
+          padding: 1px 6px;
         }
       }
 
@@ -1945,6 +1966,8 @@ export default {
             font-size: 11px;
             font-weight: bold;
             color: #222;
+            background: var(--background-color);
+            padding: 1px 6px;
           }
         }
 
@@ -1992,7 +2015,7 @@ export default {
         justify-content: space-between;
         align-items: center;
         padding: 5px 8px;
-        border-top: 1px solid rgba(105, 105, 105, 0.2);
+        border-top: 1px solid rgba(105, 105, 105, 0.1);
         font-size: 9px;
         color: grey;
         font-weight: 600;
