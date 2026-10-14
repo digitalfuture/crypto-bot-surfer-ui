@@ -1027,9 +1027,10 @@ export default {
     loadCachedLines(): boolean {
       try {
         if (typeof window === "undefined" || !window.localStorage) return false;
-        // Purge legacy v1 cache from previous session
+        // Purge legacy v1 and v2 cache from previous sessions
         window.localStorage.removeItem("crypto_bot_chart_lines_v1");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v2");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v2");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v3");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1060,7 +1061,7 @@ export default {
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v2",
+          "crypto_bot_chart_lines_v3",
           JSON.stringify(toSave)
         );
       } catch (err) {
@@ -1625,13 +1626,27 @@ export default {
         if (!forceFull && this.lines && this.lines.length > 0) {
           const counts: Record<string, number> = {};
           const mtimes: Record<string, number> = {};
+          const lasts: Record<string, string> = {};
+          const firsts: Record<string, string> = {};
+
           for (const line of this.lines) {
             const key =
               line.fileName || (line.name ? `trades-${line.name}.csv` : "");
             if (key) {
-              counts[key] = line.data ? line.data.length : 0;
+              const len = line.data ? line.data.length : 0;
+              counts[key] = len;
               if (line.mtime) {
                 mtimes[key] = line.mtime;
+              }
+              if (len > 0) {
+                const firstRow = line.data[0];
+                if (firstRow && firstRow[1]) {
+                  firsts[key] = String(firstRow[1]).trim();
+                }
+                const lastRow = line.data[len - 1];
+                if (lastRow && lastRow[1]) {
+                  lasts[key] = String(lastRow[1]).trim();
+                }
               }
             }
           }
@@ -1639,6 +1654,12 @@ export default {
           params.set("counts", JSON.stringify(counts));
           if (Object.keys(mtimes).length > 0) {
             params.set("mtimes", JSON.stringify(mtimes));
+          }
+          if (Object.keys(firsts).length > 0) {
+            params.set("firsts", JSON.stringify(firsts));
+          }
+          if (Object.keys(lasts).length > 0) {
+            params.set("lasts", JSON.stringify(lasts));
           }
           url = `/lines?${params.toString()}`;
         }

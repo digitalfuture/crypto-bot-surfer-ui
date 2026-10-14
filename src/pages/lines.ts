@@ -17,9 +17,13 @@ export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
     const countsParam = url.searchParams.get("counts");
     const mtimesParam = url.searchParams.get("mtimes");
+    const lastsParam = url.searchParams.get("lasts");
+    const firstsParam = url.searchParams.get("firsts");
 
     let clientCounts: Record<string, number> | null = null;
     let clientMtimes: Record<string, number> | null = null;
+    let clientLasts: Record<string, string> | null = null;
+    let clientFirsts: Record<string, string> | null = null;
 
     if (countsParam) {
       try {
@@ -34,6 +38,22 @@ export const GET: APIRoute = async ({ request }) => {
         clientMtimes = JSON.parse(mtimesParam);
       } catch {
         clientMtimes = null;
+      }
+    }
+
+    if (lastsParam) {
+      try {
+        clientLasts = JSON.parse(lastsParam);
+      } catch {
+        clientLasts = null;
+      }
+    }
+
+    if (firstsParam) {
+      try {
+        clientFirsts = JSON.parse(firstsParam);
+      } catch {
+        clientFirsts = null;
       }
     }
 
@@ -135,6 +155,20 @@ export const GET: APIRoute = async ({ request }) => {
           ? rawMtime
           : null;
 
+      const rawLast = clientLasts
+        ? clientLasts[fileName] ??
+          clientLasts[id] ??
+          clientLasts[`trades-${id}.csv`]
+        : undefined;
+      const clientLast = typeof rawLast === "string" ? rawLast.trim() : null;
+
+      const rawFirst = clientFirsts
+        ? clientFirsts[fileName] ??
+          clientFirsts[id] ??
+          clientFirsts[`trades-${id}.csv`]
+        : undefined;
+      const clientFirst = typeof rawFirst === "string" ? rawFirst.trim() : null;
+
       // Fast path: if client provided mtime and count, and file mtime has not changed at all:
       if (
         clientMtime !== null &&
@@ -158,7 +192,7 @@ export const GET: APIRoute = async ({ request }) => {
         .trim()
         .split(/\r?\n/)
         .slice(1)
-        .filter((line) => line.trim().length > 0);
+        .filter((line) => line.trim().length > 0 && !line.startsWith("Count,"));
 
       const totalRows = allRows.length;
 
@@ -168,9 +202,17 @@ export const GET: APIRoute = async ({ request }) => {
 
       if (clientCount !== null) {
         if (clientCount === totalRows) {
-          // File was modified but row count didn't change (e.g. commission edit in-place)
-          // If mtime changed, reload full file to reflect in-place changes
-          if (clientMtime !== null && fileMtime > clientMtime) {
+          // Verify consistency of first and last row
+          const serverFirstDate =
+            totalRows > 0 ? allRows[0].split(",")[1]?.trim() : null;
+          const serverLastDate =
+            totalRows > 0 ? allRows[totalRows - 1].split(",")[1]?.trim() : null;
+
+          const isConsistent =
+            (!clientFirst || !serverFirstDate || clientFirst === serverFirstDate) &&
+            (!clientLast || !serverLastDate || clientLast === serverLastDate);
+
+          if (!isConsistent || (clientMtime !== null && fileMtime > clientMtime)) {
             returnRows = allRows.slice(-10000);
             offset = 0;
             isDelta = false;
@@ -180,10 +222,29 @@ export const GET: APIRoute = async ({ request }) => {
             isDelta = true;
           }
         } else if (clientCount < totalRows) {
-          // Client only needs new rows appended since clientCount
-          returnRows = allRows.slice(clientCount);
-          offset = clientCount;
-          isDelta = true;
+          // Verify cache consistency:
+          // 1. First row matches
+          // 2. Row at (clientCount - 1) matches client's last known row
+          const serverFirstDate = allRows[0]?.split(",")[1]?.trim();
+          const serverClientLastDate =
+            clientCount > 0 ? allRows[clientCount - 1]?.split(",")[1]?.trim() : null;
+
+          const isFirstConsistent =
+            !clientFirst || !serverFirstDate || clientFirst === serverFirstDate;
+          const isLastConsistent =
+            !clientLast || !serverClientLastDate || clientLast === serverClientLastDate;
+
+          if (isFirstConsistent && isLastConsistent) {
+            // Client only needs new rows appended since clientCount
+            returnRows = allRows.slice(clientCount);
+            offset = clientCount;
+            isDelta = true;
+          } else {
+            // Desync detected! File changed or was prepended/reset -> reload full rows
+            returnRows = allRows.slice(-10000);
+            offset = 0;
+            isDelta = false;
+          }
         } else {
           // File was truncated or reset -> reload full rows
           returnRows = allRows.slice(-10000);
