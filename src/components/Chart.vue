@@ -568,7 +568,7 @@ export default {
     chartOptions() {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
-        width: window.innerWidth - 20,
+        width: window.innerWidth,
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
@@ -675,34 +675,20 @@ export default {
         this.applyLongestScale();
       } else {
         document.body.style.overflow = "";
-        chart.applyOptions({ height: this.chartOptions.height, width: window.innerWidth - 20 });
+        chart.applyOptions({ height: this.chartOptions.height, width: window.innerWidth });
         this.applyLongestScale();
       }
     },
 
     isLineTotalVisible() {
+      if (this.isMonitorView) return;
       this.updateLineTotal();
       this.applyLongestScale();
       this.refreshMarks();
     },
 
-    zoom(value) {
-      this.refreshMarks();
-    },
-
-    zoomCondition() {
-      if (this.hasLineTotalOnly) {
-        this.clearMarks();
-        return;
-      }
-      if (this.zoomCondition) {
-        this.setMarks();
-      } else {
-        this.clearMarks();
-      }
-    },
-
     linesEnabled() {
+      if (this.isMonitorView) return;
       this.updateLines();
       this.updateLineTotal();
       this.applyLongestScale();
@@ -1243,7 +1229,7 @@ export default {
     },
 
     refreshMarks() {
-      if (!chart) return;
+      if (!chart || this.isMonitorView) return;
       if (this.hasLineTotalOnly || this.linesEnabled.length === 0) {
         this.clearMarks();
         return;
@@ -1253,7 +1239,6 @@ export default {
       if (!currentRange) {
         currentRange = this.getLongestTimeRange();
       }
-      this.zoom = currentRange;
 
       const shouldShow = this.computeZoomCondition(currentRange);
       this.zoomCondition = shouldShow;
@@ -1343,7 +1328,10 @@ export default {
     },
 
     applyLongestScale() {
-      if (!chart) return;
+      if (!chart || this.isMonitorView) return;
+      const container = document.getElementById("chart-container");
+      if (!container || container.offsetWidth === 0) return;
+
       try {
         chart.timeScale().fitContent();
       } catch (e) {
@@ -1406,20 +1394,20 @@ export default {
       );
       if (targetIndex === -1) return;
 
-      // Solo this line
+      // 1. Switch to Chart View first so DOM starts rendering #chart-container
+      this.isMonitorView = false;
+
+      // 2. Solo this line
       this.lines.forEach((l, i) => {
         l.disabled = i !== targetIndex;
       });
 
-      // Switch to Chart View
-      this.isMonitorView = false;
-
-      // Ensure chart container is rendered in DOM
+      // 3. Ensure chart container is rendered in DOM and has positive dimensions
       await this.$nextTick();
 
       if (chart) {
         chart.resize(
-          window.innerWidth - 20,
+          window.innerWidth,
           this.chartOptions.height,
           true
         );
@@ -1498,8 +1486,8 @@ export default {
     //// Listeners
     setupResizeListener() {
       const handler = () => {
-        if (!chart) return;
-        chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
+        if (!chart || this.isMonitorView) return;
+        chart.resize(window.innerWidth, this.chartOptions.height, true);
         this.applyLongestScale();
       };
 
@@ -1507,11 +1495,16 @@ export default {
     },
 
     async setupZoomListener() {
+      let lastRangeKey = "";
       const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange) => {
-        if (!newVisibleTimeRange) return;
-        this.zoom = newVisibleTimeRange;
+        if (!newVisibleTimeRange || this.isMonitorView) return;
+        const key = `${Math.round(newVisibleTimeRange.from)}_${Math.round(newVisibleTimeRange.to)}`;
+        if (key === lastRangeKey) return;
+        lastRangeKey = key;
+
         // Dynamically auto-scale price scale to fill full height for visible data
         chart?.priceScale("right")?.applyOptions({ autoScale: true });
+        this.refreshMarks();
       };
 
       await chart
@@ -2001,7 +1994,7 @@ export default {
 .top-bar-right {
   position: absolute;
   top: 7px;
-  right: 0;
+  right: 10px;
   display: flex;
   align-items: center;
   z-index: 9999;
@@ -2014,7 +2007,7 @@ export default {
 
   @media (max-width: 768px) {
     top: 6px;
-    right: 0;
+    right: 8px;
 
     .full-screen-button {
       width: 24px;
