@@ -580,8 +580,8 @@ export default {
           visible: true,
           autoScale: true,
           scaleMargins: {
-            top: 0.02,
-            bottom: 0.02,
+            top: 0.12,
+            bottom: 0.08,
           },
         },
         leftPriceScale: {
@@ -1243,14 +1243,14 @@ export default {
       if (!res || !res.priceRange) {
         return {
           priceRange: { minValue: -0.5, maxValue: 0.5 },
-          margins: { above: 10, below: 10 },
+          margins: { above: 48, below: 24 },
         };
       }
       let { minValue, maxValue } = res.priceRange;
       if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
         return {
           priceRange: { minValue: -0.5, maxValue: 0.5 },
-          margins: { above: 10, below: 10 },
+          margins: { above: 48, below: 24 },
         };
       }
       // If flat line (e.g. 0% or min === max), expand symmetrically around value
@@ -1262,16 +1262,16 @@ export default {
             minValue: minValue - delta,
             maxValue: maxValue + delta,
           },
-          margins: { above: 10, below: 10 },
+          margins: { above: 48, below: 24 },
         };
       }
-      // Maximally scale to full height while keeping exact headroom for trade arrow markers
+      // Clean headroom: 48px above (prevents collision with top buttons), 24px below
       return {
         priceRange: {
           minValue,
           maxValue,
         },
-        margins: { above: 18, below: 18 },
+        margins: { above: 48, below: 24 },
       };
     },
 
