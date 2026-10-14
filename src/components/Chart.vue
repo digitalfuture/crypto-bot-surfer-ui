@@ -575,12 +575,30 @@ export default {
           visible: true,
           autoScale: true,
           scaleMargins: {
-            top: 0.15,
-            bottom: 0.15,
+            top: 0.05,
+            bottom: 0.05,
           },
         },
         leftPriceScale: {
           visible: false,
+        },
+        handleScale: {
+          axisPressedMouseMove: {
+            time: true,
+            price: false, // Prevents accidental drag of price scale from locking vertical autoscale
+          },
+          axisDoubleClickReset: {
+            time: true,
+            price: true,
+          },
+          mouseWheel: true,
+          pinch: true,
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
         },
         layout: {
           background: { color: "transparent" },
@@ -1205,37 +1223,35 @@ export default {
       if (!res || !res.priceRange) {
         return {
           priceRange: { minValue: -0.5, maxValue: 0.5 },
-          margins: { above: 15, below: 15 },
+          margins: { above: 10, below: 10 },
         };
       }
       let { minValue, maxValue } = res.priceRange;
       if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
         return {
           priceRange: { minValue: -0.5, maxValue: 0.5 },
-          margins: { above: 15, below: 15 },
+          margins: { above: 10, below: 10 },
         };
       }
-      // If flat line (e.g. 0% or min === max), expand so line is centered with clean margins
+      // If flat line (e.g. 0% or min === max), expand symmetrically around value
       if (Math.abs(maxValue - minValue) < 0.0001) {
         const delta =
-          Math.abs(minValue) > 0.01 ? Math.abs(minValue) * 0.2 : 0.5;
+          Math.abs(minValue) > 0.01 ? Math.abs(minValue) * 0.15 : 0.25;
         return {
           priceRange: {
             minValue: minValue - delta,
             maxValue: maxValue + delta,
           },
-          margins: { above: 20, below: 20 },
+          margins: { above: 10, below: 10 },
         };
       }
-      // Proportional padding so extremes never touch the canvas border
-      const span = maxValue - minValue;
-      const pad = Math.max(0.05, span * 0.1);
+      // Maximally scale to full height while keeping exact headroom for trade arrow markers
       return {
         priceRange: {
-          minValue: minValue - pad,
-          maxValue: maxValue + pad,
+          minValue,
+          maxValue,
         },
-        margins: { above: 15, below: 15 },
+        margins: { above: 18, below: 18 },
       };
     },
 
@@ -1491,11 +1507,10 @@ export default {
 
     async setupZoomListener() {
       const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange) => {
-        if (newVisibleTimeRange === null) {
-          // handle null
-        }
-
+        if (!newVisibleTimeRange) return;
         this.zoom = newVisibleTimeRange;
+        // Dynamically auto-scale price scale to fill full height for visible data
+        chart?.priceScale("right")?.applyOptions({ autoScale: true });
       };
 
       await chart
