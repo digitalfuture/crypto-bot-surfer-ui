@@ -7,7 +7,7 @@ docker stop chart-container 2>/dev/null || true
 docker rm chart-container --force 2>/dev/null || true
 docker rmi chart-image --force 2>/dev/null || true
 
-docker build -t chart-image . --no-cache
+docker build --no-cache -t chart-image .
 
 # build run via name: chart-container
 docker run \
