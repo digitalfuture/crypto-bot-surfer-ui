@@ -1301,9 +1301,10 @@ export default {
       if (!dateStr) return "";
       try {
         const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return "";
         return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       } catch {
-        return dateStr;
+        return "";
       }
     },
 
@@ -1407,7 +1408,7 @@ export default {
 .top-bar-menu {
   position: absolute;
   top: 7px;
-  left: 18px;
+  left: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1876,8 +1877,9 @@ export default {
     }
 
     .bot-card {
-      background: lightgrey;
+      background: #ffffff;
       border: none;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
       display: flex;
       flex-direction: column;
       padding: 0;
@@ -1886,10 +1888,11 @@ export default {
       min-width: 0;
       user-select: none;
       -webkit-user-select: none;
-      transition: filter 0.15s ease;
+      transition: filter 0.15s ease, box-shadow 0.15s ease;
 
       &:hover {
-        filter: brightness(0.97);
+        filter: brightness(0.98);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
       }
 
       &--in-pos {
@@ -1907,30 +1910,30 @@ export default {
         justify-content: space-between;
         align-items: center;
         padding: 6px 10px;
-        background: rgba(105, 105, 105, 0.08);
-        border-bottom: 1px solid rgba(105, 105, 105, 0.1);
+        background: #fbf9f5;
+        border-bottom: 1px solid #ede8e0;
 
         .bot-card__name {
           font-size: 11px;
-          font-weight: bold;
-          color: dimgray;
+          font-weight: 700;
+          color: #111827;
           letter-spacing: 0.5px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           min-width: 0;
-          background: var(--background-color);
-          padding: 1px 6px;
+          background: #f0ebe1;
+          padding: 2px 7px;
         }
 
         .bot-card__pnl {
           font-size: 11px;
-          font-weight: bold;
+          font-weight: 800;
           white-space: nowrap;
           flex-shrink: 0;
           margin-left: 4px;
-          background: var(--background-color);
-          padding: 1px 6px;
+          background: #f0ebe1;
+          padding: 2px 7px;
         }
       }
 
@@ -1945,12 +1948,12 @@ export default {
           display: flex;
           align-items: center;
           gap: 6px;
-          margin-bottom: 6px;
+          margin-bottom: 5px;
 
           .pos-side {
             font-size: 10px;
-            font-weight: bold;
-            padding: 2px 5px;
+            font-weight: 800;
+            padding: 2px 6px;
             color: white;
 
             &--long {
@@ -1964,10 +1967,10 @@ export default {
 
           .pos-symbol {
             font-size: 11px;
-            font-weight: bold;
-            color: #222;
-            background: var(--background-color);
-            padding: 1px 6px;
+            font-weight: 800;
+            color: #111827;
+            background: #f0ebe1;
+            padding: 2px 7px;
           }
         }
 
@@ -1981,17 +1984,22 @@ export default {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px dashed rgba(105, 105, 105, 0.15);
-            padding-bottom: 2px;
+            background: #f7f5f0;
+            padding: 3px 7px;
+            border-bottom: none;
+            border-radius: 2px;
 
             .detail-label {
-              color: grey;
-              font-weight: 600;
+              color: #374151;
+              font-weight: 700;
+              font-size: 10px;
+              letter-spacing: 0.4px;
             }
 
             .detail-val {
-              font-weight: bold;
-              color: #333;
+              font-weight: 800;
+              color: #000000;
+              font-size: 11px;
             }
           }
         }
@@ -2001,12 +2009,12 @@ export default {
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 10px;
-          color: grey;
+          font-size: 10.5px;
+          color: #4b5563;
           text-align: center;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          padding: 8px 0;
+          font-weight: 700;
+          letter-spacing: 0.8px;
+          padding: 14px 0;
         }
       }
 
@@ -2015,11 +2023,11 @@ export default {
         justify-content: space-between;
         align-items: center;
         padding: 5px 8px;
-        border-top: 1px solid rgba(105, 105, 105, 0.1);
-        font-size: 9px;
-        color: grey;
-        font-weight: 600;
-        background: rgba(105, 105, 105, 0.04);
+        border-top: 1px solid #ede8e0;
+        font-size: 9.5px;
+        color: #4b5563;
+        font-weight: 700;
+        background: #faf8f5;
         flex-shrink: 0;
       }
     }
