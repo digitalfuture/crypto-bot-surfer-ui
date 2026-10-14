@@ -574,13 +574,14 @@ export default {
           secondsVisible: true,
           fixLeftEdge: true,
           fixRightEdge: true,
+          rightOffset: 0,
         },
         rightPriceScale: {
           visible: true,
           autoScale: true,
           scaleMargins: {
-            top: 0.05,
-            bottom: 0.05,
+            top: 0.02,
+            bottom: 0.02,
           },
         },
         leftPriceScale: {
@@ -681,6 +682,8 @@ export default {
 
     isLineTotalVisible() {
       this.updateLineTotal();
+      this.applyLongestScale();
+      this.refreshMarks();
     },
 
     zoom(value) {
@@ -700,8 +703,9 @@ export default {
     },
 
     linesEnabled() {
-      this.applyLongestScale();
+      this.updateLines();
       this.updateLineTotal();
+      this.applyLongestScale();
       this.refreshMarks();
     },
 
@@ -759,11 +763,13 @@ export default {
       const linesData = [];
 
       for (const line of this.lines) {
+        const isVisible = !this.hasLineTotalOnly && !line.disabled;
+
         const newLineSeries = chart.addLineSeries({
           color: line.color,
           priceScaleId: "right",
           lineWidth: this.lineWidth,
-          visible: !this.hasLineTotalOnly && !line.disabled,
+          visible: isVisible,
           priceLineVisible: false,
           lastValueVisible: true,
           autoscaleInfoProvider: (original) =>
@@ -773,7 +779,7 @@ export default {
         const seriesData = this.prepareSeriesData(line.data);
 
         lineSeries.push(newLineSeries);
-        newLineSeries.setData(seriesData);
+        newLineSeries.setData(isVisible ? seriesData : []);
 
         linesData.push(seriesData);
       }
@@ -782,18 +788,21 @@ export default {
     },
 
     setupChartTotal() {
+      const isVisible =
+        this.isLineTotalVisible && this.linesEnabled.length !== 1;
+
       lineSeriesTotal = chart.addLineSeries({
         color: totalLineColor,
         priceScaleId: "right",
         lineWidth: this.lineWidth,
-        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
+        visible: isVisible,
         priceLineVisible: false,
         lastValueVisible: true,
         autoscaleInfoProvider: (original) =>
           this.getSeriesAutoscaleInfo(original),
       });
 
-      const seriesDataTotal = this.prepareSeriesDataTotal();
+      const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
 
       lineSeriesTotal.setData(seriesDataTotal);
     },
@@ -869,7 +878,25 @@ export default {
         }
       );
 
-      if (mapped.length === 1) {
+      if (mapped.length === 0) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        mapped.push(
+          {
+            time: nowSec - 1800,
+            trade: "HOLD",
+            price: 0,
+            value: 0,
+            tokenName: "",
+          },
+          {
+            time: nowSec,
+            trade: "HOLD",
+            price: 0,
+            value: 0,
+            tokenName: "",
+          }
+        );
+      } else if (mapped.length === 1) {
         const nowSec = Math.floor(Date.now() / 1000);
         const nextTime = Math.max(mapped[0].time + 60, nowSec);
         mapped.push({
@@ -879,6 +906,19 @@ export default {
           value: mapped[0].value,
           tokenName: mapped[0].tokenName,
         });
+      } else if (mapped.length % 2 === 1) {
+        // Active open position: extend line horizontally up to current time
+        const nowSec = Math.floor(Date.now() / 1000);
+        const last = mapped[mapped.length - 1];
+        if (nowSec > last.time + 30) {
+          mapped.push({
+            time: nowSec,
+            trade: "HOLD",
+            price: last.price,
+            value: last.value,
+            tokenName: last.tokenName,
+          });
+        }
       }
 
       mapped.sort((a, b) => a.time - b.time);
@@ -1266,8 +1306,13 @@ export default {
       let minTime = Infinity;
       let maxTime = -Infinity;
 
-      // Scan all lines in the system
-      for (const line of this.lines) {
+      const isAllLines =
+        this.hasLineTotalOnly ||
+        this.hasNoLines ||
+        this.linesEnabled.length === 0;
+      const targetLines = isAllLines ? this.lines : this.linesEnabled;
+
+      for (const line of targetLines) {
         if (!line?.data || line.data.length === 0) continue;
         const seriesData = this.prepareSeriesData(line.data);
         if (!seriesData || seriesData.length === 0) continue;
@@ -1286,40 +1331,26 @@ export default {
         return { from: nowSec - 1800, to: nowSec + 120 };
       }
 
-      // If maxTime is older than nowSec but within current trading session (6 hours),
-      // extend up to nowSec so current time is aligned at right
-      if (nowSec > maxTime && nowSec - maxTime < 21600) {
-        maxTime = nowSec;
+      // If span is tiny (< 30s), give 1-minute window
+      if (maxTime - minTime < 30) {
+        return { from: minTime - 30, to: maxTime + 30 };
       }
 
-      const span = maxTime - minTime;
-      // If very short span (< 5 mins), ensure comfortable 15-minute window
-      if (span < 300) {
-        const center = Math.floor((minTime + maxTime) / 2);
-        return {
-          from: center - 600,
-          to: center + 300,
-        };
-      }
-
-      const pad = Math.max(60, Math.floor(span * 0.04));
       return {
-        from: minTime - pad,
-        to: maxTime + pad,
+        from: minTime,
+        to: maxTime,
       };
     },
 
     applyLongestScale() {
       if (!chart) return;
-      const range = this.getLongestTimeRange();
-      if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
-        try {
-          chart.timeScale().setVisibleRange(range);
-        } catch (e) {
-          chart.timeScale().fitContent();
-        }
-      } else {
+      try {
         chart.timeScale().fitContent();
+      } catch (e) {
+        const range = this.getLongestTimeRange();
+        if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
+          chart.timeScale().setVisibleRange(range);
+        }
       }
 
       // Automatically recalibrate and scale vertical height for currently visible lines
@@ -1336,13 +1367,9 @@ export default {
 
       // Line
       line.disabled = !line.disabled;
-      lineSeries[index]?.applyOptions({
-        visible: !line.disabled,
-      });
 
-      // Total line
+      this.updateLines();
       this.updateLineTotal();
-
       this.applyLongestScale();
       this.refreshMarks();
     },
@@ -1356,18 +1383,17 @@ export default {
 
       if (isAlreadySolo) {
         // Re-enable all lines
-        this.lines.forEach((l, i) => {
+        this.lines.forEach((l) => {
           l.disabled = false;
-          lineSeries[i]?.applyOptions({ visible: true });
         });
       } else {
         // Solo this line
         this.lines.forEach((l, i) => {
           l.disabled = i !== index;
-          lineSeries[i]?.applyOptions({ visible: i === index });
         });
       }
 
+      this.updateLines();
       this.updateLineTotal();
       this.applyLongestScale();
       this.refreshMarks();
@@ -1383,12 +1409,10 @@ export default {
       // Solo this line
       this.lines.forEach((l, i) => {
         l.disabled = i !== targetIndex;
-        lineSeries[i]?.applyOptions({ visible: i === targetIndex });
       });
 
       // Switch to Chart View
       this.isMonitorView = false;
-      this.updateLineTotal();
 
       // Ensure chart container is rendered in DOM
       await this.$nextTick();
@@ -1399,9 +1423,11 @@ export default {
           this.chartOptions.height,
           true
         );
-        this.applyLongestScale();
       }
 
+      this.updateLines();
+      this.updateLineTotal();
+      this.applyLongestScale();
       this.refreshMarks();
     },
 
@@ -1410,20 +1436,25 @@ export default {
 
       for (const [index, line] of this.lines.entries()) {
         const seriesData = this.prepareSeriesData(line.data);
+        const isVisible = !this.hasLineTotalOnly && !line.disabled;
+
         if (lineSeries[index]) {
-          lineSeries[index].setData(seriesData);
+          lineSeries[index].applyOptions({
+            visible: isVisible,
+          });
+          lineSeries[index].setData(isVisible ? seriesData : []);
         } else if (chart) {
           const newLineSeries = chart.addLineSeries({
             color: line.color,
             priceScaleId: "right",
             lineWidth: this.lineWidth,
-            visible: !this.hasLineTotalOnly && !line.disabled,
+            visible: isVisible,
             priceLineVisible: false,
             lastValueVisible: true,
             autoscaleInfoProvider: (original) =>
               this.getSeriesAutoscaleInfo(original),
           });
-          newLineSeries.setData(seriesData);
+          newLineSeries.setData(isVisible ? seriesData : []);
           lineSeries.push(newLineSeries);
         }
         linesData.push(seriesData);
@@ -1433,11 +1464,14 @@ export default {
     },
 
     updateLineTotal() {
+      const isVisible =
+        this.isLineTotalVisible && this.linesEnabled.length !== 1;
+
       lineSeriesTotal?.applyOptions({
-        visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
+        visible: isVisible,
       });
 
-      const seriesDataTotal = this.prepareSeriesDataTotal();
+      const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
       lineSeriesTotal?.setData(seriesDataTotal);
     },
 
@@ -1463,8 +1497,11 @@ export default {
 
     //// Listeners
     setupResizeListener() {
-      const handler = () =>
+      const handler = () => {
+        if (!chart) return;
         chart.resize(window.innerWidth - 20, this.chartOptions.height, true);
+        this.applyLongestScale();
+      };
 
       window.addEventListener("resize", handler);
     },
