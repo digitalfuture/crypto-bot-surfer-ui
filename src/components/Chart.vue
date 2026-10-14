@@ -180,16 +180,13 @@
       <div
         class="use-commission-container cursor-pointer"
         @click="toggleCommission"
+        :title="useCommission ? 'With Commission (click to disable)' : 'Without Commission (click to enable)'"
       >
         <img
           :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
           alt="DNATRADE"
           class="use-commission-button cursor-pointer"
         />
-
-        <span class="use-commission-tip">{{
-          useCommission ? "With Commission" : "Without Commission"
-        }}</span>
       </div>
     </div>
 
@@ -1627,36 +1624,6 @@ export default {
     .use-commission-button {
       width: 25px;
       height: auto;
-    }
-
-    .use-commission-tip {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 0;
-      display: flex;
-      align-items: center;
-      visibility: hidden;
-      background: grey;
-      color: white;
-      text-transform: uppercase;
-      padding: 2px 8px;
-      opacity: 0;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-      white-space: nowrap;
-      pointer-events: none;
-      z-index: 10000;
-      font-size: 10px;
-
-      @media (max-width: 768px) {
-        display: none;
-      }
-    }
-
-    &:hover {
-      .use-commission-tip {
-        visibility: visible;
-        opacity: 1;
-      }
     }
   }
 
