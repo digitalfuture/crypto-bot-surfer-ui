@@ -331,6 +331,12 @@ const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; en
     entry: "Close > EMA 9 > EMA 21, бычья свеча, RSI 52-76, объем > 1.15x от 20-периодного.",
     risk: "Асимметричный Take Profit (1.15x от риска) для максимизации математического ожидания."
   },
+  VOLATILITY3: {
+    title: "Институциональный ATR/ADX (BTC Filter)",
+    concept: "4 сетапа (Breakout/Breakdown/Continuation/Exhaustion) по закрытой свече и фильтром BTC.",
+    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, проверка стакана фьючерсов, спреда и базиса.",
+    risk: "Динамический ATR-стоп со swing high/low, учет комиссий биржи и R:R >= 1.45."
+  },
   CHANNEL: {
     title: "Канал Кельтнера (Keltner / BB)",
     concept: "Торговля от границ динамического канала в фазе консолидации рынка.",
