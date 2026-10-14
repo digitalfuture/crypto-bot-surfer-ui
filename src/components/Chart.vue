@@ -51,44 +51,75 @@
         <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
 
         <div class="bot-card__header">
-          <span class="bot-card__name">{{ bot.name }}</span>
-          <span class="bot-card__pnl" :class="getBotPnl(bot) >= 0 ? 'text-green' : 'text-red'">
-            {{ getBotPnl(bot) > 0 ? '+' : '' }}{{ getBotPnl(bot).toFixed(2) }}%
-          </span>
+          <span class="bot-card__name" :title="bot.name">{{ formatBotName(bot.name) }}</span>
+          <div class="bot-card__header-right">
+            <button
+              class="bot-card__info-btn cursor-pointer"
+              :class="{ 'bot-card__info-btn--active': isCardInfoOpen(bot.name) }"
+              @click.stop="toggleCardInfo(bot.name)"
+              :title="isCardInfoOpen(bot.name) ? 'Вернуться к позиции' : 'Описание стратегии: ' + getStrategyInfo(bot.name).title"
+            >
+              <span v-if="!isCardInfoOpen(bot.name)">i</span>
+              <span v-else>✕</span>
+            </button>
+            <span class="bot-card__pnl" :class="getBotPnl(bot) >= 0 ? 'text-green' : 'text-red'">
+              {{ getBotPnl(bot) > 0 ? '+' : '' }}{{ getBotPnl(bot).toFixed(2) }}%
+            </span>
+          </div>
         </div>
 
         <div class="bot-card__body">
-          <template v-if="bot.position">
-            <div class="pos-row pos-row--main">
-              <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
-                {{ bot.position.side }}
-              </span>
-              <span class="pos-symbol">{{ bot.position.symbol }}</span>
+          <!-- Strategy Info View (Description on flip) -->
+          <div v-if="isCardInfoOpen(bot.name)" class="bot-card__info-view" @click.stop>
+            <div class="info-title">{{ getStrategyInfo(bot.name).title }}</div>
+            <div class="info-desc">{{ getStrategyInfo(bot.name).concept }}</div>
+            <div class="info-section">
+              <span class="info-section-label">ВХОД:</span>
+              <span class="info-section-text">{{ getStrategyInfo(bot.name).entry }}</span>
             </div>
+            <div class="info-section">
+              <span class="info-section-label">РИСК:</span>
+              <span class="info-section-text">{{ getStrategyInfo(bot.name).risk }}</span>
+            </div>
+            <button class="info-close-btn cursor-pointer" @click.stop="toggleCardInfo(bot.name)">
+              ← НАЗАД К ПОЗИЦИИ
+            </button>
+          </div>
 
-            <div class="pos-details-grid">
-              <div class="detail-row">
-                <span class="detail-label">ENTRY</span>
-                <span class="detail-val">{{ bot.position.entryPrice }}</span>
+          <!-- Live Trading View -->
+          <template v-else>
+            <template v-if="bot.position">
+              <div class="pos-row pos-row--main">
+                <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
+                  {{ bot.position.side }}
+                </span>
+                <span class="pos-symbol">{{ bot.position.symbol }}</span>
               </div>
-              <div v-if="bot.position.stopLoss" class="detail-row">
-                <span class="detail-label">SL</span>
-                <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
+
+              <div class="pos-details-grid">
+                <div class="detail-row">
+                  <span class="detail-label">ENTRY</span>
+                  <span class="detail-val">{{ bot.position.entryPrice }}</span>
+                </div>
+                <div v-if="bot.position.stopLoss" class="detail-row">
+                  <span class="detail-label">SL</span>
+                  <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
+                </div>
+                <div v-if="bot.position.takeProfit" class="detail-row">
+                  <span class="detail-label">TP</span>
+                  <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
+                </div>
+                <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
+                  <span class="detail-label">PEAK</span>
+                  <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
+                </div>
               </div>
-              <div v-if="bot.position.takeProfit" class="detail-row">
-                <span class="detail-label">TP</span>
-                <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
-              </div>
-              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
-                <span class="detail-label">PEAK</span>
-                <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
-              </div>
+            </template>
+
+            <div v-else class="bot-card__scanning">
+              SCANNING FOR SETUPS
             </div>
           </template>
-
-          <div v-else class="bot-card__scanning">
-            SCANNING FOR SETUPS
-          </div>
         </div>
 
         <div class="bot-card__footer">
@@ -117,23 +148,7 @@
 
     <!-- Top Bar Controls -->
     <div class="top-bar-menu">
-      <div
-        class="use-commission-container cursor-pointer"
-        @click="toggleCommission"
-        :title="useCommission ? 'With Commission (click to disable)' : 'Without Commission (click to enable)'"
-      >
-        <img
-          :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
-          alt="DNATRADE"
-          class="use-commission-button cursor-pointer"
-        />
-
-        <span class="use-commission-tip">{{
-          useCommission ? "With Commission" : "Without Commission"
-        }}</span>
-      </div>
-
-      <!-- Flat System & Bots Monitor Button / Plaque -->
+      <!-- Flat System & Bots Monitor Button / Plaque (FIRST) -->
       <div
         class="system-status-btn cursor-pointer"
         :class="{ 'system-status-btn--active': isMonitorView }"
@@ -156,6 +171,23 @@
         <span v-if="isMonitorView" class="status-view-active">
           • MONITOR
         </span>
+      </div>
+
+      <!-- Commission toggle (SECOND) -->
+      <div
+        class="use-commission-container cursor-pointer"
+        @click="toggleCommission"
+        :title="useCommission ? 'With Commission (click to disable)' : 'Without Commission (click to enable)'"
+      >
+        <img
+          :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
+          alt="DNATRADE"
+          class="use-commission-button cursor-pointer"
+        />
+
+        <span class="use-commission-tip">{{
+          useCommission ? "With Commission" : "Without Commission"
+        }}</span>
       </div>
     </div>
 
@@ -223,7 +255,7 @@
         :title="'Click to toggle, double-click to view only this chart and trades'"
       >
         <div class="line__details">
-          <span class="line__name" v-text="line.name" />
+          <span class="line__name" v-text="formatBotName(line.name)" />
 
           <!-- Micro position chip in legend -->
           <span
@@ -283,6 +315,99 @@ let lineSeriesTotal = null;
 
 const totalLineColor = "dimgray";
 
+const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; entry: string; risk: string }> = {
+  VOLATILITY: {
+    title: "Импульс волатильности (Breakout ATR)",
+    concept: "Ловит сильные импульсы расширения диапазона цены на аномальном всплеске объема.",
+    entry: "Пробой верхней границы 2.5x ATR при объеме > 1.3x среднего.",
+    risk: "Трейлинг-стоп по волатильности, фиксация на затухании импульса."
+  },
+  CHANNEL: {
+    title: "Канал Кельтнера (Keltner / BB)",
+    concept: "Торговля от границ динамического канала в фазе консолидации рынка.",
+    entry: "Отбой от границы канала (Long снизу / Short сверху) с разворотным пинбаром.",
+    risk: "SL за пределами канала, TP у средней линии или противоположной границы."
+  },
+  TREND: {
+    title: "Следование тренду (EMA + Donchian)",
+    concept: "Вход по направлению старшего движения после истинного пробоя уровней.",
+    entry: "Веер EMA 9 > 21 > 50, пробой 20-периодного максимума при объеме > 1.25x.",
+    risk: "SL 1.5x Vol за локальный откат, TP 2.0x Vol по тренду."
+  },
+  PULLBACK: {
+    title: "Откат по тренду (Trend Dip Bounce)",
+    concept: "Покупка на коррекциях к динамической поддержке EMA 21/50 в рамках тренда.",
+    entry: "Касание EMA 21 с отскоком, нижняя тень отбоя >= 35%, RSI в зоне 40-64.",
+    risk: "SL 1.5x Vol за локальный минимум, TP 1.8x Vol на перехай волны."
+  },
+  SCALPER: {
+    title: "Быстрый скальпинг (Micro-Momentum)",
+    concept: "Быстрые локальные микроимпульсы с минимальным временем удержания.",
+    entry: "Импульс быстрых EMA 7/14, подтверждение RSI и всплеск объема > 1.2x.",
+    risk: "Динамический SL 1.2x Vol, быстрый TP 1.5x Vol."
+  },
+  "OB-WALL": {
+    title: "Плотности стакана (Orderbook Wall)",
+    concept: "Торговля от крупных институциональных лимитных стенок в стакане ($40k+).",
+    entry: "Отскок от подтвержденной плотности в стакане с защитой от спуфинга.",
+    risk: "SL сразу за стенку плотности, TP 1.8x от величины риска."
+  },
+  "ORDERBOOK-WALL": {
+    title: "Плотности стакана (Orderbook Wall)",
+    concept: "Торговля от крупных институциональных лимитных стенок в стакане ($40k+).",
+    entry: "Отскок от подтвержденной плотности в стакане с защитой от спуфинга.",
+    risk: "SL сразу за стенку плотности, TP 1.8x от величины риска."
+  },
+  "OB-IMBALANCE": {
+    title: "Дисбаланс стакана (Orderbook OBI)",
+    concept: "Опережающий вход по перекосу ликвидности покупателей и продавцов.",
+    entry: "Индекс дисбаланса OBI >= +0.22 при узком спреде стакана <= 0.18%.",
+    risk: "SL по волатильности, TP 1.5x при выравнивании стакана."
+  },
+  "ORDERBOOK-IMBALANCE": {
+    title: "Дисбаланс стакана (Orderbook OBI)",
+    concept: "Опережающий вход по перекосу ликвидности покупателей и продавцов.",
+    entry: "Индекс дисбаланса OBI >= +0.22 при узком спреде стакана <= 0.18%.",
+    risk: "SL по волатильности, TP 1.5x при выравнивании стакана."
+  },
+  "OB-ABSORPTION": {
+    title: "Лимитное поглощение (Absorption)",
+    concept: "Определение скрытого набора позиции крупным игроком при давлении толпы.",
+    entry: "Рыночные продажи поглощены пассивным спросом выше EMA 20, длинный фитиль.",
+    risk: "SL под уровнем поглощения, TP 1.8x от величины риска."
+  },
+  "ORDERBOOK-ABSORPTION": {
+    title: "Лимитное поглощение (Absorption)",
+    concept: "Определение скрытого набора позиции крупным игроком при давлении толпы.",
+    entry: "Рыночные продажи поглощены пассивным спросом выше EMA 20, длинный фитиль.",
+    risk: "SL под уровнем поглощения, TP 1.8x от величины риска."
+  },
+  "LIQUIDITY-SWEEP": {
+    title: "Снятие ликвидности (Liquidity Sweep)",
+    concept: "Ложный пробой локальных экстремумов со сбором стопов и резким возвратом.",
+    entry: "Прокол уровня предыдущего экстремума с длинным фитилем отскока >= 35%.",
+    risk: "SL за кончик фитиля сброса, TP 1.8x к противоположной ликвидности."
+  },
+  "MM-INVENTORY": {
+    title: "Инвентарь маркет-мейкера (Avellaneda)",
+    concept: "Асимметричное котирование и балансировка инвентаря маркет-мейкера.",
+    entry: "Отклонение цены от reservation price при накоплении перекоса.",
+    risk: "Автоматический хедж и сброс избыточного инвентаря."
+  },
+  "OB-ICEBERG": {
+    title: "Скрытые айсберги (Iceberg Orders)",
+    concept: "Обнаружение скрытых институциональных заявок с обновлением объема.",
+    entry: "Многократное пополнение видимого объема на одном ценовом уровне.",
+    risk: "SL сразу за уровнем айсберга, TP 1.8x по направлению скрытого ордера."
+  },
+  "ORDERBOOK-ICEBERG": {
+    title: "Скрытые айсберги (Iceberg Orders)",
+    concept: "Обнаружение скрытых институциональных заявок с обновлением объема.",
+    entry: "Многократное пополнение видимого объема на одном ценовом уровне.",
+    risk: "SL сразу за уровнем айсберга, TP 1.8x по направлению скрытого ордера."
+  }
+};
+
 export default {
   name: "Chart",
 
@@ -297,6 +422,7 @@ export default {
       useCommission: true,
       isMonitorView: false,
       isRefreshing: false,
+      activeInfoBotMap: {},
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
@@ -1308,6 +1434,45 @@ export default {
       }
     },
 
+    formatBotName(name: string): string {
+      if (!name) return "";
+      return name.replace(/^ORDERBOOK-/i, "OB-");
+    },
+
+    toggleCardInfo(botName: string) {
+      if (!botName) return;
+      const clean = botName.trim().toUpperCase();
+      this.activeInfoBotMap[clean] = !this.activeInfoBotMap[clean];
+    },
+
+    isCardInfoOpen(botName: string): boolean {
+      if (!botName) return false;
+      const clean = botName.trim().toUpperCase();
+      return Boolean(this.activeInfoBotMap[clean]);
+    },
+
+    getStrategyInfo(name: string) {
+      if (!name) {
+        return {
+          title: "Стратегия",
+          concept: "Алгоритмическая торговая система",
+          entry: "-",
+          risk: "-",
+        };
+      }
+      const clean = name.trim().toUpperCase().replace(/^TRADES[-_]/i, "").replace(/\.CSV$/i, "");
+      return (
+        STRATEGY_DESCRIPTIONS[clean] ||
+        STRATEGY_DESCRIPTIONS[clean.replace(/^OB-/, "ORDERBOOK-")] ||
+        STRATEGY_DESCRIPTIONS[clean.replace(/^ORDERBOOK-/, "OB-")] || {
+          title: name,
+          concept: "Алгоритмическая количественная стратегия",
+          entry: "По техническим и биржевым сигналам",
+          risk: "Динамический стоп-лосс и тейк-профит",
+        }
+      );
+    },
+
     toggleCommission() {
       this.useCommission = !this.useCommission;
     },
@@ -1545,7 +1710,7 @@ export default {
 .top-bar-right {
   position: absolute;
   top: 7px;
-  right: 70px;
+  right: 10px;
   display: flex;
   align-items: center;
   z-index: 9999;
@@ -1558,7 +1723,7 @@ export default {
 
   @media (max-width: 768px) {
     top: 6px;
-    right: 62px;
+    right: 8px;
 
     .full-screen-button {
       width: 24px;
@@ -1926,12 +2091,49 @@ export default {
           padding: 2px 7px;
         }
 
+        .bot-card__header-right {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          flex-shrink: 0;
+        }
+
+        .bot-card__info-btn {
+          width: 17px;
+          height: 17px;
+          border-radius: 50%;
+          background: #ede6dc;
+          border: 1px solid #dcd5cb;
+          color: #4b5563;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-family: Arial, sans-serif;
+          font-weight: 800;
+          padding: 0;
+          line-height: 1;
+          cursor: pointer;
+          transition: all 0.15s ease;
+
+          &:hover {
+            background: #111827;
+            color: #fff;
+            border-color: #111827;
+          }
+
+          &--active {
+            background: #111827;
+            color: #fff;
+            border-color: #111827;
+          }
+        }
+
         .bot-card__pnl {
           font-size: 11px;
           font-weight: 800;
           white-space: nowrap;
           flex-shrink: 0;
-          margin-left: 4px;
           background: #f0ebe1;
           padding: 2px 7px;
         }
@@ -1943,6 +2145,68 @@ export default {
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
+
+        .bot-card__info-view {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          padding: 2px 2px 4px;
+          font-size: 10px;
+          line-height: 1.35;
+          text-transform: none;
+
+          .info-title {
+            font-weight: 800;
+            color: #111827;
+            font-size: 10.5px;
+            margin-bottom: 3px;
+            border-bottom: 1px solid #ede8e0;
+            padding-bottom: 2px;
+            text-transform: none;
+          }
+
+          .info-desc {
+            color: #374151;
+            font-size: 9.5px;
+            margin-bottom: 5px;
+            text-transform: none;
+          }
+
+          .info-section {
+            margin-bottom: 3px;
+            font-size: 9px;
+            text-transform: none;
+
+            &-label {
+              font-weight: 800;
+              color: #111827;
+              margin-right: 3px;
+            }
+
+            &-text {
+              color: #4b5563;
+            }
+          }
+
+          .info-close-btn {
+            margin-top: 5px;
+            background: #ede6dc;
+            border: 1px solid #dcd5cb;
+            color: #111827;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 3px 6px;
+            cursor: pointer;
+            align-self: flex-start;
+            transition: background 0.15s ease;
+            text-transform: uppercase;
+
+            &:hover {
+              background: #ded8ce;
+            }
+          }
+        }
 
         .pos-row--main {
           display: flex;
