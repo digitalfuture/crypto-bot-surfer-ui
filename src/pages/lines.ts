@@ -68,13 +68,11 @@ export const GET: APIRoute = async ({ request }) => {
     const fileList: IServerLine[] = [];
 
     const order = [
-      "volatility",
       "vol-momentum",
       "vol-breakout",
       "volatility2",
       "volatility3",
       "channel",
-      "channel2",
       "trend",
       "pullback",
       "scalper",

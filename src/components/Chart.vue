@@ -22,11 +22,11 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          BOTS: <strong>{{ systemStatus.runningBots || botStatusList.length || 11 }}/{{ systemStatus.totalBots || botStatusList.length || 11 }} RUNNING</strong>
+          BOTS: <strong>{{ systemStatus.runningBots || botStatusList.length || 12 }}/{{ systemStatus.totalBots || botStatusList.length || 12 }} RUNNING</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 11 }}</strong>
+          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 12 }}</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
@@ -163,7 +163,7 @@
           :class="systemStatus.status === 'HEALTHY' ? 'status-indicator--green' : 'status-indicator--yellow'"
         />
         <span class="status-btn-text">
-          {{ systemStatus.runningBots || botStatusList.length || 11 }}/{{ systemStatus.totalBots || botStatusList.length || 11 }} BOTS
+          {{ systemStatus.runningBots || botStatusList.length || 12 }}/{{ systemStatus.totalBots || botStatusList.length || 12 }} BOTS
         </span>
         <span
           v-if="systemStatus.activePositionsCount > 0"
@@ -321,12 +321,6 @@ let lineSeriesTotal = null;
 const totalLineColor = "dimgray";
 
 const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; entry: string; risk: string }> = {
-  VOLATILITY: {
-    title: "Импульс волатильности (Breakout ATR)",
-    concept: "Ловит сильные импульсы расширения диапазона цены на аномальном всплеске объема.",
-    entry: "Пробой верхней границы 2.5x ATR при объеме > 1.3x среднего.",
-    risk: "Трейлинг-стоп по волатильности, фиксация на затухании импульса."
-  },
   "VOL-MOMENTUM": {
     title: "Импульс волатильности (VOL-MOMENTUM / Пул + объем)",
     concept: "Мультисвечной анализ моментума с фильтром объема >= 1.15x и отсевом шума.",
@@ -352,14 +346,8 @@ const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; en
     risk: "Динамический ATR-стоп со swing high/low, учет комиссий биржи и R:R >= 1.45."
   },
   CHANNEL: {
-    title: "Канал Кельтнера (Keltner / BB)",
-    concept: "Торговля от границ динамического канала в фазе консолидации рынка.",
-    entry: "Отбой от границы канала (Long снизу / Short сверху) с разворотным пинбаром.",
-    risk: "SL за пределами канала, TP у средней линии или противоположной границы."
-  },
-  CHANNEL2: {
-    title: "Возврат в канал v2 (BandWidth + %B/RSI)",
-    concept: "Mean Reversion с фильтром ширины полос (0.012-0.14) и приоритетом флэтовых монет.",
+    title: "Возврат в канал (BandWidth + %B/RSI)",
+    concept: "Mean Reversion с фильтром ширины полос Боллинджера (0.012-0.14) и приоритетом флэтовых монет.",
     entry: "%B <= 0.18 и RSI <= 42 для Long; %B >= 0.82 и RSI >= 58 для Short, отбой тенью >= 22%.",
     risk: "SL за пределами полосы, TP динамически к средней линии SMA 20 (R:R >= 1:1)."
   },
@@ -461,8 +449,8 @@ export default {
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
-        runningBots: 8,
-        totalBots: 8,
+        runningBots: 12,
+        totalBots: 12,
         timestamp: "",
         activePositionsCount: 0,
       },
@@ -1004,7 +992,9 @@ export default {
     loadCachedLines(): boolean {
       try {
         if (typeof window === "undefined" || !window.localStorage) return false;
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v1");
+        // Purge legacy v1 cache from previous session
+        window.localStorage.removeItem("crypto_bot_chart_lines_v1");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v2");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1035,7 +1025,7 @@ export default {
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v1",
+          "crypto_bot_chart_lines_v2",
           JSON.stringify(toSave)
         );
       } catch (err) {
