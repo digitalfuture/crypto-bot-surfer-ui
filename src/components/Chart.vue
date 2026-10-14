@@ -5,7 +5,7 @@
     class="chart cursor-pointer"
     id="chart-container"
     @dblclick="applyLongestScale"
-    title="Двойной клик для автомасштабирования по всей длине"
+    title="Double-click to auto-scale full time range"
   />
 
   <!-- Flat System & Bots Monitor View (replaces chart when active) -->
@@ -66,7 +66,7 @@
               class="bot-card__info-btn cursor-pointer"
               :class="{ 'bot-card__info-btn--active': isCardInfoOpen(bot.name) }"
               @click.stop="toggleCardInfo(bot.name)"
-              :title="isCardInfoOpen(bot.name) ? 'Вернуться к позиции' : 'Описание стратегии: ' + getStrategyInfo(bot.name).title"
+              :title="isCardInfoOpen(bot.name) ? 'Return to position view' : 'Strategy concept: ' + getStrategyInfo(bot.name).title"
             >
               <span v-if="!isCardInfoOpen(bot.name)">i</span>
               <span v-else>✕</span>
@@ -83,19 +83,23 @@
             v-if="isCardInfoOpen(bot.name)"
             class="bot-card__info-view cursor-pointer"
             @click.stop="toggleCardInfo(bot.name)"
-            title="Кликните, чтобы вернуться к сделке"
+            title="Click to return to active position"
           >
             <div class="info-title">{{ getStrategyInfo(bot.name).title }}</div>
             <div class="info-desc">{{ getStrategyInfo(bot.name).concept }}</div>
             <div class="info-section">
-              <span class="info-section-label">ВХОД:</span>
+              <span class="info-section-label">CONCEPT:</span>
+              <span class="info-section-text">{{ getStrategyInfo(bot.name).concept }}</span>
+            </div>
+            <div class="info-section">
+              <span class="info-section-label">ENTRY:</span>
               <span class="info-section-text">{{ getStrategyInfo(bot.name).entry }}</span>
             </div>
             <div class="info-section">
-              <span class="info-section-label">РИСК:</span>
+              <span class="info-section-label">RISK:</span>
               <span class="info-section-text">{{ getStrategyInfo(bot.name).risk }}</span>
             </div>
-            <div class="info-hint">↩ К СДЕЛКЕ</div>
+            <div class="info-hint">↩ BACK TO POSITION</div>
           </div>
 
           <!-- Live Trading View -->
@@ -231,7 +235,7 @@
           'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
         }"
         @click="updateLineTotalVisibility"
-        :title="'Средняя доходность активных ботов: ' + totalProfit + '%, суммарная: ' + totalSumProfit + '%'"
+        :title="'Average active bots profit: ' + totalProfit + '%, Total cumulative: ' + totalSumProfit + '%'"
       >
         <div class="line__details info">
           <span class="line__name">AVG (Σ {{ totalSumProfit }}%)</span>
@@ -332,112 +336,112 @@ const totalLineColor = "dimgray";
 
 const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; entry: string; risk: string }> = {
   "VOL-MOMENTUM": {
-    title: "Импульс волатильности (VOL-MOMENTUM / Пул + объем)",
-    concept: "Мультисвечной анализ моментума с фильтром объема >= 1.15x и отсевом шума.",
-    entry: "Close > EMA 9 > EMA 21, бычья свеча, RSI 52-76, объем > 1.15x от 20-периодного.",
-    risk: "Асимметричный Take Profit (1.15x от риска) для максимизации математического ожидания."
+    title: "Volatility Momentum (Volume Pool)",
+    concept: "Multi-candle momentum expansion filtered by volume >= 1.15x and noise elimination.",
+    entry: "Close > EMA 9 > EMA 21, bullish candle, RSI 52-76, volume > 1.15x of 20-period.",
+    risk: "Asymmetric Take-Profit (1.15x of risk) for positive mathematical expectation."
   },
   "VOL-BREAKOUT": {
-    title: "Институциональный пробой (VOL-BREAKOUT / ATR + ADX)",
-    concept: "4 сетапа (Breakout/Breakdown/Continuation/Exhaustion) по закрытой свече и фильтром BTC.",
-    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, проверка стакана фьючерсов, спреда и базиса.",
-    risk: "Динамический ATR-стоп со swing high/low, учет комиссий биржи и R:R >= 1.45."
+    title: "Institutional Breakout (ATR + ADX)",
+    concept: "4 setups (Breakout/Breakdown/Continuation/Exhaustion) with confirmed candle and BTC filter.",
+    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, orderbook spread and basis verification.",
+    risk: "Dynamic ATR stop with swing high/low, exchange fee buffer, and R:R >= 1.45."
   },
   VOLATILITY2: {
-    title: "Импульс волатильности (VOL-MOMENTUM / Пул + объем)",
-    concept: "Мультисвечной анализ моментума с фильтром объема >= 1.15x и отсевом шума.",
-    entry: "Close > EMA 9 > EMA 21, бычья свеча, RSI 52-76, объем > 1.15x от 20-периодного.",
-    risk: "Асимметричный Take Profit (1.15x от риска) для максимизации математического ожидания."
+    title: "Volatility Momentum (Volume Pool)",
+    concept: "Multi-candle momentum expansion filtered by volume >= 1.15x and noise elimination.",
+    entry: "Close > EMA 9 > EMA 21, bullish candle, RSI 52-76, volume > 1.15x of 20-period.",
+    risk: "Asymmetric Take-Profit (1.15x of risk) for positive mathematical expectation."
   },
   VOLATILITY3: {
-    title: "Институциональный пробой (VOL-BREAKOUT / ATR + ADX)",
-    concept: "4 сетапа (Breakout/Breakdown/Continuation/Exhaustion) по закрытой свече и фильтром BTC.",
-    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, проверка стакана фьючерсов, спреда и базиса.",
-    risk: "Динамический ATR-стоп со swing high/low, учет комиссий биржи и R:R >= 1.45."
+    title: "Institutional Breakout (ATR + ADX)",
+    concept: "4 setups (Breakout/Breakdown/Continuation/Exhaustion) with confirmed candle and BTC filter.",
+    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, orderbook spread and basis verification.",
+    risk: "Dynamic ATR stop with swing high/low, exchange fee buffer, and R:R >= 1.45."
   },
   CHANNEL: {
-    title: "Возврат в канал (BandWidth + %B/RSI)",
-    concept: "Mean Reversion с фильтром ширины полос Боллинджера (0.012-0.14) и приоритетом флэтовых монет.",
-    entry: "%B <= 0.18 и RSI <= 42 для Long; %B >= 0.82 и RSI >= 58 для Short, отбой тенью >= 22%.",
-    risk: "SL за пределами полосы, TP динамически к средней линии SMA 20 (R:R >= 1:1)."
+    title: "Channel Mean Reversion (BandWidth + %B/RSI)",
+    concept: "Mean reversion inside Bollinger bands (0.012-0.14 width) prioritizing consolidating assets.",
+    entry: "%B <= 0.18 & RSI <= 42 for Long; %B >= 0.82 & RSI >= 58 for Short, wick rejection >= 22%.",
+    risk: "SL outside band envelope, dynamic TP targeting SMA 20 median line (R:R >= 1:1)."
   },
   TREND: {
-    title: "Следование тренду (EMA + Donchian)",
-    concept: "Истинный пробой канала Дончиана по тренду с защитой от покупок на вершинах (Anti-Chasing).",
-    entry: "Веер EMA 9 > 21 > 50, свежий пробой Donchian 20, объем >= 1.25x, нормализация базиса спот-фьючерс.",
-    risk: "Защитный SL за фьючерсную EMA21 [0.9-1.35x Vol], трендовый TP 1.55x от риска."
+    title: "Trend Following (EMA + Donchian)",
+    concept: "True Donchian channel breakout aligned with higher-timeframe trend (anti-chasing filter).",
+    entry: "EMA 9 > 21 > 50 fan, fresh Donchian 20 breakout, volume >= 1.25x, spot-futures basis check.",
+    risk: "Protective SL behind futures EMA 21 [0.9-1.35x Vol], trend TP 1.55x of risk."
   },
   PULLBACK: {
-    title: "Откат по тренду (Trend Dip Bounce)",
-    concept: "Покупка на контролируемых коррекциях к динамической поддержке EMA 21/50 по тренду.",
-    entry: "Касание зоны EMA 21/50, подтвержденный отскок тенью >= 35%, RSI 44-62, масштабирование спотового базиса.",
-    risk: "Структурный SL за минимум отката и EMA50 [0.85-1.3x Vol], TP 1.45x от риска (R:R 1:1.45)."
+    title: "Trend Dip Bounce",
+    concept: "Buying controlled pullbacks into dynamic EMA 21/50 support along macro trend.",
+    entry: "EMA 21/50 zone touch, confirmed candle shadow rejection >= 35%, RSI 44-62.",
+    risk: "Structural SL behind dip pivot and EMA 50 [0.85-1.3x Vol], TP 1.45x of risk (R:R 1:1.45)."
   },
   SCALPER: {
-    title: "Быстрый скальпинг (Micro-Momentum)",
-    concept: "Высокочастотная фиксация локальных микроимпульсов волатильности и быстрого оборота депозита.",
-    entry: "Веер EMA 7 > 14 > 30, Fast RSI 9 (сладкая точка 59/41), двойной фитильный фильтр и объем >= 1.15x.",
-    risk: "Компактный защитный SL 0.85x Vol, быстрый TP 1.15x от риска (высокий winrate скальпинга)."
+    title: "Micro-Momentum Scalper",
+    concept: "High-frequency capture of local micro-volatility impulses with rapid turnover.",
+    entry: "EMA 7 > 14 > 30 fan, Fast RSI 9 (sweet spot 59/41), dual wick filter, volume >= 1.15x.",
+    risk: "Compact protective SL 0.85x Vol, quick TP 1.15x of risk (high win-rate scalping)."
   },
   "OB-WALL": {
-    title: "Плотности стакана (Orderbook Wall)",
-    concept: "Торговля от крупных институциональных лимитных стенок в стакане ($40k+).",
-    entry: "Отскок от подтвержденной плотности в стакане с защитой от спуфинга.",
-    risk: "SL сразу за стенку плотности, TP 1.8x от величины риска."
+    title: "Orderbook Wall",
+    concept: "Trading off major institutional limit order walls in the orderbook ($40k+).",
+    entry: "Rebound off confirmed limit wall with spoofing protection filter.",
+    risk: "Tight SL behind wall limit, TP 1.8x of risk distance."
   },
   "ORDERBOOK-WALL": {
-    title: "Плотности стакана (Orderbook Wall)",
-    concept: "Торговля от крупных институциональных лимитных стенок в стакане ($40k+).",
-    entry: "Отскок от подтвержденной плотности в стакане с защитой от спуфинга.",
-    risk: "SL сразу за стенку плотности, TP 1.8x от величины риска."
+    title: "Orderbook Wall",
+    concept: "Trading off major institutional limit order walls in the orderbook ($40k+).",
+    entry: "Rebound off confirmed limit wall with spoofing protection filter.",
+    risk: "Tight SL behind wall limit, TP 1.8x of risk distance."
   },
   "OB-IMBALANCE": {
-    title: "Дисбаланс стакана (Orderbook OBI)",
-    concept: "Опережающий вход по перекосу ликвидности покупателей и продавцов.",
-    entry: "Индекс дисбаланса OBI >= +0.22 при узком спреде стакана <= 0.18%.",
-    risk: "SL по волатильности, TP 1.5x при выравнивании стакана."
+    title: "Orderbook Imbalance (OBI)",
+    concept: "Front-running order flow shifts based on bid/ask queue imbalance.",
+    entry: "Orderbook Imbalance OBI >= +0.22 with tight spread <= 0.18%.",
+    risk: "Volatility-based SL, TP 1.5x on queue normalization."
   },
   "ORDERBOOK-IMBALANCE": {
-    title: "Дисбаланс стакана (Orderbook OBI)",
-    concept: "Опережающий вход по перекосу ликвидности покупателей и продавцов.",
-    entry: "Индекс дисбаланса OBI >= +0.22 при узком спреде стакана <= 0.18%.",
-    risk: "SL по волатильности, TP 1.5x при выравнивании стакана."
+    title: "Orderbook Imbalance (OBI)",
+    concept: "Front-running order flow shifts based on bid/ask queue imbalance.",
+    entry: "Orderbook Imbalance OBI >= +0.22 with tight spread <= 0.18%.",
+    risk: "Volatility-based SL, TP 1.5x on queue normalization."
   },
   "OB-ABSORPTION": {
-    title: "Лимитное поглощение (Absorption)",
-    concept: "Определение скрытого набора позиции крупным игроком при давлении толпы.",
-    entry: "Рыночные продажи поглощены пассивным спросом выше EMA 20, длинный фитиль.",
-    risk: "SL под уровнем поглощения, TP 1.8x от величины риска."
+    title: "Limit Absorption",
+    concept: "Detecting passive institutional accumulation absorbing aggressive market orders.",
+    entry: "Market sell-off absorbed by passive bid queue above EMA 20, long absorption shadow.",
+    risk: "SL below absorption support level, TP 1.8x of risk distance."
   },
   "ORDERBOOK-ABSORPTION": {
-    title: "Лимитное поглощение (Absorption)",
-    concept: "Определение скрытого набора позиции крупным игроком при давлении толпы.",
-    entry: "Рыночные продажи поглощены пассивным спросом выше EMA 20, длинный фитиль.",
-    risk: "SL под уровнем поглощения, TP 1.8x от величины риска."
+    title: "Limit Absorption",
+    concept: "Detecting passive institutional accumulation absorbing aggressive market orders.",
+    entry: "Market sell-off absorbed by passive bid queue above EMA 20, long absorption shadow.",
+    risk: "SL below absorption support level, TP 1.8x of risk distance."
   },
   "LIQUIDITY-SWEEP": {
-    title: "Снятие ликвидности (Liquidity Sweep)",
-    concept: "Ложный вынос локальных свингов со сбором стопов и подтвержденным реклеймом.",
-    entry: "Реклейм уровня, фитиль отбоя >= 38%, подтверждение объема и фильтр тренда EMA 20/50.",
-    risk: "SL за экстремум выноса [0.65-1.35x Vol], динамический TP 1.45x вглубь диапазона."
+    title: "Liquidity Sweep",
+    concept: "Fading fakeouts and stop runs past key swing points with confirmed level reclaim.",
+    entry: "Level reclaim, wick rejection >= 38%, volume confirmation, EMA 20/50 trend filter.",
+    risk: "SL behind sweep extreme [0.65-1.35x Vol], dynamic TP 1.45x back into value range."
   },
   "MM-INVENTORY": {
-    title: "Инвентарь маркет-мейкера (Avellaneda)",
-    concept: "Асимметричное котирование и балансировка инвентаря маркет-мейкера.",
-    entry: "Отклонение цены от reservation price при накоплении перекоса.",
-    risk: "Автоматический хедж и сброс избыточного инвентаря."
+    title: "Market Maker Inventory (Avellaneda)",
+    concept: "Asymmetric quoting and inventory rebalancing based on the Avellaneda-Stoikov model.",
+    entry: "Price divergence from reservation price as inventory skew accumulates.",
+    risk: "Automated hedging and liquidation of excess inventory."
   },
   "OB-ICEBERG": {
-    title: "Скрытые айсберги (Iceberg Orders)",
-    concept: "Обнаружение скрытых институциональных заявок с обновлением объема.",
-    entry: "Многократное пополнение видимого объема на одном ценовом уровне.",
-    risk: "SL сразу за уровнем айсберга, TP 1.8x по направлению скрытого ордера."
+    title: "Iceberg Orders",
+    concept: "Algorithmic detection of hidden institutional iceberg orders replenishing size.",
+    entry: "Repeated hidden volume refill at a persistent price level.",
+    risk: "SL just beyond iceberg level, TP 1.8x in direction of hidden flow."
   },
   "ORDERBOOK-ICEBERG": {
-    title: "Скрытые айсберги (Iceberg Orders)",
-    concept: "Обнаружение скрытых институциональных заявок с обновлением объема.",
-    entry: "Многократное пополнение видимого объема на одном ценовом уровне.",
-    risk: "SL сразу за уровнем айсберга, TP 1.8x по направлению скрытого ордера."
+    title: "Iceberg Orders",
+    concept: "Algorithmic detection of hidden institutional iceberg orders replenishing size.",
+    entry: "Repeated hidden volume refill at a persistent price level.",
+    risk: "SL just beyond iceberg level, TP 1.8x in direction of hidden flow."
   }
 };
 
@@ -607,17 +611,38 @@ export default {
     },
 
     totalProfit() {
-      const lastValue =
-        this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
+      // If a single bot is enabled (solo mode), show its profit
+      if (this.linesEnabled.length === 1) {
+        const single = this.linesEnabled[0];
+        const series = this.prepareSeriesData(single.data);
+        const lastVal = series.length > 0 ? series[series.length - 1].value : 0;
+        return lastVal != null && !isNaN(lastVal) ? lastVal.toFixed(2) : "0.00";
+      }
 
+      if (this.linesDataTotal && this.linesDataTotal.length > 0) {
+        const lastValue =
+          this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
+        if (lastValue != null && !isNaN(lastValue)) {
+          return lastValue.toFixed(2);
+        }
+      }
+
+      // Fallback: calculate directly from prepareSeriesDataTotal
+      const fallbackSeries = this.prepareSeriesDataTotal();
+      const lastValue = fallbackSeries[fallbackSeries.length - 1]?.value;
       return lastValue != null && !isNaN(lastValue)
         ? lastValue.toFixed(2)
         : "0.00";
     },
 
     totalSumProfit() {
+      const isAllLines =
+        this.hasLineTotalOnly ||
+        this.hasNoLines ||
+        this.linesEnabled.length === 0;
+      const targetLines = isAllLines ? this.lines : this.linesEnabled;
       let sum = 0;
-      for (const line of this.linesEnabled) {
+      for (const line of targetLines) {
         if (!line?.data || line.data.length === 0) continue;
         const series = this.prepareSeriesData(line.data);
         if (series.length > 0) {
@@ -985,7 +1010,7 @@ export default {
               mtime: file.mtime,
               data: file.data.map((item: string): string[] => item.split(",")),
               color: this.getColor(index),
-              disabled: isUpdate ? (existingLine?.disabled ?? true) : true,
+              disabled: isUpdate ? (existingLine?.disabled ?? false) : false,
             };
           }
         );
@@ -1010,7 +1035,7 @@ export default {
             mtime: file.mtime,
             data: file.data.map((item: string): string[] => item.split(",")),
             color: this.getColor(index),
-            disabled: true,
+            disabled: false,
           };
           this.lines.push(newLine);
           hasChanges = true;
@@ -1763,8 +1788,8 @@ export default {
     getStrategyInfo(name: string) {
       if (!name) {
         return {
-          title: "Стратегия",
-          concept: "Алгоритмическая торговая система",
+          title: "Strategy",
+          concept: "Algorithmic quantitative trading system",
           entry: "-",
           risk: "-",
         };
@@ -1775,9 +1800,9 @@ export default {
         STRATEGY_DESCRIPTIONS[clean.replace(/^OB-/, "ORDERBOOK-")] ||
         STRATEGY_DESCRIPTIONS[clean.replace(/^ORDERBOOK-/, "OB-")] || {
           title: name,
-          concept: "Алгоритмическая количественная стратегия",
-          entry: "По техническим и биржевым сигналам",
-          risk: "Динамический стоп-лосс и тейк-профит",
+          concept: "Algorithmic quantitative strategy",
+          entry: "Technical and market order flow signals",
+          risk: "Dynamic Stop-Loss and Take-Profit",
         }
       );
     },
