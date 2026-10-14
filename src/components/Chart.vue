@@ -680,21 +680,6 @@ export default {
       }
     },
 
-    isLineTotalVisible() {
-      if (this.isMonitorView) return;
-      this.updateLineTotal();
-      this.applyLongestScale();
-      this.refreshMarks();
-    },
-
-    linesEnabled() {
-      if (this.isMonitorView) return;
-      this.updateLines();
-      this.updateLineTotal();
-      this.applyLongestScale();
-      this.refreshMarks();
-    },
-
     useCommission() {
       this.updateChart();
     },
@@ -1192,6 +1177,9 @@ export default {
 
       if (!isLastLine) {
         this.isLineTotalVisible = !this.isLineTotalVisible;
+        this.updateLineTotal();
+        this.applyLongestScale();
+        this.refreshMarks();
       }
     },
 
@@ -1495,16 +1483,13 @@ export default {
     },
 
     async setupZoomListener() {
-      let lastRangeKey = "";
+      let zoomDebounceTimer = null;
       const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange) => {
         if (!newVisibleTimeRange || this.isMonitorView) return;
-        const key = `${Math.round(newVisibleTimeRange.from)}_${Math.round(newVisibleTimeRange.to)}`;
-        if (key === lastRangeKey) return;
-        lastRangeKey = key;
-
-        // Dynamically auto-scale price scale to fill full height for visible data
-        chart?.priceScale("right")?.applyOptions({ autoScale: true });
-        this.refreshMarks();
+        if (zoomDebounceTimer) clearTimeout(zoomDebounceTimer);
+        zoomDebounceTimer = setTimeout(() => {
+          this.refreshMarks();
+        }, 120);
       };
 
       await chart
@@ -1568,16 +1553,17 @@ export default {
 
     // Line marks
     setMarks() {
-      // Clear markers on all series first
-      lineSeries.forEach((s) => s?.setMarkers([]));
-      this.lineSeriesMarked = null;
-      this.isLineMarked = false;
-
       if (this.linesEnabled.length === 1) {
         const line = this.linesEnabled[0];
         const index = this.lines.indexOf(line);
         if (index === -1 || !lineSeries[index]) return;
 
+        // Skip re-applying if already marked on this solo series
+        if (this.lineSeriesMarked === lineSeries[index] && this.isLineMarked) {
+          return;
+        }
+
+        lineSeries.forEach((s) => s?.setMarkers([]));
         const lineData = this.prepareSeriesData(line.data);
         const markers = lineData
           .filter(({ trade }) => trade === "BUY" || trade === "SELL")
@@ -1593,6 +1579,7 @@ export default {
         this.lineSeriesMarked?.setMarkers(markers);
         this.isLineMarked = true;
       } else if (this.zoomCondition && this.linesEnabled.length > 0) {
+        lineSeries.forEach((s) => s?.setMarkers([]));
         this.linesEnabled.forEach((line) => {
           const index = this.lines.indexOf(line);
           if (index !== -1 && lineSeries[index]) {
@@ -1610,6 +1597,8 @@ export default {
           }
         });
         this.isLineMarked = true;
+      } else {
+        this.clearMarks();
       }
     },
 
