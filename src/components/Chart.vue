@@ -321,14 +321,26 @@ const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; en
     entry: "Пробой верхней границы 2.5x ATR при объеме > 1.3x среднего.",
     risk: "Трейлинг-стоп по волатильности, фиксация на затухании импульса."
   },
+  "VOL-MOMENTUM": {
+    title: "Импульс волатильности (VOL-MOMENTUM / Пул + объем)",
+    concept: "Мультисвечной анализ моментума с фильтром объема >= 1.15x и отсевом шума.",
+    entry: "Close > EMA 9 > EMA 21, бычья свеча, RSI 52-76, объем > 1.15x от 20-периодного.",
+    risk: "Асимметричный Take Profit (1.15x от риска) для максимизации математического ожидания."
+  },
+  "VOL-BREAKOUT": {
+    title: "Институциональный пробой (VOL-BREAKOUT / ATR + ADX)",
+    concept: "4 сетапа (Breakout/Breakdown/Continuation/Exhaustion) по закрытой свече и фильтром BTC.",
+    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, проверка стакана фьючерсов, спреда и базиса.",
+    risk: "Динамический ATR-стоп со swing high/low, учет комиссий биржи и R:R >= 1.45."
+  },
   VOLATILITY2: {
-    title: "Импульс волатильности v2 (Пул 6 пар + объем)",
+    title: "Импульс волатильности (VOL-MOMENTUM / Пул + объем)",
     concept: "Мультисвечной анализ моментума с фильтром объема >= 1.15x и отсевом шума.",
     entry: "Close > EMA 9 > EMA 21, бычья свеча, RSI 52-76, объем > 1.15x от 20-периодного.",
     risk: "Асимметричный Take Profit (1.15x от риска) для максимизации математического ожидания."
   },
   VOLATILITY3: {
-    title: "Институциональный ATR/ADX (BTC Filter)",
+    title: "Институциональный пробой (VOL-BREAKOUT / ATR + ADX)",
     concept: "4 сетапа (Breakout/Breakdown/Continuation/Exhaustion) по закрытой свече и фильтром BTC.",
     entry: "EMA 9/20/50/200 + ADX > 22 + RSI, проверка стакана фьючерсов, спреда и базиса.",
     risk: "Динамический ATR-стоп со swing high/low, учет комиссий биржи и R:R >= 1.45."
@@ -1857,7 +1869,7 @@ export default {
 
   .micro-pos-tag {
     background: var(--background-color);
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 600;
     padding-inline: 7px;
     margin-left: 6px;

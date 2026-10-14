@@ -42,6 +42,8 @@ export const GET: APIRoute = async () => {
 
     const order = [
       "volatility",
+      "vol-momentum",
+      "vol-breakout",
       "volatility2",
       "volatility3",
       "channel",
