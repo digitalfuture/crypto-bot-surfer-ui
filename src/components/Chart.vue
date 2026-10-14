@@ -70,7 +70,12 @@
 
         <div class="bot-card__body">
           <!-- Strategy Info View (Description on flip) -->
-          <div v-if="isCardInfoOpen(bot.name)" class="bot-card__info-view" @click.stop>
+          <div
+            v-if="isCardInfoOpen(bot.name)"
+            class="bot-card__info-view cursor-pointer"
+            @click.stop="toggleCardInfo(bot.name)"
+            title="Кликните, чтобы вернуться к сделке"
+          >
             <div class="info-title">{{ getStrategyInfo(bot.name).title }}</div>
             <div class="info-desc">{{ getStrategyInfo(bot.name).concept }}</div>
             <div class="info-section">
@@ -81,9 +86,7 @@
               <span class="info-section-label">РИСК:</span>
               <span class="info-section-text">{{ getStrategyInfo(bot.name).risk }}</span>
             </div>
-            <button class="info-close-btn cursor-pointer" @click.stop="toggleCardInfo(bot.name)">
-              ← НАЗАД К ПОЗИЦИИ
-            </button>
+            <div class="info-hint">↩ К СДЕЛКЕ</div>
           </div>
 
           <!-- Live Trading View -->
@@ -122,7 +125,7 @@
           </template>
         </div>
 
-        <div class="bot-card__footer">
+        <div v-if="!isCardInfoOpen(bot.name)" class="bot-card__footer">
           <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
           <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
         </div>
@@ -2042,6 +2045,11 @@ export default {
     }
 
     .bot-card {
+      height: 164px;
+      min-height: 164px;
+      max-height: 164px;
+      box-sizing: border-box;
+      overflow: hidden;
       background: #ffffff;
       border: none;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -2049,7 +2057,6 @@ export default {
       flex-direction: column;
       padding: 0;
       position: relative;
-      box-sizing: border-box;
       min-width: 0;
       user-select: none;
       -webkit-user-select: none;
@@ -2141,41 +2148,48 @@ export default {
 
       .bot-card__body {
         flex: 1;
-        padding: 6px 8px;
+        padding: 5px 8px 6px;
         display: flex;
         flex-direction: column;
-        justify-content: flex-start;
+        justify-content: space-between;
+        overflow: hidden;
 
         .bot-card__info-view {
           flex: 1;
           display: flex;
           flex-direction: column;
-          justify-content: flex-start;
-          padding: 2px 2px 4px;
+          justify-content: space-between;
+          padding: 0;
           font-size: 10px;
-          line-height: 1.35;
+          line-height: 1.3;
           text-transform: none;
+          overflow: hidden;
 
           .info-title {
             font-weight: 800;
             color: #111827;
-            font-size: 10.5px;
+            font-size: 10px;
             margin-bottom: 3px;
             border-bottom: 1px solid #ede8e0;
             padding-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             text-transform: none;
           }
 
           .info-desc {
             color: #374151;
-            font-size: 9.5px;
-            margin-bottom: 5px;
+            font-size: 9px;
+            line-height: 1.25;
+            margin-bottom: 3px;
             text-transform: none;
           }
 
           .info-section {
-            margin-bottom: 3px;
-            font-size: 9px;
+            margin-bottom: 2px;
+            font-size: 8.5px;
+            line-height: 1.25;
             text-transform: none;
 
             &-label {
@@ -2189,21 +2203,21 @@ export default {
             }
           }
 
-          .info-close-btn {
-            margin-top: 5px;
-            background: #ede6dc;
-            border: 1px solid #dcd5cb;
-            color: #111827;
-            font-size: 9px;
-            font-weight: 800;
-            padding: 3px 6px;
-            cursor: pointer;
-            align-self: flex-start;
-            transition: background 0.15s ease;
+          .info-hint {
+            font-size: 8.5px;
+            color: #4b5563;
+            background: #f0ebe1;
+            padding: 2px 5px;
+            text-align: center;
+            font-weight: 700;
             text-transform: uppercase;
+            margin-top: 2px;
+            border-radius: 2px;
+            transition: background 0.15s ease, color 0.15s ease;
 
             &:hover {
               background: #ded8ce;
+              color: #111827;
             }
           }
         }
