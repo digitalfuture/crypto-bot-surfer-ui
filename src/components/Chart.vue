@@ -173,8 +173,8 @@
       />
     </div>
 
-    <!-- Legend toolbar (hidden when in monitor view) -->
-    <div v-show="!isMonitorView" class="info-container">
+    <!-- Legend toolbar (hidden when in monitor view or fullscreen) -->
+    <div v-show="!isMonitorView && !isFullScreen" class="info-container">
       <!-- Open files -->
       <input
         type="file"
@@ -206,8 +206,8 @@
       </div>
     </div>
 
-    <!-- Tickers lines (hidden when in monitor view) -->
-    <section v-show="!isMonitorView" ref="legend" class="legend">
+    <!-- Tickers lines (hidden when in monitor view or fullscreen) -->
+    <section v-show="!isMonitorView && !isFullScreen" ref="legend" class="legend">
       <div
         v-for="(line, index) in lines"
         :key="index"
@@ -454,8 +454,10 @@ export default {
   watch: {
     isFullScreen(isFullscreen) {
       if (isFullscreen) {
+        document.body.style.overflow = "hidden";
         chart.applyOptions({ height: window.innerHeight });
       } else {
+        document.body.style.overflow = "";
         chart.applyOptions({ height: this.chartOptions.height });
       }
     },
@@ -1408,7 +1410,7 @@ export default {
 .top-bar-menu {
   position: absolute;
   top: 7px;
-  left: 82px;
+  left: 18px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1545,7 +1547,7 @@ export default {
 .top-bar-right {
   position: absolute;
   top: 7px;
-  right: 82px;
+  right: 18px;
   display: flex;
   align-items: center;
   z-index: 9999;
