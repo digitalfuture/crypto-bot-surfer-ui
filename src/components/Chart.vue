@@ -4,6 +4,8 @@
     v-show="!isLoading && lines.length > 0 && !isMonitorView"
     class="chart cursor-pointer"
     id="chart-container"
+    @dblclick="applyLongestScale"
+    title="Двойной клик для автомасштабирования по всей длине"
   />
 
   <!-- Flat System & Bots Monitor View (replaces chart when active) -->
@@ -564,10 +566,13 @@ export default {
         rightPriceScale: {
           visible: true,
           autoScale: true,
+          scaleMargins: {
+            top: 0.15,
+            bottom: 0.15,
+          },
         },
         leftPriceScale: {
-          autoScale: true,
-          visible: true,
+          visible: false,
         },
         layout: {
           background: { color: "transparent" },
@@ -599,12 +604,15 @@ export default {
 
   watch: {
     isFullScreen(isFullscreen) {
+      if (!chart) return;
       if (isFullscreen) {
         document.body.style.overflow = "hidden";
-        chart.applyOptions({ height: window.innerHeight });
+        chart.applyOptions({ height: window.innerHeight, width: window.innerWidth });
+        this.applyLongestScale();
       } else {
         document.body.style.overflow = "";
-        chart.applyOptions({ height: this.chartOptions.height });
+        chart.applyOptions({ height: this.chartOptions.height, width: window.innerWidth - 20 });
+        this.applyLongestScale();
       }
     },
 
@@ -629,9 +637,7 @@ export default {
     },
 
     linesEnabled() {
-      if (this.linesEnabled.length === 1) {
-        this.zoomToLine(this.linesEnabled[0]);
-      }
+      this.applyLongestScale();
 
       if (this.zoom) {
         this.zoomCondition = this.computeZoomCondition(this.zoom);
@@ -695,7 +701,7 @@ export default {
       this.setupChartTotal();
       this.setupChartLines();
 
-      chart.timeScale().fitContent();
+      this.applyLongestScale();
 
       this.setupZoomListener();
       this.setupAnnotations();
@@ -717,6 +723,8 @@ export default {
           visible: !this.hasLineTotalOnly && !line.disabled,
           priceLineVisible: false,
           lastValueVisible: true,
+          autoscaleInfoProvider: (original) =>
+            this.getSeriesAutoscaleInfo(original),
         });
 
         const seriesData = this.prepareSeriesData(line.data);
@@ -738,6 +746,8 @@ export default {
         visible: this.isLineTotalVisible && this.linesEnabled.length !== 1,
         priceLineVisible: false,
         lastValueVisible: true,
+        autoscaleInfoProvider: (original) =>
+          this.getSeriesAutoscaleInfo(original),
       });
 
       const seriesDataTotal = this.prepareSeriesDataTotal();
@@ -1080,7 +1090,7 @@ export default {
       this.setupChartLines();
       this.setupChartTotal();
 
-      chart.timeScale().fitContent();
+      this.applyLongestScale();
       this.setupZoomListener();
 
       if (this.linesEnabled.length === 1 || this.zoomCondition) {
@@ -1164,28 +1174,111 @@ export default {
       return visibleSec <= 10800;
     },
 
-    zoomToLine(line) {
-      if (!chart || !line?.data || line.data.length === 0) return;
-      const seriesData = this.prepareSeriesData(line.data);
-      if (seriesData.length === 0) return;
-
-      const firstTime = seriesData[0].time;
-      const lastTime = seriesData[seriesData.length - 1].time;
-
-      if (firstTime && lastTime) {
-        if (lastTime > firstTime) {
-          const pad = Math.max(60, Math.floor((lastTime - firstTime) * 0.03));
-          chart.timeScale().setVisibleRange({
-            from: firstTime - pad,
-            to: lastTime + pad,
-          });
-        } else {
-          chart.timeScale().setVisibleRange({
-            from: firstTime - 300,
-            to: firstTime + 300,
-          });
-        }
+    getSeriesAutoscaleInfo(original) {
+      const res = original?.();
+      if (!res || !res.priceRange) {
+        return {
+          priceRange: { minValue: -0.5, maxValue: 0.5 },
+          margins: { above: 15, below: 15 },
+        };
       }
+      let { minValue, maxValue } = res.priceRange;
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+        return {
+          priceRange: { minValue: -0.5, maxValue: 0.5 },
+          margins: { above: 15, below: 15 },
+        };
+      }
+      // If flat line (e.g. 0% or min === max), expand so line is centered with clean margins
+      if (Math.abs(maxValue - minValue) < 0.0001) {
+        const delta =
+          Math.abs(minValue) > 0.01 ? Math.abs(minValue) * 0.2 : 0.5;
+        return {
+          priceRange: {
+            minValue: minValue - delta,
+            maxValue: maxValue + delta,
+          },
+          margins: { above: 20, below: 20 },
+        };
+      }
+      // Proportional padding so extremes never touch the canvas border
+      const span = maxValue - minValue;
+      const pad = Math.max(0.05, span * 0.1);
+      return {
+        priceRange: {
+          minValue: minValue - pad,
+          maxValue: maxValue + pad,
+        },
+        margins: { above: 15, below: 15 },
+      };
+    },
+
+    getLongestTimeRange() {
+      let minTime = Infinity;
+      let maxTime = -Infinity;
+
+      // Scan all lines in the system
+      for (const line of this.lines) {
+        if (!line?.data || line.data.length === 0) continue;
+        const seriesData = this.prepareSeriesData(line.data);
+        if (!seriesData || seriesData.length === 0) continue;
+
+        const first = seriesData[0].time;
+        const last = seriesData[seriesData.length - 1].time;
+
+        if (first < minTime) minTime = first;
+        if (last > maxTime) maxTime = last;
+      }
+
+      const nowSec = Math.floor(Date.now() / 1000);
+
+      // If no data exists across any line, default to recent 30-minute window
+      if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) {
+        return { from: nowSec - 1800, to: nowSec + 120 };
+      }
+
+      // If maxTime is older than nowSec but within current trading session (6 hours),
+      // extend up to nowSec so current time is aligned at right
+      if (nowSec > maxTime && nowSec - maxTime < 21600) {
+        maxTime = nowSec;
+      }
+
+      const span = maxTime - minTime;
+      // If very short span (< 5 mins), ensure comfortable 15-minute window
+      if (span < 300) {
+        const center = Math.floor((minTime + maxTime) / 2);
+        return {
+          from: center - 600,
+          to: center + 300,
+        };
+      }
+
+      const pad = Math.max(60, Math.floor(span * 0.04));
+      return {
+        from: minTime - pad,
+        to: maxTime + pad,
+      };
+    },
+
+    applyLongestScale() {
+      if (!chart) return;
+      const range = this.getLongestTimeRange();
+      if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
+        try {
+          chart.timeScale().setVisibleRange(range);
+        } catch (e) {
+          chart.timeScale().fitContent();
+        }
+      } else {
+        chart.timeScale().fitContent();
+      }
+
+      // Automatically recalibrate and scale vertical height for currently visible lines
+      chart.priceScale("right").applyOptions({ autoScale: true });
+    },
+
+    zoomToLine(line) {
+      this.applyLongestScale();
     },
 
     updateLineVisibility(index: number) {
@@ -1201,20 +1294,17 @@ export default {
       // Total line
       this.updateLineTotal();
 
-      if (this.linesEnabled.length === 1) {
-        this.zoomToLine(this.linesEnabled[0]);
-      } else if (this.linesEnabled.length === this.lines.length) {
-        chart?.timeScale().fitContent();
-      }
+      this.zoom = null;
+      this.applyLongestScale();
 
-      if (this.zoom) {
-        this.zoomCondition = this.computeZoomCondition(this.zoom);
-      } else if (this.linesEnabled.length === 1) {
+      if (this.linesEnabled.length === 1) {
         const seriesData = this.prepareSeriesData(this.linesEnabled[0].data);
         const tradeCount = seriesData.filter(
           (d) => d.trade === "BUY" || d.trade === "SELL"
         ).length;
         this.zoomCondition = tradeCount <= 15;
+      } else if (this.zoom) {
+        this.zoomCondition = this.computeZoomCondition(this.zoom);
       } else {
         this.zoomCondition = false;
       }
@@ -1239,7 +1329,8 @@ export default {
           l.disabled = false;
           lineSeries[i]?.applyOptions({ visible: true });
         });
-        chart?.timeScale().fitContent();
+        this.zoom = null;
+        this.applyLongestScale();
         this.clearMarks();
       } else {
         // Solo this line
@@ -1247,16 +1338,14 @@ export default {
           l.disabled = i !== index;
           lineSeries[i]?.applyOptions({ visible: i === index });
         });
-        this.zoomToLine(line);
-        if (this.zoom) {
-          this.zoomCondition = this.computeZoomCondition(this.zoom);
-        } else {
-          const seriesData = this.prepareSeriesData(line.data);
-          const tradeCount = seriesData.filter(
-            (d) => d.trade === "BUY" || d.trade === "SELL"
-          ).length;
-          this.zoomCondition = tradeCount <= 15;
-        }
+        this.zoom = null;
+        this.applyLongestScale();
+        const seriesData = this.prepareSeriesData(line.data);
+        const tradeCount = seriesData.filter(
+          (d) => d.trade === "BUY" || d.trade === "SELL"
+        ).length;
+        this.zoomCondition = tradeCount <= 15;
+
         if (this.zoomCondition) {
           this.setMarks();
         } else {
@@ -1267,7 +1356,7 @@ export default {
       this.updateLineTotal();
     },
 
-    selectBotChart(botName: string) {
+    async selectBotChart(botName: string) {
       const clean = botName?.trim().toUpperCase();
       const targetIndex = this.lines.findIndex(
         (l) => l.name?.toUpperCase() === clean
@@ -1282,19 +1371,26 @@ export default {
 
       // Switch to Chart View
       this.isMonitorView = false;
-
       this.updateLineTotal();
-      this.zoomToLine(this.lines[targetIndex]);
 
-      if (this.zoom) {
-        this.zoomCondition = this.computeZoomCondition(this.zoom);
-      } else {
-        const seriesData = this.prepareSeriesData(this.lines[targetIndex].data);
-        const tradeCount = seriesData.filter(
-          (d) => d.trade === "BUY" || d.trade === "SELL"
-        ).length;
-        this.zoomCondition = tradeCount <= 15;
+      // Ensure chart container is rendered in DOM
+      await this.$nextTick();
+
+      if (chart) {
+        chart.resize(
+          window.innerWidth - 20,
+          this.chartOptions.height,
+          true
+        );
+        this.zoom = null;
+        this.applyLongestScale();
       }
+
+      const seriesData = this.prepareSeriesData(this.lines[targetIndex].data);
+      const tradeCount = seriesData.filter(
+        (d) => d.trade === "BUY" || d.trade === "SELL"
+      ).length;
+      this.zoomCondition = tradeCount <= 15;
 
       if (this.zoomCondition) {
         this.setMarks();
@@ -1318,6 +1414,8 @@ export default {
             visible: !this.hasLineTotalOnly && !line.disabled,
             priceLineVisible: false,
             lastValueVisible: true,
+            autoscaleInfoProvider: (original) =>
+              this.getSeriesAutoscaleInfo(original),
           });
           newLineSeries.setData(seriesData);
           lineSeries.push(newLineSeries);
@@ -1653,7 +1751,7 @@ export default {
               this.chartOptions.height,
               true
             );
-            chart.timeScale().fitContent();
+            this.applyLongestScale();
           }
         });
       } else {
