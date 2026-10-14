@@ -32,9 +32,16 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          TOTAL EQUITY:
+          AVG PROFIT:
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
-            {{ totalProfit }}%
+            {{ parseFloat(totalProfit) > 0 ? '+' : '' }}{{ totalProfit }}%
+          </strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          TOTAL SUM:
+          <strong :class="parseFloat(totalSumProfit) >= 0 ? 'text-green' : 'text-red'">
+            {{ totalSumProfit }}%
           </strong>
         </span>
       </div>
@@ -217,17 +224,18 @@
         @change="convertFileDataToLines"
       />
 
-      <!-- Total -->
+      <!-- Total / Average -->
       <div
         class="total info line clip-right cursor-pointer"
         :class="{
           'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
         }"
         @click="updateLineTotalVisibility"
+        :title="'Средняя доходность активных ботов: ' + totalProfit + '%, суммарная: ' + totalSumProfit + '%'"
       >
         <div class="line__details info">
-          <span class="line__name">TOTAL EQUITY</span>
-          <span class="line__last-value"> {{ totalProfit }}</span>
+          <span class="line__name">AVG (Σ {{ totalSumProfit }}%)</span>
+          <span class="line__last-value">{{ parseFloat(totalProfit) > 0 ? '+' : '' }}{{ totalProfit }}</span>
           <span
             class="round"
             :class="{
@@ -589,6 +597,18 @@ export default {
         : "0.00";
     },
 
+    totalSumProfit() {
+      let sum = 0;
+      for (const line of this.linesEnabled) {
+        if (!line?.data || line.data.length === 0) continue;
+        const series = this.prepareSeriesData(line.data);
+        if (series.length > 0) {
+          sum += series[series.length - 1].value;
+        }
+      }
+      return sum > 0 ? `+${sum.toFixed(2)}` : sum.toFixed(2);
+    },
+
     linesEnabled() {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
@@ -908,11 +928,16 @@ export default {
       const linesDataTotal: ISeries[] = allTimesData.map(
         (time: number, index: number) => {
           let sum = 0;
-          for (const aligned of alignedLines) {
-            sum += aligned[index];
+          let activeCount = 0;
+          for (let k = 0; k < alignedLines.length; k++) {
+            const series = allPreparedLines[k];
+            // Only count bots that have actually traded and started by this timestamp
+            if (series && series.length > 0 && series[0].time <= time) {
+              sum += alignedLines[k][index];
+              activeCount++;
+            }
           }
-          const averageValue =
-            alignedLines.length > 0 ? sum / alignedLines.length : 0;
+          const averageValue = activeCount > 0 ? sum / activeCount : 0;
 
           return {
             time,
