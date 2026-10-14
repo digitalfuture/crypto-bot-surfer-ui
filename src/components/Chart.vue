@@ -1001,6 +1001,48 @@ export default {
       return hasChanges;
     },
 
+    loadCachedLines(): boolean {
+      try {
+        if (typeof window === "undefined" || !window.localStorage) return false;
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v1");
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0 &&
+          parsed[0].name &&
+          Array.isArray(parsed[0].data)
+        ) {
+          this.lines = parsed;
+          return true;
+        }
+      } catch (err) {
+        console.warn("Could not load lines from cache:", err);
+      }
+      return false;
+    },
+
+    saveLinesToCache() {
+      try {
+        if (typeof window === "undefined" || !window.localStorage) return;
+        if (!this.lines || !this.lines.length) return;
+        const toSave = this.lines.map((l: ILine) => ({
+          name: l.name,
+          fileName: l.fileName,
+          mtime: l.mtime,
+          data: l.data,
+          color: l.color,
+          disabled: l.disabled,
+        }));
+        window.localStorage.setItem(
+          "crypto_bot_chart_lines_v1",
+          JSON.stringify(toSave)
+        );
+      } catch (err) {
+        console.warn("Could not save lines to cache:", err);
+      }
+    },
+
     async convertFileDataToLines({ target }) {
       // console.log(event.target.files);
       const inputFiles = [...target.files];
@@ -1058,6 +1100,10 @@ export default {
 
     //// Updates
     updateChart() {
+      if (lineSeries.length !== this.lines.length) {
+        this.initChart();
+        return;
+      }
       this.updateLines();
       this.updateLineTotal();
       if (this.linesEnabled.length === 1 || this.zoomCondition) {
@@ -1308,6 +1354,7 @@ export default {
         const hasUpdates = this.convertServerDataToLines({ isUpdate: true });
         if (hasUpdates) {
           this.updateChart();
+          this.saveLinesToCache();
         }
       } finally {
         this.isRefreshing = false;
@@ -1627,10 +1674,27 @@ export default {
 
   //// Life cycle
   async mounted() {
-    await this.fetchData(true);
+    const hasCache = this.loadCachedLines();
+    if (hasCache) {
+      this.isLoading = false;
+      await this.$nextTick();
+      await this.initChart();
+    }
+
+    await this.fetchData(!hasCache);
     this.fetchBotStatus();
 
-    this.initChart();
+    if (!hasCache) {
+      await this.initChart();
+      this.saveLinesToCache();
+    } else {
+      const hasUpdates = this.convertServerDataToLines({ isUpdate: true });
+      if (hasUpdates) {
+        this.updateChart();
+        this.saveLinesToCache();
+      }
+    }
+
     this.setupResizeListener();
     this.setupChartUpdate();
   },
