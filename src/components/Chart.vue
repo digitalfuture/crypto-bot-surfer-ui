@@ -288,10 +288,16 @@ import { createChart } from "lightweight-charts";
 export interface IServerLine {
   name: string;
   data: string[];
+  total?: number;
+  offset?: number;
+  isDelta?: boolean;
+  mtime?: number;
 }
 
 export interface ILine {
   name: string;
+  fileName?: string;
+  mtime?: number;
   data: string[][];
   color: string;
   disabled: boolean;
@@ -922,22 +928,77 @@ export default {
       return linesDataTotal;
     },
 
-    // Convert server data to lines
-    convertServerDataToLines({ isUpdate }) {
-      const lines: ILine[] = this.serverLines.map(
-        (file: IServerLine, index: number): ILine => {
-          const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
-          const existingLine = this.lines.find((l: ILine) => l.name === lineName);
-          return {
+    // Convert / apply server data to lines (supports full reload & incremental delta updates)
+    convertServerDataToLines({ isUpdate }: { isUpdate: boolean }): boolean {
+      if (!this.serverLines || !this.serverLines.length) return false;
+
+      // Initial load: populate this.lines completely
+      if (!this.lines.length || !isUpdate) {
+        const lines: ILine[] = this.serverLines.map(
+          (file: IServerLine, index: number): ILine => {
+            const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
+            const existingLine = this.lines.find((l: ILine) => l.name === lineName);
+            return {
+              name: lineName,
+              fileName: file.name,
+              mtime: file.mtime,
+              data: file.data.map((item: string): string[] => item.split(",")),
+              color: this.getColor(index),
+              disabled: isUpdate ? (existingLine?.disabled ?? true) : true,
+            };
+          }
+        );
+
+        this.lines = lines;
+        return true;
+      }
+
+      // Delta / incremental update:
+      let hasChanges = false;
+      for (const [index, file] of this.serverLines.entries()) {
+        const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
+        let line = this.lines.find(
+          (l: ILine) => l.fileName === file.name || l.name === lineName
+        );
+
+        if (!line) {
+          // Dynamic discovery of a newly added bot file
+          const newLine: ILine = {
             name: lineName,
+            fileName: file.name,
+            mtime: file.mtime,
             data: file.data.map((item: string): string[] => item.split(",")),
             color: this.getColor(index),
-            disabled: isUpdate ? (existingLine?.disabled ?? true) : true,
+            disabled: true,
           };
+          this.lines.push(newLine);
+          hasChanges = true;
+          continue;
         }
-      );
 
-      this.lines = lines;
+        if (!line.fileName) {
+          line.fileName = file.name;
+        }
+        if (file.mtime) {
+          line.mtime = file.mtime;
+        }
+
+        if (file.isDelta) {
+          // Incremental: only append new rows if any exist
+          if (file.data && file.data.length > 0) {
+            const newRows = file.data.map((item: string): string[] => item.split(","));
+            line.data.push(...newRows);
+            hasChanges = true;
+          }
+        } else {
+          // Full replacement for this line (file reset, shrunk or forced reload)
+          const allRows = file.data.map((item: string): string[] => item.split(","));
+          line.data = allRows;
+          hasChanges = true;
+        }
+      }
+
+      return hasChanges;
     },
 
     async convertFileDataToLines({ target }) {
@@ -1244,8 +1305,10 @@ export default {
       this.isRefreshing = true;
       try {
         await Promise.all([this.fetchData(), this.fetchBotStatus()]);
-        this.convertServerDataToLines({ isUpdate: true });
-        this.updateChart();
+        const hasUpdates = this.convertServerDataToLines({ isUpdate: true });
+        if (hasUpdates) {
+          this.updateChart();
+        }
       } finally {
         this.isRefreshing = false;
       }
@@ -1396,15 +1459,36 @@ export default {
     },
 
     //// API
-    async fetchData() {
+    async fetchData(forceFull = false) {
       try {
-        const response = await fetch("/lines");
+        let url = "/lines";
+        if (!forceFull && this.lines && this.lines.length > 0) {
+          const counts: Record<string, number> = {};
+          const mtimes: Record<string, number> = {};
+          for (const line of this.lines) {
+            const key =
+              line.fileName || (line.name ? `trades-${line.name}.csv` : "");
+            if (key) {
+              counts[key] = line.data ? line.data.length : 0;
+              if (line.mtime) {
+                mtimes[key] = line.mtime;
+              }
+            }
+          }
+          const params = new URLSearchParams();
+          params.set("counts", JSON.stringify(counts));
+          if (Object.keys(mtimes).length > 0) {
+            params.set("mtimes", JSON.stringify(mtimes));
+          }
+          url = `/lines?${params.toString()}`;
+        }
+
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const serverLines: IServerLine[] = await response.json();
         this.serverLines = serverLines;
-        this.convertServerDataToLines({ isUpdate: Boolean(chart) });
         this.isLoading = false;
       } catch (error) {
         console.error("Error fetching lines:", error);
@@ -1543,7 +1627,7 @@ export default {
 
   //// Life cycle
   async mounted() {
-    await this.fetchData();
+    await this.fetchData(true);
     this.fetchBotStatus();
 
     this.initChart();

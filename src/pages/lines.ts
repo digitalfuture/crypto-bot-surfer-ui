@@ -1,15 +1,42 @@
 import type { APIRoute } from "astro";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export interface IServerLine {
   name: string;
   data: string[];
+  total?: number;
+  offset?: number;
+  isDelta?: boolean;
+  mtime?: number;
 }
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
   try {
+    const url = new URL(request.url);
+    const countsParam = url.searchParams.get("counts");
+    const mtimesParam = url.searchParams.get("mtimes");
+
+    let clientCounts: Record<string, number> | null = null;
+    let clientMtimes: Record<string, number> | null = null;
+
+    if (countsParam) {
+      try {
+        clientCounts = JSON.parse(countsParam);
+      } catch {
+        clientCounts = null;
+      }
+    }
+
+    if (mtimesParam) {
+      try {
+        clientMtimes = JSON.parse(mtimesParam);
+      } catch {
+        clientMtimes = null;
+      }
+    }
+
     const isDev = import.meta.env.DEV;
     const siblingReportDir = resolve(
       process.cwd(),
@@ -82,18 +109,103 @@ export const GET: APIRoute = async () => {
 
     for (const fileName of csvFiles) {
       const filePath = join(directoryPath, fileName);
-      const fileData = await readFile(filePath, { encoding: "utf8" });
+      const fileStat = await stat(filePath);
+      const fileMtime = Math.floor(fileStat.mtimeMs);
 
-      const rows = fileData
+      const id = fileName
+        .replace(/\.csv$/i, "")
+        .replace(/^trades[-_]/i, "")
+        .toLowerCase();
+
+      const rawCount = clientCounts
+        ? clientCounts[fileName] ??
+          clientCounts[id] ??
+          clientCounts[`trades-${id}.csv`]
+        : undefined;
+      const clientCount =
+        typeof rawCount === "number" && !isNaN(rawCount) && rawCount >= 0
+          ? rawCount
+          : null;
+
+      const rawMtime = clientMtimes
+        ? clientMtimes[fileName] ??
+          clientMtimes[id] ??
+          clientMtimes[`trades-${id}.csv`]
+        : undefined;
+      const clientMtime =
+        typeof rawMtime === "number" && !isNaN(rawMtime) && rawMtime > 0
+          ? rawMtime
+          : null;
+
+      // Fast path: if client provided mtime and count, and file mtime has not changed at all:
+      if (
+        clientMtime !== null &&
+        clientCount !== null &&
+        fileMtime <= clientMtime
+      ) {
+        fileList.push({
+          name: fileName,
+          data: [],
+          total: clientCount,
+          offset: clientCount,
+          isDelta: true,
+          mtime: fileMtime,
+        });
+        continue;
+      }
+
+      // File was modified or client has no mtime: read file
+      const fileData = await readFile(filePath, { encoding: "utf8" });
+      const allRows = fileData
         .trim()
         .split(/\r?\n/)
         .slice(1)
-        .filter((line) => line.trim().length > 0)
-        .slice(-10000);
+        .filter((line) => line.trim().length > 0);
+
+      const totalRows = allRows.length;
+
+      let returnRows: string[];
+      let offset = 0;
+      let isDelta = false;
+
+      if (clientCount !== null) {
+        if (clientCount === totalRows) {
+          // File was modified but row count didn't change (e.g. commission edit in-place)
+          // If mtime changed, reload full file to reflect in-place changes
+          if (clientMtime !== null && fileMtime > clientMtime) {
+            returnRows = allRows.slice(-10000);
+            offset = 0;
+            isDelta = false;
+          } else {
+            returnRows = [];
+            offset = clientCount;
+            isDelta = true;
+          }
+        } else if (clientCount < totalRows) {
+          // Client only needs new rows appended since clientCount
+          returnRows = allRows.slice(clientCount);
+          offset = clientCount;
+          isDelta = true;
+        } else {
+          // File was truncated or reset -> reload full rows
+          returnRows = allRows.slice(-10000);
+          offset = 0;
+          isDelta = false;
+        }
+      } else {
+        // Initial full load
+        returnRows = allRows.slice(-10000);
+        offset = 0;
+        isDelta = false;
+      }
 
       fileList.push({
         name: fileName,
-        data: rows,
+        data: returnRows,
+        total: totalRows,
+        offset,
+        isDelta,
+        mtime: fileMtime,
       });
     }
 
