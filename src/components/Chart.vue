@@ -1547,7 +1547,7 @@ export default {
 .top-bar-right {
   position: absolute;
   top: 7px;
-  right: 18px;
+  right: 70px;
   display: flex;
   align-items: center;
   z-index: 9999;
@@ -1560,7 +1560,7 @@ export default {
 
   @media (max-width: 768px) {
     top: 6px;
-    right: 8px;
+    right: 62px;
 
     .full-screen-button {
       width: 24px;
