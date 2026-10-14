@@ -1010,7 +1010,7 @@ export default {
               mtime: file.mtime,
               data: file.data.map((item: string): string[] => item.split(",")),
               color: this.getColor(index),
-              disabled: isUpdate ? (existingLine?.disabled ?? false) : false,
+              disabled: isUpdate ? (existingLine?.disabled ?? true) : true,
             };
           }
         );
@@ -1035,7 +1035,7 @@ export default {
             mtime: file.mtime,
             data: file.data.map((item: string): string[] => item.split(",")),
             color: this.getColor(index),
-            disabled: false,
+            disabled: true,
           };
           this.lines.push(newLine);
           hasChanges = true;
@@ -1070,10 +1070,11 @@ export default {
     loadCachedLines(): boolean {
       try {
         if (typeof window === "undefined" || !window.localStorage) return false;
-        // Purge legacy v1 and v2 cache from previous sessions
+        // Purge legacy v1, v2, v3 caches from previous sessions
         window.localStorage.removeItem("crypto_bot_chart_lines_v1");
         window.localStorage.removeItem("crypto_bot_chart_lines_v2");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v3");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v3");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v4");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1082,7 +1083,11 @@ export default {
           parsed[0].name &&
           Array.isArray(parsed[0].data)
         ) {
-          this.lines = parsed;
+          // Default initial state: no individual line is selected
+          this.lines = parsed.map((l: ILine) => ({
+            ...l,
+            disabled: true,
+          }));
           return true;
         }
       } catch (err) {
@@ -1104,7 +1109,7 @@ export default {
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v3",
+          "crypto_bot_chart_lines_v4",
           JSON.stringify(toSave)
         );
       } catch (err) {
