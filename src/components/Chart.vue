@@ -62,15 +62,6 @@
         <div class="bot-card__header">
           <span class="bot-card__name" :title="bot.name">{{ formatBotName(bot.name) }}</span>
           <div class="bot-card__header-right">
-            <button
-              class="bot-card__info-btn cursor-pointer"
-              :class="{ 'bot-card__info-btn--active': isCardInfoOpen(bot.name) }"
-              @click.stop="toggleCardInfo(bot.name)"
-              :title="isCardInfoOpen(bot.name) ? 'Return to position view' : 'Strategy concept: ' + getStrategyInfo(bot.name).title"
-            >
-              <span v-if="!isCardInfoOpen(bot.name)">i</span>
-              <span v-else>✕</span>
-            </button>
             <span class="bot-card__pnl" :class="getBotPnl(bot) >= 0 ? 'text-green' : 'text-red'">
               {{ getBotPnl(bot) > 0 ? '+' : '' }}{{ getBotPnl(bot).toFixed(2) }}%
             </span>
@@ -78,67 +69,40 @@
         </div>
 
         <div class="bot-card__body">
-          <!-- Strategy Info View (Description on flip) -->
-          <div
-            v-if="isCardInfoOpen(bot.name)"
-            class="bot-card__info-view cursor-pointer"
-            @click.stop="toggleCardInfo(bot.name)"
-            title="Click to return to active position"
-          >
-            <div class="info-title">{{ getStrategyInfo(bot.name).title }}</div>
-            <div class="info-desc">{{ getStrategyInfo(bot.name).concept }}</div>
-            <div class="info-section">
-              <span class="info-section-label">CONCEPT:</span>
-              <span class="info-section-text">{{ getStrategyInfo(bot.name).concept }}</span>
+          <template v-if="bot.position">
+            <div class="pos-row pos-row--main">
+              <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
+                {{ bot.position.side }}
+              </span>
+              <span class="pos-symbol">{{ bot.position.symbol }}</span>
             </div>
-            <div class="info-section">
-              <span class="info-section-label">ENTRY:</span>
-              <span class="info-section-text">{{ getStrategyInfo(bot.name).entry }}</span>
-            </div>
-            <div class="info-section">
-              <span class="info-section-label">RISK:</span>
-              <span class="info-section-text">{{ getStrategyInfo(bot.name).risk }}</span>
-            </div>
-            <div class="info-hint">↩ BACK TO POSITION</div>
-          </div>
 
-          <!-- Live Trading View -->
-          <template v-else>
-            <template v-if="bot.position">
-              <div class="pos-row pos-row--main">
-                <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
-                  {{ bot.position.side }}
-                </span>
-                <span class="pos-symbol">{{ bot.position.symbol }}</span>
+            <div class="pos-details-grid">
+              <div class="detail-row">
+                <span class="detail-label">ENTRY</span>
+                <span class="detail-val">{{ bot.position.entryPrice }}</span>
               </div>
-
-              <div class="pos-details-grid">
-                <div class="detail-row">
-                  <span class="detail-label">ENTRY</span>
-                  <span class="detail-val">{{ bot.position.entryPrice }}</span>
-                </div>
-                <div v-if="bot.position.stopLoss" class="detail-row">
-                  <span class="detail-label">SL</span>
-                  <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
-                </div>
-                <div v-if="bot.position.takeProfit" class="detail-row">
-                  <span class="detail-label">TP</span>
-                  <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
-                </div>
-                <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
-                  <span class="detail-label">PEAK</span>
-                  <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
-                </div>
+              <div v-if="bot.position.stopLoss" class="detail-row">
+                <span class="detail-label">SL</span>
+                <span class="detail-val text-red">{{ formatTarget(bot.position.stopLoss) }}</span>
               </div>
-            </template>
-
-            <div v-else class="bot-card__scanning">
-              SCANNING FOR SETUPS
+              <div v-if="bot.position.takeProfit" class="detail-row">
+                <span class="detail-label">TP</span>
+                <span class="detail-val text-green">{{ formatTarget(bot.position.takeProfit) }}</span>
+              </div>
+              <div v-if="bot.position.shortPrice && bot.position.shortPrice !== bot.position.entryPrice" class="detail-row">
+                <span class="detail-label">PEAK</span>
+                <span class="detail-val">{{ formatTarget(bot.position.shortPrice) }}</span>
+              </div>
             </div>
           </template>
+
+          <div v-else class="bot-card__scanning">
+            SCANNING FOR SETUPS
+          </div>
         </div>
 
-        <div v-if="!isCardInfoOpen(bot.name)" class="bot-card__footer">
+        <div class="bot-card__footer">
           <span class="footer-trades">{{ bot.totalTrades }} TRADES</span>
           <span v-if="bot.lastTradeDate" class="footer-time">{{ formatTime(bot.lastTradeDate) }}</span>
         </div>
@@ -337,117 +301,6 @@ let lineSeriesTotal = null;
 
 const totalLineColor = "dimgray";
 
-const STRATEGY_DESCRIPTIONS: Record<string, { title: string; concept: string; entry: string; risk: string }> = {
-  "VOL-MOMENTUM": {
-    title: "Volatility Momentum (Volume Pool)",
-    concept: "Multi-candle momentum expansion filtered by volume >= 1.15x and noise elimination.",
-    entry: "Close > EMA 9 > EMA 21, bullish candle, RSI 52-76, volume > 1.15x of 20-period.",
-    risk: "Asymmetric Take-Profit (1.15x of risk) for positive mathematical expectation."
-  },
-  "VOL-BREAKOUT": {
-    title: "Institutional Breakout (ATR + ADX)",
-    concept: "4 setups (Breakout/Breakdown/Continuation/Exhaustion) with confirmed candle and BTC filter.",
-    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, orderbook spread and basis verification.",
-    risk: "Dynamic ATR stop with swing high/low, exchange fee buffer, and R:R >= 1.45."
-  },
-  VOLATILITY2: {
-    title: "Volatility Momentum (Volume Pool)",
-    concept: "Multi-candle momentum expansion filtered by volume >= 1.15x and noise elimination.",
-    entry: "Close > EMA 9 > EMA 21, bullish candle, RSI 52-76, volume > 1.15x of 20-period.",
-    risk: "Asymmetric Take-Profit (1.15x of risk) for positive mathematical expectation."
-  },
-  VOLATILITY3: {
-    title: "Institutional Breakout (ATR + ADX)",
-    concept: "4 setups (Breakout/Breakdown/Continuation/Exhaustion) with confirmed candle and BTC filter.",
-    entry: "EMA 9/20/50/200 + ADX > 22 + RSI, orderbook spread and basis verification.",
-    risk: "Dynamic ATR stop with swing high/low, exchange fee buffer, and R:R >= 1.45."
-  },
-  CHANNEL: {
-    title: "Channel Mean Reversion (BandWidth + %B/RSI)",
-    concept: "Mean reversion inside Bollinger bands (0.012-0.14 width) prioritizing consolidating assets.",
-    entry: "%B <= 0.18 & RSI <= 42 for Long; %B >= 0.82 & RSI >= 58 for Short, wick rejection >= 22%.",
-    risk: "SL outside band envelope, dynamic TP targeting SMA 20 median line (R:R >= 1:1)."
-  },
-  TREND: {
-    title: "Trend Following (EMA + Donchian)",
-    concept: "True Donchian channel breakout aligned with higher-timeframe trend (anti-chasing filter).",
-    entry: "EMA 9 > 21 > 50 fan, fresh Donchian 20 breakout, volume >= 1.25x, spot-futures basis check.",
-    risk: "Protective SL behind futures EMA 21 [0.9-1.35x Vol], trend TP 1.55x of risk."
-  },
-  PULLBACK: {
-    title: "Trend Dip Bounce",
-    concept: "Buying controlled pullbacks into dynamic EMA 21/50 support along macro trend.",
-    entry: "EMA 21/50 zone touch, confirmed candle shadow rejection >= 35%, RSI 44-62.",
-    risk: "Structural SL behind dip pivot and EMA 50 [0.85-1.3x Vol], TP 1.45x of risk (R:R 1:1.45)."
-  },
-  SCALPER: {
-    title: "Micro-Momentum Scalper",
-    concept: "High-frequency capture of local micro-volatility impulses with rapid turnover.",
-    entry: "EMA 7 > 14 > 30 fan, Fast RSI 9 (sweet spot 59/41), dual wick filter, volume >= 1.15x.",
-    risk: "Compact protective SL 0.85x Vol, quick TP 1.15x of risk (high win-rate scalping)."
-  },
-  "OB-WALL": {
-    title: "Orderbook Wall",
-    concept: "Trading off major institutional limit order walls in the orderbook ($40k+).",
-    entry: "Rebound off confirmed limit wall with spoofing protection filter.",
-    risk: "Tight SL behind wall limit, TP 1.8x of risk distance."
-  },
-  "ORDERBOOK-WALL": {
-    title: "Orderbook Wall",
-    concept: "Trading off major institutional limit order walls in the orderbook ($40k+).",
-    entry: "Rebound off confirmed limit wall with spoofing protection filter.",
-    risk: "Tight SL behind wall limit, TP 1.8x of risk distance."
-  },
-  "OB-IMBALANCE": {
-    title: "Orderbook Imbalance (OBI)",
-    concept: "Front-running order flow shifts based on bid/ask queue imbalance.",
-    entry: "Orderbook Imbalance OBI >= +0.22 with tight spread <= 0.18%.",
-    risk: "Volatility-based SL, TP 1.5x on queue normalization."
-  },
-  "ORDERBOOK-IMBALANCE": {
-    title: "Orderbook Imbalance (OBI)",
-    concept: "Front-running order flow shifts based on bid/ask queue imbalance.",
-    entry: "Orderbook Imbalance OBI >= +0.22 with tight spread <= 0.18%.",
-    risk: "Volatility-based SL, TP 1.5x on queue normalization."
-  },
-  "OB-ABSORPTION": {
-    title: "Limit Absorption",
-    concept: "Detecting passive institutional accumulation absorbing aggressive market orders.",
-    entry: "Market sell-off absorbed by passive bid queue above EMA 20, long absorption shadow.",
-    risk: "SL below absorption support level, TP 1.8x of risk distance."
-  },
-  "ORDERBOOK-ABSORPTION": {
-    title: "Limit Absorption",
-    concept: "Detecting passive institutional accumulation absorbing aggressive market orders.",
-    entry: "Market sell-off absorbed by passive bid queue above EMA 20, long absorption shadow.",
-    risk: "SL below absorption support level, TP 1.8x of risk distance."
-  },
-  "LIQUIDITY-SWEEP": {
-    title: "Liquidity Sweep",
-    concept: "Fading fakeouts and stop runs past key swing points with confirmed level reclaim.",
-    entry: "Level reclaim, wick rejection >= 38%, volume confirmation, EMA 20/50 trend filter.",
-    risk: "SL behind sweep extreme [0.65-1.35x Vol], dynamic TP 1.45x back into value range."
-  },
-  "MM-INVENTORY": {
-    title: "Market Maker Inventory (Avellaneda)",
-    concept: "Asymmetric quoting and inventory rebalancing based on the Avellaneda-Stoikov model.",
-    entry: "Price divergence from reservation price as inventory skew accumulates.",
-    risk: "Automated hedging and liquidation of excess inventory."
-  },
-  "OB-ICEBERG": {
-    title: "Iceberg Orders",
-    concept: "Algorithmic detection of hidden institutional iceberg orders replenishing size.",
-    entry: "Repeated hidden volume refill at a persistent price level.",
-    risk: "SL just beyond iceberg level, TP 1.8x in direction of hidden flow."
-  },
-  "ORDERBOOK-ICEBERG": {
-    title: "Iceberg Orders",
-    concept: "Algorithmic detection of hidden institutional iceberg orders replenishing size.",
-    entry: "Repeated hidden volume refill at a persistent price level.",
-    risk: "SL just beyond iceberg level, TP 1.8x in direction of hidden flow."
-  }
-};
-
 export default {
   name: "Chart",
 
@@ -462,7 +315,6 @@ export default {
       useCommission: true,
       isMonitorView: false,
       isRefreshing: false,
-      activeInfoBotMap: {},
       botStatusList: [],
       systemStatus: {
         status: "HEALTHY",
@@ -1713,40 +1565,6 @@ export default {
       return name.replace(/^ORDERBOOK-/i, "OB-");
     },
 
-    toggleCardInfo(botName: string) {
-      if (!botName) return;
-      const clean = botName.trim().toUpperCase();
-      this.activeInfoBotMap[clean] = !this.activeInfoBotMap[clean];
-    },
-
-    isCardInfoOpen(botName: string): boolean {
-      if (!botName) return false;
-      const clean = botName.trim().toUpperCase();
-      return Boolean(this.activeInfoBotMap[clean]);
-    },
-
-    getStrategyInfo(name: string) {
-      if (!name) {
-        return {
-          title: "Strategy",
-          concept: "Algorithmic quantitative trading system",
-          entry: "-",
-          risk: "-",
-        };
-      }
-      const clean = name.trim().toUpperCase().replace(/^TRADES[-_]/i, "").replace(/\.CSV$/i, "");
-      return (
-        STRATEGY_DESCRIPTIONS[clean] ||
-        STRATEGY_DESCRIPTIONS[clean.replace(/^OB-/, "ORDERBOOK-")] ||
-        STRATEGY_DESCRIPTIONS[clean.replace(/^ORDERBOOK-/, "OB-")] || {
-          title: name,
-          concept: "Algorithmic quantitative strategy",
-          entry: "Technical and market order flow signals",
-          risk: "Dynamic Stop-Loss and Take-Profit",
-        }
-      );
-    },
-
     toggleCommission() {
       this.useCommission = !this.useCommission;
     },
@@ -2351,30 +2169,6 @@ export default {
           flex-shrink: 0;
         }
 
-        .bot-card__info-btn {
-          width: 17px;
-          height: 17px;
-          border-radius: 50%;
-          background: #ede6dc;
-          border: 1px solid #dcd5cb;
-          color: #4b5563;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-family: Arial, sans-serif;
-          font-weight: 800;
-          padding: 0;
-          line-height: 1;
-          cursor: pointer;
-
-          &--active {
-            background: #111827;
-            color: #fff;
-            border-color: #111827;
-          }
-        }
-
         .bot-card__pnl {
           font-size: 11px;
           font-weight: 800;
@@ -2392,68 +2186,6 @@ export default {
         flex-direction: column;
         justify-content: space-between;
         overflow: hidden;
-
-        .bot-card__info-view {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 0;
-          font-size: 10px;
-          line-height: 1.3;
-          text-transform: none;
-          overflow: hidden;
-
-          .info-title {
-            font-weight: 800;
-            color: #111827;
-            font-size: 10px;
-            margin-bottom: 3px;
-            border-bottom: 1px solid #ede8e0;
-            padding-bottom: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-transform: none;
-          }
-
-          .info-desc {
-            color: #374151;
-            font-size: 9px;
-            line-height: 1.25;
-            margin-bottom: 3px;
-            text-transform: none;
-          }
-
-          .info-section {
-            margin-bottom: 2px;
-            font-size: 8.5px;
-            line-height: 1.25;
-            text-transform: none;
-
-            &-label {
-              font-weight: 800;
-              color: #111827;
-              margin-right: 3px;
-            }
-
-            &-text {
-              color: #4b5563;
-            }
-          }
-
-          .info-hint {
-            font-size: 8.5px;
-            color: #4b5563;
-            background: #f0ebe1;
-            padding: 2px 5px;
-            text-align: center;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-top: 2px;
-            border-radius: 2px;
-          }
-        }
 
         .pos-row--main {
           display: flex;
