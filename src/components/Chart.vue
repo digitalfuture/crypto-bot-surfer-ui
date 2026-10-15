@@ -783,7 +783,20 @@ export default {
 
     //// Prepare line series
     prepareSeriesData(lineData: string[][]): ISeries[] {
-      const tradeArray = lineData
+      // Deduplicate rows by (count, dateString) to prevent duplicate trades/ticks
+      const seenRowKeys = new Set<string>();
+      const dedupedData: string[][] = [];
+      for (const row of lineData) {
+        if (!row || row.length < 2) continue;
+        const count = row[0]?.trim();
+        const dateStr = row[1]?.trim();
+        const key = count && count !== "Count" ? `${count}_${dateStr}` : dateStr;
+        if (key && seenRowKeys.has(key)) continue;
+        if (key) seenRowKeys.add(key);
+        dedupedData.push(row);
+      }
+
+      const tradeArray = dedupedData
         .map((row: string[]) => {
           const [
             count,
@@ -1056,14 +1069,33 @@ export default {
         if (file.isDelta) {
           // Incremental: only append new rows if any exist
           if (file.data && file.data.length > 0) {
-            const newRows = file.data.map((item: string): string[] => item.split(","));
-            line.data.push(...newRows);
-            hasChanges = true;
+            const existingKeys = new Set(
+              line.data.map((r: string[]) => `${r[0]?.trim()}_${r[1]?.trim()}`)
+            );
+            const newRows = file.data
+              .map((item: string): string[] => item.split(","))
+              .filter((r: string[]) => {
+                const key = `${r[0]?.trim()}_${r[1]?.trim()}`;
+                return !existingKeys.has(key);
+              });
+            if (newRows.length > 0) {
+              line.data.push(...newRows);
+              hasChanges = true;
+            }
           }
         } else {
           // Full replacement for this line (file reset, shrunk or forced reload)
           const allRows = file.data.map((item: string): string[] => item.split(","));
-          line.data = allRows;
+          const seen = new Set<string>();
+          const uniqueRows: string[][] = [];
+          for (const r of allRows) {
+            const key = `${r[0]?.trim()}_${r[1]?.trim()}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              uniqueRows.push(r);
+            }
+          }
+          line.data = uniqueRows;
           hasChanges = true;
         }
       }
@@ -1196,55 +1228,13 @@ export default {
       }
     },
 
-    computeZoomCondition(value) {
-      if (!this.linesEnabled || this.linesEnabled.length === 0) return false;
-
-      // 1. If an individual chart is selected, ALWAYS show its trade markers!
-      if (this.linesEnabled.length === 1) {
-        return true;
-      }
-
-      // 2. Count total trades across all currently enabled bots
-      let totalTrades = 0;
-      for (const line of this.linesEnabled) {
-        if (!line?.data || line.data.length === 0) continue;
-        const seriesData = this.prepareSeriesData(line.data);
-        totalTrades += seriesData.filter(
-          (d) => d.trade === "BUY" || d.trade === "SELL"
-        ).length;
-      }
-
-      // If total trades across enabled bots is reasonable (<= 50 trades), show immediately!
-      if (totalTrades <= 50) {
-        return true;
-      }
-
-      // If dense trades (> 50 trades across bots), show when zoomed into <= 6 hours
-      const range = value || (chart ? chart.timeScale().getVisibleRange() : null);
-      if (range && range.from && range.to) {
-        const visibleSec = range.to - range.from;
-        return visibleSec <= 21600;
-      }
-
-      return true;
+    computeZoomCondition() {
+      return this.linesEnabled && this.linesEnabled.length === 1;
     },
 
     refreshMarks() {
       if (!chart || this.isMonitorView) return;
-      if (this.hasLineTotalOnly || this.linesEnabled.length === 0) {
-        this.clearMarks();
-        return;
-      }
-
-      let currentRange = chart.timeScale().getVisibleRange();
-      if (!currentRange) {
-        currentRange = this.getLongestTimeRange();
-      }
-
-      const shouldShow = this.computeZoomCondition(currentRange);
-      this.zoomCondition = shouldShow;
-
-      if (shouldShow) {
+      if (this.linesEnabled.length === 1) {
         this.setMarks();
       } else {
         this.clearMarks();
@@ -1564,93 +1554,33 @@ export default {
       });
     },
 
-    // Helper to generate distinct markers: OPEN = directional arrow, CLOSE = exit circle with PnL
-    buildMarkers(lineData: ISeries[]) {
-      const markers: any[] = [];
-      const tradeItems = lineData.filter(
-        ({ trade }) => trade === "BUY" || trade === "SELL"
-      );
-
-      for (let i = 0; i < tradeItems.length; i++) {
-        const item = tradeItems[i];
-        const { trade, time, count, profitPercent } = item;
-        const pnl = typeof profitPercent === "number" ? profitPercent : 0;
-
-        // A trade is a CLOSE if:
-        // 1) count is even (> 0), OR
-        // 2) profitPercent is non-zero, OR
-        // 3) index in trade list is odd (0 is open, 1 is close, etc.)
-        const isClose =
-          (count != null && count > 0 && count % 2 === 0) ||
-          pnl !== 0 ||
-          i % 2 === 1;
-
-        if (!isClose) {
-          // OPEN leg: Arrow indicating trade direction
-          const isLong = trade === "BUY";
-          markers.push({
-            time,
-            position: isLong ? "belowBar" : "aboveBar",
-            color: isLong ? "#10B981" : "#EF4444",
-            shape: isLong ? "arrowUp" : "arrowDown",
-            text: isLong ? "BUY" : "SELL",
-            id: `${time}-${count || i}-open`,
-          });
-        } else {
-          // CLOSE leg: Exit circle marker with PnL text
-          const isWin = pnl > 0;
-          const pnlText =
-            pnl !== 0
-              ? `${isWin ? "+" : ""}${pnl.toFixed(1)}%`
-              : "CLOSE";
-
-          markers.push({
-            time,
-            position: trade === "BUY" ? "belowBar" : "aboveBar",
-            color: isWin ? "#10B981" : "#EF4444",
-            shape: "circle",
-            text: pnlText,
-            id: `${time}-${count || i}-close`,
-          });
-        }
-      }
-
-      markers.sort((a, b) => a.time - b.time);
-      return markers;
-    },
-
     // Line marks
     setMarks() {
+      // Clear markers on all series first
+      lineSeries.forEach((s) => s?.setMarkers([]));
+      this.lineSeriesMarked = null;
+      this.isLineMarked = false;
+
+      // Only show markers when an individual bot chart is selected
       if (this.linesEnabled.length === 1) {
         const line = this.linesEnabled[0];
         const index = this.lines.indexOf(line);
         if (index === -1 || !lineSeries[index]) return;
 
-        // Skip re-applying if already marked on this solo series
-        if (this.lineSeriesMarked === lineSeries[index] && this.isLineMarked) {
-          return;
-        }
-
-        lineSeries.forEach((s) => s?.setMarkers([]));
         const lineData = this.prepareSeriesData(line.data);
-        const markers = this.buildMarkers(lineData);
+        const markers = lineData
+          .filter(({ trade }) => trade === "BUY" || trade === "SELL")
+          .map(({ trade, time, count }) => ({
+            time,
+            position: trade === "BUY" ? "belowBar" : "aboveBar",
+            color: trade === "BUY" ? "green" : "red",
+            shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+            id: `${time}-${trade}-${count || 0}`,
+          }));
 
         this.lineSeriesMarked = lineSeries[index];
         this.lineSeriesMarked?.setMarkers(markers);
         this.isLineMarked = true;
-      } else if (this.zoomCondition && this.linesEnabled.length > 0) {
-        lineSeries.forEach((s) => s?.setMarkers([]));
-        this.linesEnabled.forEach((line) => {
-          const index = this.lines.indexOf(line);
-          if (index !== -1 && lineSeries[index]) {
-            const lineData = this.prepareSeriesData(line.data);
-            const markers = this.buildMarkers(lineData);
-            lineSeries[index]?.setMarkers(markers);
-          }
-        });
-        this.isLineMarked = true;
-      } else {
-        this.clearMarks();
       }
     },
 
