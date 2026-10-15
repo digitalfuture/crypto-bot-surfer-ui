@@ -702,20 +702,12 @@ export default defineComponent({
       if (!this.useCommission) {
         let cumulativeCommissionPercent = 0;
 
-        tradeArray.forEach((trade, index) => {
-          // Commission is only deducted in report.js on position CLOSE (not on OPEN)
-          const isClose =
-            parseInt(trade.count, 10) % 2 === 0 ||
-            index % 2 === 1 ||
-            trade.profitPercent !== 0;
-
-          if (isClose) {
-            const commissionPercent =
-              trade.tradePrice > 0
-                ? (Math.abs(trade.commission) / trade.tradePrice) * 100
-                : 0;
-            cumulativeCommissionPercent += commissionPercent;
-          }
+        tradeArray.forEach((trade) => {
+          const legCommissionPercent =
+            trade.tradePrice > 0
+              ? (Math.abs(trade.commission) / trade.tradePrice) * 100
+              : 0;
+          cumulativeCommissionPercent += legCommissionPercent;
 
           trade.profitTotalPercent += cumulativeCommissionPercent;
         });

@@ -128,8 +128,9 @@ export const GET: APIRoute = async () => {
         if (!isNaN(lastTotalProfit)) totalProfit = lastTotalProfit;
         lastTradeDate = lastRow[1] || "";
 
-        // If profit === 0 on the last row, the trade is active
-        if (!isNaN(lastProfit) && lastProfit === 0) {
+        // Odd row count (1, 3, 5...) means the position is currently open
+        const isOddRow = lines.length % 2 === 1;
+        if (isOddRow) {
           isLastTradeOpen = true;
           const sym = lastRow[2];
           const tradeAction = lastRow[4];
