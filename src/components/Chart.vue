@@ -780,10 +780,60 @@ export default defineComponent({
 
       mapped.sort((a, b) => a.time - b.time);
 
+      // Fill time gaps with uniform intervals so physical distance corresponds to elapsed real time
+      const filled: ISeries[] = [];
+      if (mapped.length > 1) {
+        const firstTime = mapped[0].time;
+        const lastTime = mapped[mapped.length - 1].time;
+        const spanSec = Math.max(1, lastTime - firstTime);
+
+        // Adaptive step based on total duration of the series
+        let step = 60; // 1 minute default
+        if (spanSec > 30 * 86400) {
+          step = 3600; // 1 hour for > 30 days
+        } else if (spanSec > 7 * 86400) {
+          step = 900; // 15 mins for > 7 days
+        } else if (spanSec > 2 * 86400) {
+          step = 300; // 5 mins for > 2 days
+        }
+
+        for (let i = 0; i < mapped.length; i++) {
+          const current = mapped[i];
+          filled.push(current);
+
+          if (i < mapped.length - 1) {
+            const next = mapped[i + 1];
+            const gapSec = next.time - current.time;
+
+            if (gapSec > step) {
+              let nextGridTime = Math.floor(current.time / step) * step + step;
+              let safetyCount = 0;
+              while (nextGridTime < next.time && safetyCount < 10000) {
+                filled.push({
+                  time: nextGridTime,
+                  trade: "",
+                  price: current.price,
+                  value: current.value,
+                  profitPercent: 0,
+                  tokenName: current.tokenName,
+                  count: 0,
+                });
+                nextGridTime += step;
+                safetyCount++;
+              }
+            }
+          }
+        }
+      } else {
+        filled.push(...mapped);
+      }
+
+      filled.sort((a, b) => a.time - b.time);
+
       // Lightweight-charts requires strictly ascending time for line series
       const seriesData: ISeries[] = [];
       let lastTime = -Infinity;
-      for (const item of mapped) {
+      for (const item of filled) {
         let time = item.time;
         if (time <= lastTime) {
           time = lastTime + 1;
