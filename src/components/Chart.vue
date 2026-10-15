@@ -1568,8 +1568,16 @@ export default {
         if (index === -1 || !lineSeries[index]) return;
 
         const lineData = this.prepareSeriesData(line.data);
+        // Only trade OPENings (position entries) get directional arrow markers:
+        // - Long entry (BUY) -> green arrowUp belowBar
+        // - Short entry (SELL) -> red arrowDown aboveBar
+        // Trade exits (even counts) do not get markers, eliminating duplicate colliding arrows.
         const markers = lineData
-          .filter(({ trade }) => trade === "BUY" || trade === "SELL")
+          .filter(({ trade, count, profitPercent }) => {
+            if (trade !== "BUY" && trade !== "SELL") return false;
+            const isEntry = count > 0 ? count % 2 === 1 : profitPercent === 0;
+            return isEntry;
+          })
           .map(({ trade, time, count }) => ({
             time,
             position: trade === "BUY" ? "belowBar" : "aboveBar",
