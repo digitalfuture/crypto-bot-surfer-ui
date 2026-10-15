@@ -322,8 +322,11 @@ export interface ISeries {
   value: number;
   trade?: string;
   profit?: number;
+  profitPercent?: number;
   sum?: number;
   count?: number;
+  tokenName?: string;
+  price?: number;
 }
 </script>
 
@@ -838,12 +841,22 @@ export default {
       }
 
       const mapped = tradeArray.map(
-        ({ dateString, trade, tradePrice, profitTotalPercent, tokenName }) => {
+        ({
+          dateString,
+          trade,
+          tradePrice,
+          profitPercent,
+          profitTotalPercent,
+          tokenName,
+          count,
+        }) => {
           return {
             time: Math.floor(Date.parse(dateString) / 1000),
             trade,
             price: tradePrice,
             value: profitTotalPercent,
+            profitPercent,
+            count: parseInt(count, 10) || 0,
             tokenName,
           };
         }
@@ -1551,6 +1564,61 @@ export default {
       });
     },
 
+    // Helper to generate distinct markers: OPEN = directional arrow, CLOSE = exit circle with PnL
+    buildMarkers(lineData: ISeries[]) {
+      const markers: any[] = [];
+      const tradeItems = lineData.filter(
+        ({ trade }) => trade === "BUY" || trade === "SELL"
+      );
+
+      for (let i = 0; i < tradeItems.length; i++) {
+        const item = tradeItems[i];
+        const { trade, time, count, profitPercent } = item;
+        const pnl = typeof profitPercent === "number" ? profitPercent : 0;
+
+        // A trade is a CLOSE if:
+        // 1) count is even (> 0), OR
+        // 2) profitPercent is non-zero, OR
+        // 3) index in trade list is odd (0 is open, 1 is close, etc.)
+        const isClose =
+          (count != null && count > 0 && count % 2 === 0) ||
+          pnl !== 0 ||
+          i % 2 === 1;
+
+        if (!isClose) {
+          // OPEN leg: Arrow indicating trade direction
+          const isLong = trade === "BUY";
+          markers.push({
+            time,
+            position: isLong ? "belowBar" : "aboveBar",
+            color: isLong ? "#10B981" : "#EF4444",
+            shape: isLong ? "arrowUp" : "arrowDown",
+            text: isLong ? "BUY" : "SELL",
+            id: `${time}-${count || i}-open`,
+          });
+        } else {
+          // CLOSE leg: Exit circle marker with PnL text
+          const isWin = pnl > 0;
+          const pnlText =
+            pnl !== 0
+              ? `${isWin ? "+" : ""}${pnl.toFixed(1)}%`
+              : "CLOSE";
+
+          markers.push({
+            time,
+            position: trade === "BUY" ? "belowBar" : "aboveBar",
+            color: isWin ? "#10B981" : "#EF4444",
+            shape: "circle",
+            text: pnlText,
+            id: `${time}-${count || i}-close`,
+          });
+        }
+      }
+
+      markers.sort((a, b) => a.time - b.time);
+      return markers;
+    },
+
     // Line marks
     setMarks() {
       if (this.linesEnabled.length === 1) {
@@ -1565,15 +1633,7 @@ export default {
 
         lineSeries.forEach((s) => s?.setMarkers([]));
         const lineData = this.prepareSeriesData(line.data);
-        const markers = lineData
-          .filter(({ trade }) => trade === "BUY" || trade === "SELL")
-          .map(({ trade, time }) => ({
-            time,
-            position: trade === "BUY" ? "belowBar" : "aboveBar",
-            color: trade === "BUY" ? "green" : "red",
-            shape: trade === "BUY" ? "arrowUp" : "arrowDown",
-            id: `${time}-${trade}`,
-          }));
+        const markers = this.buildMarkers(lineData);
 
         this.lineSeriesMarked = lineSeries[index];
         this.lineSeriesMarked?.setMarkers(markers);
@@ -1584,15 +1644,7 @@ export default {
           const index = this.lines.indexOf(line);
           if (index !== -1 && lineSeries[index]) {
             const lineData = this.prepareSeriesData(line.data);
-            const markers = lineData
-              .filter(({ trade }) => trade === "BUY" || trade === "SELL")
-              .map(({ trade, time }) => ({
-                time,
-                position: trade === "BUY" ? "belowBar" : "aboveBar",
-                color: trade === "BUY" ? "green" : "red",
-                shape: trade === "BUY" ? "arrowUp" : "arrowDown",
-                id: `${time}-${trade}`,
-              }));
+            const markers = this.buildMarkers(lineData);
             lineSeries[index]?.setMarkers(markers);
           }
         });
