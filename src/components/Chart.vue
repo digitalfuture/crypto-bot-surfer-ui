@@ -32,16 +32,16 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          AVG PROFIT:
+          {{ isAbsoluteMode ? 'TOTAL PNL:' : 'AVG PROFIT:' }}
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
-            {{ parseFloat(totalProfit) > 0 ? '+' : '' }}{{ totalProfit }}%
+            {{ formatProfit(totalProfit) }}
           </strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          TOTAL SUM:
-          <strong :class="parseFloat(totalSumProfit) >= 0 ? 'text-green' : 'text-red'">
-            {{ totalSumProfit }}%
+          {{ isAbsoluteMode ? 'PORTFOLIO EQ:' : 'TOTAL SUM:' }}
+          <strong :class="isAbsoluteMode ? 'text-green' : (parseFloat(totalSumProfit) >= 0 ? 'text-green' : 'text-red')">
+            {{ isAbsoluteMode ? '$' + portfolioEquity : totalSumProfit + '%' }}
           </strong>
         </span>
       </div>
@@ -63,7 +63,7 @@
           <span class="bot-card__name" :title="bot.name">{{ formatBotName(bot.name) }}</span>
           <div class="bot-card__header-right">
             <span class="bot-card__pnl" :class="getBotPnl(bot) >= 0 ? 'text-green' : 'text-red'">
-              {{ getBotPnl(bot) > 0 ? '+' : '' }}{{ getBotPnl(bot).toFixed(2) }}%
+              {{ formatProfit(getBotPnl(bot)) }}
             </span>
           </div>
         </div>
@@ -165,6 +165,28 @@
           class="use-commission-button cursor-pointer"
         />
       </div>
+
+      <!-- Mode switcher (% / $) (THIRD) -->
+      <div
+        class="calc-mode-container"
+        :title="isAbsoluteMode ? 'Mode: Compounded Dollar ($10 base per bot) - Click to switch to Relative %' : 'Mode: Relative Percent (%) - Click to switch to Compounded Dollar ($10 base per bot)'"
+      >
+        <div class="calc-mode-pill" :class="{ 'calc-mode-pill--dollar': isAbsoluteMode }">
+          <span
+            class="calc-mode-item cursor-pointer"
+            :class="{ 'calc-mode-item--active': !isAbsoluteMode }"
+            @click="setCalcMode(false)"
+            title="Percentage Mode (%)"
+          >%</span>
+          <span class="calc-mode-sep">|</span>
+          <span
+            class="calc-mode-item cursor-pointer"
+            :class="{ 'calc-mode-item--active': isAbsoluteMode }"
+            @click="setCalcMode(true)"
+            title="Absolute Dollar Mode ($10 base)"
+          >$</span>
+        </div>
+      </div>
     </div>
 
     <!-- Top Right: Fullscreen Toggle Button -->
@@ -199,11 +221,19 @@
           'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
         }"
         @click="updateLineTotalVisibility"
-        :title="'Average active bots profit: ' + totalProfit + '%, Total cumulative: ' + totalSumProfit + '%'"
+        :title="
+          isAbsoluteMode
+            ? 'Total Portfolio profit: ' + formatProfit(totalProfit) + ' (Base $10/bot, Equity: $' + portfolioEquity + ')'
+            : 'Average active bots profit: ' + totalProfit + '%, Total cumulative: ' + totalSumProfit + '%'
+        "
       >
         <div class="line__details info">
-          <span class="line__name">AVG (Σ {{ totalSumProfit }}%)</span>
-          <span class="line__last-value">{{ parseFloat(totalProfit) > 0 ? '+' : '' }}{{ totalProfit }}</span>
+          <span class="line__name">
+            {{ isAbsoluteMode ? 'PORTFOLIO (EQ $' + portfolioEquity + ')' : 'AVG (Σ ' + totalSumProfit + '%)' }}
+          </span>
+          <span class="line__last-value">
+            {{ formatProfit(totalProfit) }}
+          </span>
           <span
             class="round"
             :class="{
@@ -327,6 +357,8 @@ export default defineComponent({
       isFullScreen: false as boolean,
       isLineMarked: false as boolean,
       useCommission: true as boolean,
+      isAbsoluteMode: false as boolean,
+      initialBotCapital: 10 as number,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
       botStatusList: [] as IBotStatus[],
@@ -474,10 +506,25 @@ export default defineComponent({
           horzTouchDrag: true,
           vertTouchDrag: false,
         },
+        localization: {
+          priceFormatter: (price: number) => this.formatProfit(price),
+        },
         layout: {
           background: { color: "transparent" },
         },
       };
+    },
+
+    portfolioEquity(): string {
+      const isAllLines =
+        this.hasLineTotalOnly ||
+        this.hasNoLines ||
+        this.linesEnabled.length === 0;
+      const targetLines = isAllLines ? this.lines : this.linesEnabled;
+      const count = targetLines.length || 12;
+      const baseCapital = count * this.initialBotCapital;
+      const profit = parseFloat(this.totalSumProfit) || 0;
+      return (baseCapital + profit).toFixed(2);
     },
 
     totalProfit(): string {
@@ -553,21 +600,55 @@ export default defineComponent({
       this.updateChart();
     },
 
+    isAbsoluteMode() {
+      if (chart) {
+        chart.applyOptions(this.chartOptions);
+      }
+      this.updateChart();
+      this.applyLongestScale();
+    },
+
     tradeDirection() {
       this.updateChart();
     },
   },
 
   methods: {
+    formatProfit(val: number | string | undefined | null): string {
+      if (val == null) return this.isAbsoluteMode ? "$0.00" : "0.00%";
+      const num = typeof val === "number" ? val : parseFloat(String(val));
+      if (isNaN(num)) return this.isAbsoluteMode ? "$0.00" : "0.00%";
+      const abs = Math.abs(num).toFixed(2);
+      const sign = abs === "0.00" ? "" : num > 0 ? "+" : "-";
+      if (this.isAbsoluteMode) {
+        return `${sign}$${abs}`;
+      }
+      return `${sign}${abs}%`;
+    },
+
+    setCalcMode(isAbsolute: boolean): void {
+      if (this.isAbsoluteMode === isAbsolute) return;
+      this.isAbsoluteMode = isAbsolute;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(
+            "crypto_bot_calc_mode",
+            this.isAbsoluteMode ? "dollar" : "percent"
+          );
+        }
+      } catch (e) {
+        console.warn("Could not save calc mode to localStorage:", e);
+      }
+    },
+
+    toggleCalcMode(): void {
+      this.setCalcMode(!this.isAbsoluteMode);
+    },
+
     getLegendValue(index: number): string {
       const lineData = this.linesData[index] || [];
       const lineValue = lineData[lineData.length - 1]?.value;
-      const result =
-        lineValue != null && !isNaN(lineValue)
-          ? Number(lineValue).toFixed(2)
-          : "0.00";
-
-      return result;
+      return this.formatProfit(lineValue);
     },
 
     //// Init chart
@@ -613,6 +694,11 @@ export default defineComponent({
           visible: isVisible,
           priceLineVisible: false,
           lastValueVisible: true,
+          priceFormat: {
+            type: "custom",
+            minMove: 0.01,
+            formatter: (val: number) => this.formatProfit(val),
+          },
           autoscaleInfoProvider: (original) =>
             this.getSeriesAutoscaleInfo(original),
         });
@@ -640,6 +726,11 @@ export default defineComponent({
         visible: isVisible,
         priceLineVisible: false,
         lastValueVisible: true,
+        priceFormat: {
+          type: "custom",
+          minMove: 0.01,
+          formatter: (val: number) => this.formatProfit(val),
+        },
         autoscaleInfoProvider: (original) =>
           this.getSeriesAutoscaleInfo(original),
       });
@@ -713,6 +804,9 @@ export default defineComponent({
         });
       }
 
+      let currentBalance = this.initialBotCapital;
+      let prevProfitTotalPercent = 0;
+
       const mapped = tradeArray.map(
         ({
           dateString,
@@ -723,11 +817,21 @@ export default defineComponent({
           tokenName,
           count,
         }) => {
+          let value = profitTotalPercent;
+          if (this.isAbsoluteMode) {
+            const deltaPercent = profitTotalPercent - prevProfitTotalPercent;
+            if (deltaPercent !== 0) {
+              currentBalance = Math.max(0, currentBalance * (1 + deltaPercent / 100));
+            }
+            prevProfitTotalPercent = profitTotalPercent;
+            value = currentBalance - this.initialBotCapital;
+          }
+
           return {
             time: Math.floor(Date.parse(dateString) / 1000),
             trade,
             price: tradePrice,
-            value: profitTotalPercent,
+            value,
             profitPercent,
             count: parseInt(count, 10) || 0,
             tokenName,
@@ -907,11 +1011,15 @@ export default defineComponent({
               activeCount++;
             }
           }
-          const averageValue = activeCount > 0 ? sum / activeCount : 0;
+          const finalValue = this.isAbsoluteMode
+            ? sum
+            : activeCount > 0
+            ? sum / activeCount
+            : 0;
 
           return {
             time,
-            value: averageValue,
+            value: finalValue,
           };
         }
       );
@@ -1336,6 +1444,11 @@ export default defineComponent({
         if (lineSeries[index]) {
           lineSeries[index]?.applyOptions({
             visible: isVisible,
+            priceFormat: {
+              type: "custom",
+              minMove: 0.01,
+              formatter: (val: number) => this.formatProfit(val),
+            },
           });
           lineSeries[index]?.setData(isVisible ? seriesData : []);
         } else if (chart) {
@@ -1346,6 +1459,11 @@ export default defineComponent({
             visible: isVisible,
             priceLineVisible: false,
             lastValueVisible: true,
+            priceFormat: {
+              type: "custom",
+              minMove: 0.01,
+              formatter: (val: number) => this.formatProfit(val),
+            },
             autoscaleInfoProvider: (original) =>
               this.getSeriesAutoscaleInfo(original),
           });
@@ -1364,6 +1482,11 @@ export default defineComponent({
 
       lineSeriesTotal?.applyOptions({
         visible: isVisible,
+        priceFormat: {
+          type: "custom",
+          minMove: 0.01,
+          formatter: (val: number) => this.formatProfit(val),
+        },
       });
 
       const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
@@ -1676,6 +1799,19 @@ export default defineComponent({
 
   //// Life cycle
   async mounted(): Promise<void> {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const savedMode = window.localStorage.getItem("crypto_bot_calc_mode");
+        if (savedMode === "dollar") {
+          this.isAbsoluteMode = true;
+        } else if (savedMode === "percent") {
+          this.isAbsoluteMode = false;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load calc mode from localStorage:", e);
+    }
+
     const hasCache = this.loadCachedLines();
     if (hasCache) {
       this.isLoading = false;
@@ -1775,6 +1911,15 @@ export default defineComponent({
         display: none;
       }
     }
+
+    .calc-mode-container {
+      .calc-mode-pill {
+        height: 24px;
+        font-size: 10px;
+        padding: 0 4px;
+        gap: 3px;
+      }
+    }
   }
 
   .use-commission-container {
@@ -1786,6 +1931,60 @@ export default defineComponent({
     .use-commission-button {
       width: 25px;
       height: auto;
+    }
+  }
+
+  .calc-mode-container {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    user-select: none;
+
+    .calc-mode-pill {
+      display: inline-flex;
+      align-items: center;
+      height: 25px;
+      background: dimgray;
+      color: #9ca3af;
+      padding: 0 6px;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      border: 1px solid transparent;
+
+      &:hover {
+        background: #555;
+      }
+
+      &--dollar {
+        border-color: rgba(34, 197, 94, 0.45);
+      }
+
+      .calc-mode-item {
+        padding: 1px 3px;
+        transition: color 0.15s ease, text-shadow 0.15s ease;
+        user-select: none;
+
+        &--active {
+          color: #ffffff;
+          font-weight: 800;
+          text-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+        }
+      }
+
+      &--dollar .calc-mode-item--active {
+        color: #22c55e;
+        text-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+      }
+
+      .calc-mode-sep {
+        color: #6b7280;
+        font-weight: 400;
+        font-size: 10px;
+        user-select: none;
+      }
     }
   }
 
