@@ -209,7 +209,7 @@
       <div
         class="total info line clip-right cursor-pointer"
         :class="{
-          'total--disabled': !isLineTotalVisible || linesEnabled.length === 1,
+          'total--disabled': !isLineTotalVisible && linesEnabled.length !== 1,
         }"
         @click="updateLineTotalVisibility"
         :title="
@@ -519,6 +519,10 @@ export default defineComponent({
     },
 
     totalProfit(): string {
+      // Track reactivity on calc mode & commission
+      const _isAbs = this.isAbsoluteMode;
+      const _comm = this.useCommission;
+
       // If a single bot is enabled (solo mode), show its profit
       if (this.linesEnabled.length === 1) {
         const single = this.linesEnabled[0];
@@ -527,23 +531,17 @@ export default defineComponent({
         return lastVal != null && !isNaN(lastVal) ? lastVal.toFixed(2) : "0.00";
       }
 
-      if (this.linesDataTotal && this.linesDataTotal.length > 0) {
-        const lastValue =
-          this.linesDataTotal[this.linesDataTotal.length - 1]?.value;
-        if (lastValue != null && !isNaN(lastValue)) {
-          return lastValue.toFixed(2);
-        }
-      }
-
-      // Fallback: calculate directly from prepareSeriesDataTotal
-      const fallbackSeries = this.prepareSeriesDataTotal();
-      const lastValue = fallbackSeries[fallbackSeries.length - 1]?.value;
+      const totalSeries = this.prepareSeriesDataTotal();
+      const lastValue = totalSeries[totalSeries.length - 1]?.value;
       return lastValue != null && !isNaN(lastValue)
         ? lastValue.toFixed(2)
         : "0.00";
     },
 
     totalSumProfit(): string {
+      const _isAbs = this.isAbsoluteMode;
+      const _comm = this.useCommission;
+
       const isAllLines =
         this.hasLineTotalOnly ||
         this.hasNoLines ||
@@ -588,19 +586,15 @@ export default defineComponent({
     },
 
     useCommission() {
-      this.updateChart();
+      this.initChart();
     },
 
     isAbsoluteMode() {
-      if (chart) {
-        chart.applyOptions(this.chartOptions);
-      }
-      this.updateChart();
-      this.applyLongestScale();
+      this.initChart();
     },
 
     tradeDirection() {
-      this.updateChart();
+      this.initChart();
     },
   },
 
@@ -637,6 +631,7 @@ export default defineComponent({
     },
 
     getLegendValue(index: number): string {
+      const _ = this.isAbsoluteMode;
       const lineData = this.linesData[index] || [];
       const lineValue = lineData[lineData.length - 1]?.value;
       return this.formatProfit(lineValue);
@@ -644,7 +639,9 @@ export default defineComponent({
 
     //// Init chart
     async initChart(): Promise<void> {
-      this.convertServerDataToLines({ isUpdate: false });
+      if (!this.lines.length && this.serverLines?.length) {
+        this.convertServerDataToLines({ isUpdate: false });
+      }
 
       const chartContainer = document.getElementById("chart-container");
       if (!chartContainer) {
@@ -1231,14 +1228,20 @@ export default defineComponent({
     },
 
     updateLineTotalVisibility(): void {
-      const isLastLine = this.linesEnabled.length === 1;
-
-      if (!isLastLine) {
-        this.isLineTotalVisible = !this.isLineTotalVisible;
-        this.updateLineTotal();
-        this.applyLongestScale();
-        this.refreshMarks();
+      if (this.linesEnabled.length === 1) {
+        // Exiting solo mode: return to Total Line view
+        this.lines.forEach((l) => {
+          l.disabled = true;
+        });
+        this.isLineTotalVisible = true;
+        this.initChart();
+        return;
       }
+
+      this.isLineTotalVisible = !this.isLineTotalVisible;
+      this.updateLineTotal();
+      this.applyLongestScale();
+      this.refreshMarks();
     },
 
     computeZoomCondition(): boolean {
@@ -1362,10 +1365,7 @@ export default defineComponent({
       // Line
       line.disabled = !line.disabled;
 
-      this.updateLines();
-      this.updateLineTotal();
-      this.applyLongestScale();
-      this.refreshMarks();
+      this.initChart();
     },
 
     soloLine(index: number): void {
@@ -1387,10 +1387,7 @@ export default defineComponent({
         });
       }
 
-      this.updateLines();
-      this.updateLineTotal();
-      this.applyLongestScale();
-      this.refreshMarks();
+      this.initChart();
     },
 
     async selectBotChart(botName: string): Promise<void> {
@@ -1411,18 +1408,7 @@ export default defineComponent({
       // 3. Ensure chart container is rendered in DOM and has positive dimensions
       await this.$nextTick();
 
-      if (chart) {
-        chart.resize(
-          window.innerWidth,
-          this.chartOptions.height,
-          true
-        );
-      }
-
-      this.updateLines();
-      this.updateLineTotal();
-      this.applyLongestScale();
-      this.refreshMarks();
+      await this.initChart();
     },
 
     updateLines(): void {
@@ -1754,6 +1740,7 @@ export default defineComponent({
     },
 
     getBotPnl(bot: IBotStatus | null | undefined): number {
+      const _ = this.isAbsoluteMode;
       if (!bot) return 0;
       const clean = (bot.name || bot.id || "").trim().toUpperCase();
       const lineIndex = this.lines.findIndex(
@@ -1773,14 +1760,7 @@ export default defineComponent({
       this.isMonitorView = !this.isMonitorView;
       if (!this.isMonitorView) {
         this.$nextTick(() => {
-          if (chart) {
-            chart.resize(
-              window.innerWidth - 20,
-              this.chartOptions.height,
-              true
-            );
-            this.applyLongestScale();
-          }
+          this.initChart();
         });
       } else {
         this.refreshAllData();
