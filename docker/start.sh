@@ -5,9 +5,8 @@ cd "$(dirname "$0")"
 
 docker stop chart-container 2>/dev/null || true
 docker rm chart-container --force 2>/dev/null || true
-docker rmi chart-image --force 2>/dev/null || true
 
-docker build --no-cache -t chart-image .
+docker build --build-arg CACHEBUST=$(date +%s) -t chart-image .
 
 # build run via name: chart-container
 docker run \

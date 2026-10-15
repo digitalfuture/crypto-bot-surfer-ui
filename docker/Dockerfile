@@ -10,6 +10,7 @@ WORKDIR /home/chart
 
 ENV NODE_ENV=production
 
+ARG CACHEBUST=1
 RUN git clone https://github.com/digitalfuture/crypto-bot-surfer-ui.git . \
     && yarn install && yarn build \
     && mkdir -p /home/chart/public/data
