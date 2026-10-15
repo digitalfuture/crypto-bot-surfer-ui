@@ -260,8 +260,24 @@
   </template>
 </template>
 
-<script setup lang="ts">
-import { createChart } from "lightweight-charts";
+<script lang="ts">
+import { defineComponent } from "vue";
+import {
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  type MouseEventParams,
+  type TimeRange,
+  type AutoscaleInfo,
+  type SeriesMarker,
+  type SeriesMarkerPosition,
+  type SeriesMarkerShape,
+  type Time,
+  type UTCTimestamp,
+  type DeepPartial,
+  type ChartOptions,
+} from "lightweight-charts";
+import type { IBotPosition, IBotStatus, IStatusResponse } from "../pages/status";
 
 export interface IServerLine {
   name: string;
@@ -292,51 +308,49 @@ export interface ISeries {
   tokenName?: string;
   price?: number;
 }
-</script>
 
-<script lang="ts">
-let chart = null;
-let lineSeries = [];
-let lineSeriesTotal = null;
+let chart: IChartApi | null = null;
+let lineSeries: (ISeriesApi<"Line"> | null)[] = [];
+let lineSeriesTotal: ISeriesApi<"Line"> | null = null;
 
 const totalLineColor = "dimgray";
 
-export default {
+export default defineComponent({
   name: "Chart",
 
   data() {
     return {
-      isLoading: true,
-      serverLines: [],
-      refreshInterval: null,
+      isLoading: true as boolean,
+      serverLines: [] as IServerLine[],
+      refreshInterval: null as ReturnType<typeof setInterval> | null,
       lineWidth: 2.5,
-      isFullScreen: false,
-      isLineMarked: false,
-      useCommission: true,
-      isMonitorView: false,
-      isRefreshing: false,
-      botStatusList: [],
+      isFullScreen: false as boolean,
+      isLineMarked: false as boolean,
+      useCommission: true as boolean,
+      isMonitorView: false as boolean,
+      isRefreshing: false as boolean,
+      botStatusList: [] as IBotStatus[],
       systemStatus: {
         status: "HEALTHY",
         runningBots: 12,
         totalBots: 12,
         timestamp: "",
         activePositionsCount: 0,
-      },
+      } as IStatusResponse["system"],
 
-      lines: [],
+      lines: [] as ILine[],
 
-      linesData: [],
-      linesDataTotal: [],
+      linesData: [] as ISeries[][],
+      linesDataTotal: [] as ISeries[],
 
-      isLineTotalVisible: true,
+      isLineTotalVisible: true as boolean,
 
-      lineSeriesMarked: null,
+      lineSeriesMarked: null as ISeriesApi<"Line"> | null,
 
-      zoom: null,
-      zoomCondition: false,
+      zoom: null as TimeRange | null,
+      zoomCondition: false as boolean,
 
-      tradeDirection: "long",
+      tradeDirection: "long" as string,
 
       colors: [
         "maroon",
@@ -420,7 +434,7 @@ export default {
   },
 
   computed: {
-    chartOptions() {
+    chartOptions(): DeepPartial<ChartOptions> {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
         width: window.innerWidth,
@@ -466,7 +480,7 @@ export default {
       };
     },
 
-    totalProfit() {
+    totalProfit(): string {
       // If a single bot is enabled (solo mode), show its profit
       if (this.linesEnabled.length === 1) {
         const single = this.linesEnabled[0];
@@ -491,7 +505,7 @@ export default {
         : "0.00";
     },
 
-    totalSumProfit() {
+    totalSumProfit(): string {
       const isAllLines =
         this.hasLineTotalOnly ||
         this.hasNoLines ||
@@ -508,21 +522,21 @@ export default {
       return sum > 0 ? `+${sum.toFixed(2)}` : sum.toFixed(2);
     },
 
-    linesEnabled() {
+    linesEnabled(): ILine[] {
       return this.lines.filter((line: ILine) => !line.disabled);
     },
 
-    hasLineTotalOnly() {
+    hasLineTotalOnly(): boolean {
       return this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
 
-    hasNoLines() {
+    hasNoLines(): boolean {
       return !this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
   },
 
   watch: {
-    isFullScreen(isFullscreen) {
+    isFullScreen(isFullscreen: boolean) {
       if (!chart) return;
       if (isFullscreen) {
         document.body.style.overflow = "hidden";
@@ -545,7 +559,7 @@ export default {
   },
 
   methods: {
-    getLegendValue(index) {
+    getLegendValue(index: number): string {
       const lineData = this.linesData[index] || [];
       const lineValue = lineData[lineData.length - 1]?.value;
       const result =
@@ -557,7 +571,7 @@ export default {
     },
 
     //// Init chart
-    async initChart() {
+    async initChart(): Promise<void> {
       this.convertServerDataToLines({ isUpdate: false });
 
       const chartContainer = document.getElementById("chart-container");
@@ -585,8 +599,9 @@ export default {
     },
 
     /// Setup lines
-    setupChartLines() {
-      const linesData = [];
+    setupChartLines(): void {
+      if (!chart) return;
+      const linesData: ISeries[][] = [];
 
       for (const line of this.lines) {
         const isVisible = !this.hasLineTotalOnly && !line.disabled;
@@ -613,7 +628,8 @@ export default {
       this.linesData = linesData;
     },
 
-    setupChartTotal() {
+    setupChartTotal(): void {
+      if (!chart) return;
       const isVisible =
         this.isLineTotalVisible && this.linesEnabled.length !== 1;
 
@@ -1005,9 +1021,10 @@ export default {
       }
     },
 
-    async convertFileDataToLines({ target }) {
-      // console.log(event.target.files);
-      const inputFiles = [...target.files];
+    async convertFileDataToLines(event: Event): Promise<void> {
+      const target = event.target as HTMLInputElement | null;
+      if (!target || !target.files) return;
+      const inputFiles = Array.from(target.files);
 
       if (!inputFiles.length) return;
 
@@ -1018,6 +1035,7 @@ export default {
 
           const line: ILine = {
             name: lineName,
+            fileName: file.name,
             data: lineText
               .trim()
               .split(/\r?\n/)
@@ -1046,20 +1064,22 @@ export default {
       this.lines = lines;
 
       const chartContainer = document.getElementById("chart-container");
-      chartContainer.innerHTML = "";
-      chart = createChart(chartContainer, this.chartOptions);
+      if (chartContainer) {
+        chartContainer.innerHTML = "";
+        chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartLines();
-      this.setupChartTotal();
+        this.setupChartLines();
+        this.setupChartTotal();
 
-      this.applyLongestScale();
-      this.setupZoomListener();
+        this.applyLongestScale();
+        this.setupZoomListener();
 
-      this.refreshMarks();
+        this.refreshMarks();
+      }
     },
 
     //// Updates
-    updateChart() {
+    updateChart(): void {
       if (lineSeries.length !== this.lines.length) {
         this.initChart();
         return;
@@ -1069,7 +1089,7 @@ export default {
       this.refreshMarks();
     },
 
-    updateLineTotalVisibility() {
+    updateLineTotalVisibility(): void {
       const isLastLine = this.linesEnabled.length === 1;
 
       if (!isLastLine) {
@@ -1080,11 +1100,11 @@ export default {
       }
     },
 
-    computeZoomCondition() {
+    computeZoomCondition(): boolean {
       return this.linesEnabled && this.linesEnabled.length === 1;
     },
 
-    refreshMarks() {
+    refreshMarks(): void {
       if (!chart || this.isMonitorView) return;
       if (this.linesEnabled.length === 1) {
         this.setMarks();
@@ -1093,7 +1113,9 @@ export default {
       }
     },
 
-    getSeriesAutoscaleInfo(original) {
+    getSeriesAutoscaleInfo(
+      original?: (() => AutoscaleInfo | null) | null
+    ): AutoscaleInfo {
       const res = original?.();
       if (!res || !res.priceRange) {
         return {
@@ -1101,7 +1123,7 @@ export default {
           margins: { above: 48, below: 24 },
         };
       }
-      let { minValue, maxValue } = res.priceRange;
+      const { minValue, maxValue } = res.priceRange;
       if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
         return {
           priceRange: { minValue: -0.5, maxValue: 0.5 },
@@ -1130,7 +1152,7 @@ export default {
       };
     },
 
-    getLongestTimeRange() {
+    getLongestTimeRange(): { from: number; to: number } {
       let minTime = Infinity;
       let maxTime = -Infinity;
 
@@ -1170,7 +1192,7 @@ export default {
       };
     },
 
-    applyLongestScale() {
+    applyLongestScale(): void {
       if (!chart || this.isMonitorView) return;
       const container = document.getElementById("chart-container");
       if (!container || container.offsetWidth === 0) return;
@@ -1188,11 +1210,11 @@ export default {
       chart.priceScale("right").applyOptions({ autoScale: true });
     },
 
-    zoomToLine(line) {
+    zoomToLine(_line?: ILine): void {
       this.applyLongestScale();
     },
 
-    updateLineVisibility(index: number) {
+    updateLineVisibility(index: number): void {
       const line = this.lines[index];
       if (!line) return;
 
@@ -1205,7 +1227,7 @@ export default {
       this.refreshMarks();
     },
 
-    soloLine(index: number) {
+    soloLine(index: number): void {
       const line = this.lines[index];
       if (!line) return;
 
@@ -1230,7 +1252,7 @@ export default {
       this.refreshMarks();
     },
 
-    async selectBotChart(botName: string) {
+    async selectBotChart(botName: string): Promise<void> {
       const clean = botName?.trim().toUpperCase();
       const targetIndex = this.lines.findIndex(
         (l) => l.name?.toUpperCase() === clean
@@ -1262,18 +1284,18 @@ export default {
       this.refreshMarks();
     },
 
-    updateLines() {
-      const linesData = [];
+    updateLines(): void {
+      const linesData: ISeries[][] = [];
 
       for (const [index, line] of this.lines.entries()) {
         const seriesData = this.prepareSeriesData(line.data);
         const isVisible = !this.hasLineTotalOnly && !line.disabled;
 
         if (lineSeries[index]) {
-          lineSeries[index].applyOptions({
+          lineSeries[index]?.applyOptions({
             visible: isVisible,
           });
-          lineSeries[index].setData(isVisible ? seriesData : []);
+          lineSeries[index]?.setData(isVisible ? seriesData : []);
         } else if (chart) {
           const newLineSeries = chart.addLineSeries({
             color: line.color,
@@ -1294,7 +1316,7 @@ export default {
       this.linesData = linesData;
     },
 
-    updateLineTotal() {
+    updateLineTotal(): void {
       const isVisible =
         this.isLineTotalVisible && this.linesEnabled.length !== 1;
 
@@ -1306,7 +1328,7 @@ export default {
       lineSeriesTotal?.setData(seriesDataTotal);
     },
 
-    async refreshAllData() {
+    async refreshAllData(): Promise<void> {
       this.isRefreshing = true;
       try {
         await Promise.all([this.fetchData(), this.fetchBotStatus()]);
@@ -1320,14 +1342,14 @@ export default {
       }
     },
 
-    setupChartUpdate() {
+    setupChartUpdate(): void {
       this.refreshInterval = setInterval(async () => {
         await this.refreshAllData();
       }, 20000);
     },
 
     //// Listeners
-    setupResizeListener() {
+    setupResizeListener(): void {
       const handler = () => {
         if (!chart || this.isMonitorView) return;
         chart.resize(window.innerWidth, this.chartOptions.height, true);
@@ -1337,9 +1359,10 @@ export default {
       window.addEventListener("resize", handler);
     },
 
-    async setupZoomListener() {
-      let zoomDebounceTimer = null;
-      const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange) => {
+    async setupZoomListener(): Promise<void> {
+      if (!chart) return;
+      let zoomDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+      const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange: TimeRange | null) => {
         if (!newVisibleTimeRange || this.isMonitorView) return;
         if (zoomDebounceTimer) clearTimeout(zoomDebounceTimer);
         zoomDebounceTimer = setTimeout(() => {
@@ -1352,12 +1375,13 @@ export default {
         .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
     },
 
-    setupAnnotations() {
-      chart.subscribeCrosshairMove((param) => {
-        const annotation: HTMLElement = document.querySelector(".annotation");
-        const annotationToken: HTMLElement =
+    setupAnnotations(): void {
+      if (!chart) return;
+      chart.subscribeCrosshairMove((param: MouseEventParams) => {
+        const annotation: HTMLElement | null = document.querySelector(".annotation");
+        const annotationToken: HTMLElement | null =
           document.querySelector(".annotation--token");
-        const annotationPrice: HTMLElement =
+        const annotationPrice: HTMLElement | null =
           document.querySelector(".annotation--price");
 
         if (!annotation || !annotationToken || !annotationPrice) {
@@ -1374,13 +1398,15 @@ export default {
         let color = "transparent";
 
         lineSeries.forEach((series, index) => {
+          if (!series) return;
           const seriesData = param.seriesData.get(series);
 
           if (this.lines[index]?.disabled) return;
 
           const line = this.linesData[index]?.find(
             (item) =>
-              item.time === seriesData?.time && item.value === seriesData?.value
+              item.time === (seriesData as { time?: number })?.time &&
+              item.value === (seriesData as { value?: number })?.value
           );
 
           if (line?.trade) {
@@ -1407,7 +1433,7 @@ export default {
     },
 
     // Line marks
-    setMarks() {
+    setMarks(): void {
       // Clear markers on all series first
       lineSeries.forEach((s) => s?.setMarkers([]));
       this.lineSeriesMarked = null;
@@ -1420,13 +1446,13 @@ export default {
         if (index === -1 || !lineSeries[index]) return;
 
         const lineData = this.prepareSeriesData(line.data);
-        const markers = lineData
+        const markers: SeriesMarker<Time>[] = lineData
           .filter(({ trade }) => trade === "BUY" || trade === "SELL")
           .map(({ trade, time, count }) => ({
-            time,
-            position: trade === "BUY" ? "belowBar" : "aboveBar",
+            time: time as UTCTimestamp,
+            position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
             color: trade === "BUY" ? "green" : "red",
-            shape: trade === "BUY" ? "arrowUp" : "arrowDown",
+            shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
             id: `${time}-${trade}-${count || 0}`,
           }));
 
@@ -1436,7 +1462,7 @@ export default {
       }
     },
 
-    clearMarks() {
+    clearMarks(): void {
       lineSeries.forEach((s) => s?.setMarkers([]));
       this.lineSeriesMarked = null;
       this.isLineMarked = false;
@@ -1527,29 +1553,31 @@ export default {
       }
     },
 
-    getBotPosition(lineName: string) {
+    getBotPosition(lineName: string): IBotPosition | null {
       if (!lineName || !this.botStatusList) return null;
       const clean = lineName.trim().toUpperCase();
       const found = this.botStatusList.find(
-        (b) => b.name?.toUpperCase() === clean || b.id?.toUpperCase() === clean
+        (b: IBotStatus) => b.name?.toUpperCase() === clean || b.id?.toUpperCase() === clean
       );
       return found?.position || null;
     },
 
-    getBotColor(botName: string) {
+    getBotColor(botName: string): string {
       const clean = botName?.trim().toUpperCase();
-      const line = this.lines.find((l) => l.name?.toUpperCase() === clean);
+      const line = this.lines.find((l: ILine) => l.name?.toUpperCase() === clean);
       return line?.color || "#888";
     },
 
-    formatTarget(val: number) {
-      if (val == null || isNaN(val)) return "-";
-      if (val < 0.001) return val.toFixed(8);
-      if (val < 1) return val.toFixed(6);
-      return val.toFixed(4);
+    formatTarget(val: number | string | null | undefined): string {
+      if (val == null) return "-";
+      const num = typeof val === "number" ? val : parseFloat(val);
+      if (isNaN(num)) return "-";
+      if (num < 0.001) return num.toFixed(8);
+      if (num < 1) return num.toFixed(6);
+      return num.toFixed(4);
     },
 
-    formatTime(dateStr: string) {
+    formatTime(dateStr: string): string {
       if (!dateStr) return "";
       try {
         const d = new Date(dateStr);
@@ -1565,15 +1593,15 @@ export default {
       return name.replace(/^ORDERBOOK-/i, "OB-");
     },
 
-    toggleCommission() {
+    toggleCommission(): void {
       this.useCommission = !this.useCommission;
     },
 
-    getBotPnl(bot) {
+    getBotPnl(bot: IBotStatus | null | undefined): number {
       if (!bot) return 0;
       const clean = (bot.name || bot.id || "").trim().toUpperCase();
       const lineIndex = this.lines.findIndex(
-        (l) => l.name?.trim().toUpperCase() === clean
+        (l: ILine) => l.name?.trim().toUpperCase() === clean
       );
       if (lineIndex !== -1 && this.linesData[lineIndex]?.length > 0) {
         const lineData = this.linesData[lineIndex];
@@ -1585,7 +1613,7 @@ export default {
       return bot.totalProfit ?? 0;
     },
 
-    toggleMonitorView() {
+    toggleMonitorView(): void {
       this.isMonitorView = !this.isMonitorView;
       if (!this.isMonitorView) {
         this.$nextTick(() => {
@@ -1605,7 +1633,7 @@ export default {
   },
 
   //// Life cycle
-  async mounted() {
+  async mounted(): Promise<void> {
     const hasCache = this.loadCachedLines();
     if (hasCache) {
       this.isLoading = false;
@@ -1631,14 +1659,14 @@ export default {
     this.setupChartUpdate();
   },
 
-  unmounted() {
+  unmounted(): void {
     chart?.remove();
     chart = null;
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
   },
-};
+});
 </script>
 
 <style lang="scss">

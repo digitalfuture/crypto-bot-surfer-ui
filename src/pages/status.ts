@@ -35,6 +35,15 @@ export interface IStatusResponse {
   bots: IBotStatus[];
 }
 
+export interface IWatchdogData {
+  status?: "HEALTHY" | "WARNING" | "OFFLINE";
+  runningBots?: number;
+  totalBots?: number;
+  uiStatus?: string;
+  timestamp?: string;
+  containers?: Record<string, string>;
+}
+
 export const GET: APIRoute = async () => {
   try {
     const isDev = import.meta.env.DEV;
@@ -74,12 +83,12 @@ export const GET: APIRoute = async () => {
     }
 
     // 1. Read Watchdog info if available
-    let watchdogData: any = null;
+    let watchdogData: IWatchdogData | null = null;
     const watchdogFile = join(directoryPath, "watchdog.json");
     if (existsSync(watchdogFile)) {
       try {
         const rawWatchdog = await readFile(watchdogFile, "utf8");
-        watchdogData = JSON.parse(rawWatchdog);
+        watchdogData = JSON.parse(rawWatchdog) as IWatchdogData;
       } catch (err) {
         console.warn("Could not read watchdog.json:", err);
       }
@@ -141,24 +150,32 @@ export const GET: APIRoute = async () => {
       if (existsSync(stateFile)) {
         try {
           const rawState = await readFile(stateFile, "utf8");
-          const stateData = JSON.parse(rawState);
+          const stateData = JSON.parse(rawState) as {
+            symbol?: string;
+            side?: string;
+            entryPrice?: string | number;
+            shortPrice?: string | number;
+            stopLoss?: string | number;
+            takeProfit?: string | number;
+            volatility?: string | number;
+          };
+          const toFloat = (
+            val: string | number | undefined | null
+          ): number | null => {
+            if (val == null) return null;
+            const num = typeof val === "number" ? val : parseFloat(String(val));
+            return isNaN(num) ? null : num;
+          };
+
           if (stateData && stateData.symbol) {
             statePosition = {
               symbol: stateData.symbol,
               side: stateData.side || "SHORT",
-              entryPrice: parseFloat(stateData.entryPrice || "0"),
-              shortPrice: stateData.shortPrice
-                ? parseFloat(stateData.shortPrice)
-                : undefined,
-              stopLoss: stateData.stopLoss
-                ? parseFloat(stateData.stopLoss)
-                : null,
-              takeProfit: stateData.takeProfit
-                ? parseFloat(stateData.takeProfit)
-                : null,
-              volatility: stateData.volatility
-                ? parseFloat(stateData.volatility)
-                : null,
+              entryPrice: toFloat(stateData.entryPrice) ?? 0,
+              shortPrice: toFloat(stateData.shortPrice) ?? undefined,
+              stopLoss: toFloat(stateData.stopLoss),
+              takeProfit: toFloat(stateData.takeProfit),
+              volatility: toFloat(stateData.volatility),
             };
           }
         } catch {
