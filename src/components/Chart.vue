@@ -166,26 +166,17 @@
         />
       </div>
 
-      <!-- Mode switcher (% / $) (THIRD) -->
+      <!-- Mode toggle (% vs $ Wallet) (THIRD) -->
       <div
-        class="calc-mode-container"
-        :title="isAbsoluteMode ? 'Mode: Compounded Dollar ($10 base per bot) - Click to switch to Relative %' : 'Mode: Relative Percent (%) - Click to switch to Compounded Dollar ($10 base per bot)'"
+        class="calc-mode-container cursor-pointer"
+        @click="toggleCalcMode"
+        :title="isAbsoluteMode ? 'Dollar Compounding Mode ($100 base) - Click to switch to Relative %' : 'Percentage Mode (%) - Click to switch to Dollar Compounding ($100 base)'"
       >
-        <div class="calc-mode-pill" :class="{ 'calc-mode-pill--dollar': isAbsoluteMode }">
-          <span
-            class="calc-mode-item cursor-pointer"
-            :class="{ 'calc-mode-item--active': !isAbsoluteMode }"
-            @click="setCalcMode(false)"
-            title="Percentage Mode (%)"
-          >%</span>
-          <span class="calc-mode-sep">|</span>
-          <span
-            class="calc-mode-item cursor-pointer"
-            :class="{ 'calc-mode-item--active': isAbsoluteMode }"
-            @click="setCalcMode(true)"
-            title="Absolute Dollar Mode ($10 base)"
-          >$</span>
-        </div>
+        <img
+          :src="isAbsoluteMode ? '/icons/wallet.svg' : '/icons/percent.svg'"
+          alt="Mode"
+          class="calc-mode-button cursor-pointer"
+        />
       </div>
     </div>
 
@@ -223,7 +214,7 @@
         @click="updateLineTotalVisibility"
         :title="
           isAbsoluteMode
-            ? 'Total Portfolio profit: ' + formatProfit(totalProfit) + ' (Base $10/bot, Equity: $' + portfolioEquity + ')'
+            ? 'Total Portfolio profit: ' + formatProfit(totalProfit) + ' (Base $' + initialBotCapital + '/bot, Equity: $' + portfolioEquity + ')'
             : 'Average active bots profit: ' + totalProfit + '%, Total cumulative: ' + totalSumProfit + '%'
         "
       >
@@ -358,7 +349,7 @@ export default defineComponent({
       isLineMarked: false as boolean,
       useCommission: true as boolean,
       isAbsoluteMode: false as boolean,
-      initialBotCapital: 10 as number,
+      initialBotCapital: 100 as number,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
       botStatusList: [] as IBotStatus[],
@@ -1913,11 +1904,9 @@ export default defineComponent({
     }
 
     .calc-mode-container {
-      .calc-mode-pill {
-        height: 24px;
-        font-size: 10px;
-        padding: 0 4px;
-        gap: 3px;
+      .calc-mode-button {
+        width: 22px;
+        height: auto;
       }
     }
   }
@@ -1935,55 +1924,19 @@ export default defineComponent({
   }
 
   .calc-mode-container {
+    position: relative;
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
-    user-select: none;
 
-    .calc-mode-pill {
-      display: inline-flex;
-      align-items: center;
-      height: 25px;
-      background: dimgray;
-      color: #9ca3af;
-      padding: 0 6px;
-      gap: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      transition: background-color 0.15s ease, border-color 0.15s ease;
-      border: 1px solid transparent;
+    .calc-mode-button {
+      width: 25px;
+      height: auto;
+      transition: opacity 0.15s ease, transform 0.15s ease;
 
       &:hover {
-        background: #555;
-      }
-
-      &--dollar {
-        border-color: rgba(34, 197, 94, 0.45);
-      }
-
-      .calc-mode-item {
-        padding: 1px 3px;
-        transition: color 0.15s ease, text-shadow 0.15s ease;
-        user-select: none;
-
-        &--active {
-          color: #ffffff;
-          font-weight: 800;
-          text-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
-        }
-      }
-
-      &--dollar .calc-mode-item--active {
-        color: #22c55e;
-        text-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
-      }
-
-      .calc-mode-sep {
-        color: #6b7280;
-        font-weight: 400;
-        font-size: 10px;
-        user-select: none;
+        opacity: 0.8;
+        transform: scale(1.05);
       }
     }
   }
