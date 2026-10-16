@@ -868,72 +868,28 @@ export default defineComponent({
             tokenName: last.tokenName,
           });
         }
+      } else {
+        // Extend completed line horizontally up to current time
+        const nowSec = Math.floor(Date.now() / 1000);
+        const last = mapped[mapped.length - 1];
+        if (nowSec > last.time + 30) {
+          mapped.push({
+            time: nowSec,
+            trade: "HOLD",
+            price: last.price,
+            value: last.value,
+            tokenName: last.tokenName,
+          });
+        }
       }
 
       mapped.sort((a, b) => a.time - b.time);
 
-      // Fill time gaps with uniform intervals using linear interpolation
-      // so physical distance corresponds to elapsed real time,
-      // while keeping the line strictly straight between trades (no right-angle stairs).
-      const filled: ISeries[] = [];
-      if (mapped.length > 1) {
-        const firstTime = mapped[0].time;
-        const lastTime = mapped[mapped.length - 1].time;
-        const spanSec = Math.max(1, lastTime - firstTime);
-
-        // Adaptive step based on total duration of the series
-        let step = 60; // 1 minute default
-        if (spanSec > 30 * 86400) {
-          step = 3600; // 1 hour for > 30 days
-        } else if (spanSec > 7 * 86400) {
-          step = 900; // 15 mins for > 7 days
-        } else if (spanSec > 2 * 86400) {
-          step = 300; // 5 mins for > 2 days
-        }
-
-        for (let i = 0; i < mapped.length; i++) {
-          const current = mapped[i];
-          filled.push(current);
-
-          if (i < mapped.length - 1) {
-            const next = mapped[i + 1];
-            const gapSec = next.time - current.time;
-
-            if (gapSec > step) {
-              let nextGridTime = Math.floor(current.time / step) * step + step;
-              let safetyCount = 0;
-              while (nextGridTime < next.time && safetyCount < 10000) {
-                const ratio = (nextGridTime - current.time) / gapSec;
-                const interpolatedValue =
-                  current.value + (next.value - current.value) * ratio;
-                const interpolatedPrice =
-                  current.price + (next.price - current.price) * ratio;
-
-                filled.push({
-                  time: nextGridTime,
-                  trade: "",
-                  price: interpolatedPrice,
-                  value: interpolatedValue,
-                  profitPercent: 0,
-                  tokenName: current.tokenName,
-                  count: 0,
-                });
-                nextGridTime += step;
-                safetyCount++;
-              }
-            }
-          }
-        }
-      } else {
-        filled.push(...mapped);
-      }
-
-      filled.sort((a, b) => a.time - b.time);
-
-      // Lightweight-charts requires strictly ascending time for line series
+      // Lightweight-charts requires strictly ascending time for line series.
+      // Keeping only real trade endpoints guarantees 100% straight lines without intermediate kinks.
       const seriesData: ISeries[] = [];
       let lastTime = -Infinity;
-      for (const item of filled) {
+      for (const item of mapped) {
         let time = item.time;
         if (time <= lastTime) {
           time = lastTime + 1;
@@ -978,47 +934,60 @@ export default defineComponent({
         return [];
       }
 
-      // Pre-index each line by time for O(1) lookups
-      const lineMaps = allPreparedLines.map(
-        (series) => new Map(series.map((item) => [item.time, item.value]))
-      );
-
-      const alignedLines: number[][] = lineMaps.map((lineMap) => {
-        const aligned: number[] = [];
-        let lastValue = 0;
-        for (const time of allTimesData) {
-          if (lineMap.has(time)) {
-            lastValue = lineMap.get(time)!;
-          }
-          aligned.push(lastValue);
+      // Linear interpolation helper to find a series value at any given timestamp
+      const getValueAtTime = (series: ISeries[], targetTime: number): number | null => {
+        if (!series || !series.length) return null;
+        if (targetTime < series[0].time) return null; // Bot hasn't started yet
+        if (targetTime >= series[series.length - 1].time) {
+          return series[series.length - 1].value;
         }
-        return aligned;
+
+        // Binary search for the segment [low, high] containing targetTime
+        let low = 0;
+        let high = series.length - 1;
+        while (low <= high) {
+          const mid = (low + high) >> 1;
+          if (series[mid].time === targetTime) {
+            return series[mid].value;
+          }
+          if (series[mid].time < targetTime) {
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+
+        const p1 = series[high];
+        const p2 = series[high + 1];
+        if (!p1 || !p2) return p1?.value ?? p2?.value ?? null;
+
+        const duration = p2.time - p1.time;
+        if (duration <= 0) return p1.value;
+        const ratio = (targetTime - p1.time) / duration;
+        return p1.value + (p2.value - p1.value) * ratio;
+      };
+
+      const linesDataTotal: ISeries[] = allTimesData.map((time: number) => {
+        let sum = 0;
+        let activeCount = 0;
+        for (let k = 0; k < allPreparedLines.length; k++) {
+          const val = getValueAtTime(allPreparedLines[k], time);
+          if (val !== null) {
+            sum += val;
+            activeCount++;
+          }
+        }
+        const finalValue = this.isAbsoluteMode
+          ? sum
+          : activeCount > 0
+          ? sum / activeCount
+          : 0;
+
+        return {
+          time,
+          value: finalValue,
+        };
       });
-
-      const linesDataTotal: ISeries[] = allTimesData.map(
-        (time: number, index: number) => {
-          let sum = 0;
-          let activeCount = 0;
-          for (let k = 0; k < alignedLines.length; k++) {
-            const series = allPreparedLines[k];
-            // Only count bots that have actually traded and started by this timestamp
-            if (series && series.length > 0 && series[0].time <= time) {
-              sum += alignedLines[k][index];
-              activeCount++;
-            }
-          }
-          const finalValue = this.isAbsoluteMode
-            ? sum
-            : activeCount > 0
-            ? sum / activeCount
-            : 0;
-
-          return {
-            time,
-            value: finalValue,
-          };
-        }
-      );
 
       this.linesDataTotal = linesDataTotal;
 
@@ -1029,14 +998,16 @@ export default defineComponent({
     convertServerDataToLines({ isUpdate }: { isUpdate: boolean }): boolean {
       if (!this.serverLines || !this.serverLines.length) return false;
 
-      // Initial load: populate this.lines completely
+      // 1. Initial load or force reload: populate this.lines completely from server
       if (!this.lines.length || !isUpdate) {
         const lines: ILine[] = this.serverLines.map(
           (file: IServerLine, index: number): ILine => {
-            const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
-            const existingLine = this.lines.find((l: ILine) => l.name === lineName);
+            const cleanName = this.normalizeBotName(file.name);
+            const existingLine = this.lines.find(
+              (l: ILine) => this.normalizeBotName(l.name) === cleanName
+            );
             return {
-              name: lineName,
+              name: cleanName,
               fileName: file.name,
               mtime: file.mtime,
               data: file.data.map((item: string): string[] => item.split(",")),
@@ -1050,22 +1021,52 @@ export default defineComponent({
         return true;
       }
 
-      // Delta / incremental update:
+      // 2. Incremental update: prune dead/renamed lines that no longer exist on server
       let hasChanges = false;
+      const validCleanNames = new Set(
+        this.serverLines.map((f: IServerLine) => this.normalizeBotName(f.name))
+      );
+      if (this.lines.length > 0) {
+        const filtered = this.lines.filter((l: ILine) =>
+          validCleanNames.has(this.normalizeBotName(l.fileName || l.name))
+        );
+        if (filtered.length !== this.lines.length) {
+          this.lines = filtered;
+          hasChanges = true;
+        }
+      }
+
+      // 3. Deduplicate this.lines by normalized name to guarantee no duplicate legends
+      const seenNames = new Set<string>();
+      const dedupedLines: ILine[] = [];
+      for (const l of this.lines) {
+        const norm = this.normalizeBotName(l.fileName || l.name);
+        if (!seenNames.has(norm)) {
+          seenNames.add(norm);
+          dedupedLines.push(l);
+        } else {
+          hasChanges = true;
+        }
+      }
+      this.lines = dedupedLines;
+
+      // 4. Update or append server lines
       for (const [index, file] of this.serverLines.entries()) {
-        const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
+        const cleanName = this.normalizeBotName(file.name);
         let line = this.lines.find(
-          (l: ILine) => l.fileName === file.name || l.name === lineName
+          (l: ILine) =>
+            this.normalizeBotName(l.fileName || "") === cleanName ||
+            this.normalizeBotName(l.name || "") === cleanName
         );
 
         if (!line) {
           // Dynamic discovery of a newly added bot file
           const newLine: ILine = {
-            name: lineName,
+            name: cleanName,
             fileName: file.name,
             mtime: file.mtime,
             data: file.data.map((item: string): string[] => item.split(",")),
-            color: this.getColor(index),
+            color: this.getColor(this.lines.length),
             disabled: true,
           };
           this.lines.push(newLine);
@@ -1073,9 +1074,9 @@ export default defineComponent({
           continue;
         }
 
-        if (!line.fileName) {
-          line.fileName = file.name;
-        }
+        // Canonicalize name and fileName to current server file
+        line.name = cleanName;
+        line.fileName = file.name;
         if (file.mtime) {
           line.mtime = file.mtime;
         }
@@ -1125,7 +1126,8 @@ export default defineComponent({
         window.localStorage.removeItem("crypto_bot_chart_lines_v2");
         window.localStorage.removeItem("crypto_bot_chart_lines_v3");
         window.localStorage.removeItem("crypto_bot_chart_lines_v4");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v5");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v5");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v6");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1134,12 +1136,22 @@ export default defineComponent({
           parsed[0].name &&
           Array.isArray(parsed[0].data)
         ) {
-          // Default initial state: no individual line is selected
-          this.lines = parsed.map((l: ILine) => ({
-            ...l,
-            disabled: true,
-          }));
-          return true;
+          // Deduplicate cached lines on load
+          const seen = new Set<string>();
+          const validLines: ILine[] = [];
+          for (const l of parsed) {
+            const norm = this.normalizeBotName(l.fileName || l.name);
+            if (!seen.has(norm)) {
+              seen.add(norm);
+              validLines.push({
+                ...l,
+                name: norm,
+                disabled: true,
+              });
+            }
+          }
+          this.lines = validLines;
+          return validLines.length > 0;
         }
       } catch (err) {
         console.warn("Could not load lines from cache:", err);
@@ -1152,7 +1164,7 @@ export default defineComponent({
         if (typeof window === "undefined" || !window.localStorage) return;
         if (!this.lines || !this.lines.length) return;
         const toSave = this.lines.map((l: ILine) => ({
-          name: l.name,
+          name: this.normalizeBotName(l.name),
           fileName: l.fileName,
           mtime: l.mtime,
           data: l.data,
@@ -1160,7 +1172,7 @@ export default defineComponent({
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v5",
+          "crypto_bot_chart_lines_v6",
           JSON.stringify(toSave)
         );
       } catch (err) {
