@@ -106,7 +106,9 @@ export const GET: APIRoute = async () => {
         .replace(/\.csv$/i, "")
         .replace(/^trades[-_]/i, "")
         .toLowerCase();
-      const displayName = strategyId.replace(/^vol[-_]/i, "").toUpperCase();
+      const displayName = strategyId
+        .replace(/^(orderbook|ob|mm|vol)[-_]/i, "")
+        .toUpperCase();
 
       const csvPath = join(directoryPath, fileName);
       const csvRaw = await readFile(csvPath, "utf8");
@@ -201,36 +203,34 @@ export const GET: APIRoute = async () => {
       });
     }
 
-    // Sort bots by standard order: VOLATILITY, CHANNEL, TREND, PULLBACK, SCALPER, ORDERBOOK-WALL, ORDERBOOK-IMBALANCE, ORDERBOOK-ABSORPTION, MM-INVENTORY, LIQUIDITY-SWEEP, ORDERBOOK-ICEBERG
     const order = [
       "momentum",
       "breakout",
-      "vol-momentum",
-      "vol-breakout",
-      "volatility",
-      "volatility2",
-      "volatility3",
       "channel",
-      "channel2",
       "trend",
       "pullback",
       "scalper",
-      "orderbook-wall",
-      "orderbook-imbalance",
-      "orderbook-absorption",
       "wall",
       "imbalance",
       "absorption",
-      "mm-inventory",
       "inventory",
-      "liquidity-sweep",
       "sweep",
-      "orderbook-iceberg",
       "iceberg",
+      "vol-momentum",
+      "vol-breakout",
+      "volatility",
+      "orderbook-wall",
+      "orderbook-imbalance",
+      "orderbook-absorption",
+      "mm-inventory",
+      "liquidity-sweep",
+      "orderbook-iceberg",
     ];
     bots.sort((a, b) => {
-      const idxA = order.indexOf(a.id);
-      const idxB = order.indexOf(b.id);
+      const cleanA = a.id.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+      const cleanB = b.id.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+      const idxA = order.indexOf(cleanA) !== -1 ? order.indexOf(cleanA) : order.indexOf(a.id);
+      const idxB = order.indexOf(cleanB) !== -1 ? order.indexOf(cleanB) : order.indexOf(b.id);
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
 

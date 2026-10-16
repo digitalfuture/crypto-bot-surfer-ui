@@ -1400,9 +1400,9 @@ export default defineComponent({
     },
 
     async selectBotChart(botName: string): Promise<void> {
-      const clean = botName?.trim().toUpperCase();
+      const clean = this.normalizeBotName(botName);
       const targetIndex = this.lines.findIndex(
-        (l) => l.name?.toUpperCase() === clean
+        (l) => this.normalizeBotName(l.name || "") === clean
       );
       if (targetIndex === -1) return;
 
@@ -1704,18 +1704,32 @@ export default defineComponent({
       }
     },
 
+    normalizeBotName(name: string): string {
+      if (!name) return "";
+      return name
+        .trim()
+        .toLowerCase()
+        .replace(/\.csv$/i, "")
+        .replace(/^trades[-_]/i, "")
+        .replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+    },
+
     getBotPosition(lineName: string): IBotPosition | null {
       if (!lineName || !this.botStatusList) return null;
-      const clean = lineName.trim().toUpperCase();
+      const clean = this.normalizeBotName(lineName);
       const found = this.botStatusList.find(
-        (b: IBotStatus) => b.name?.toUpperCase() === clean || b.id?.toUpperCase() === clean
+        (b: IBotStatus) =>
+          this.normalizeBotName(b.name || "") === clean ||
+          this.normalizeBotName(b.id || "") === clean
       );
       return found?.position || null;
     },
 
     getBotColor(botName: string): string {
-      const clean = botName?.trim().toUpperCase();
-      const line = this.lines.find((l: ILine) => l.name?.toUpperCase() === clean);
+      const clean = this.normalizeBotName(botName);
+      const line = this.lines.find(
+        (l: ILine) => this.normalizeBotName(l.name || "") === clean
+      );
       return line?.color || "#888";
     },
 
@@ -1742,8 +1756,10 @@ export default defineComponent({
     formatBotName(name: string): string {
       if (!name) return "";
       return name
-        .replace(/^ORDERBOOK-/i, "OB-")
-        .replace(/^VOL[-_]/i, "");
+        .replace(/\.csv$/i, "")
+        .replace(/^trades[-_]/i, "")
+        .replace(/^(ORDERBOOK|OB|MM|VOL)[-_]/i, "")
+        .toUpperCase();
     },
 
     toggleCommission(): void {
@@ -1753,9 +1769,9 @@ export default defineComponent({
     getBotPnl(bot: IBotStatus | null | undefined): number {
       const _ = this.isAbsoluteMode;
       if (!bot) return 0;
-      const clean = (bot.name || bot.id || "").trim().toUpperCase();
+      const clean = this.normalizeBotName(bot.name || bot.id || "");
       const lineIndex = this.lines.findIndex(
-        (l: ILine) => l.name?.trim().toUpperCase() === clean
+        (l: ILine) => this.normalizeBotName(l.name || "") === clean
       );
       if (lineIndex !== -1 && this.linesData[lineIndex]?.length > 0) {
         const lineData = this.linesData[lineIndex];

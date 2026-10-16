@@ -90,26 +90,24 @@ export const GET: APIRoute = async ({ request }) => {
     const order = [
       "momentum",
       "breakout",
-      "vol-momentum",
-      "vol-breakout",
-      "volatility2",
-      "volatility3",
       "channel",
       "trend",
       "pullback",
       "scalper",
-      "orderbook-wall",
-      "orderbook-imbalance",
-      "orderbook-absorption",
       "wall",
       "imbalance",
       "absorption",
-      "mm-inventory",
       "inventory",
-      "liquidity-sweep",
       "sweep",
-      "orderbook-iceberg",
       "iceberg",
+      "vol-momentum",
+      "vol-breakout",
+      "orderbook-wall",
+      "orderbook-imbalance",
+      "orderbook-absorption",
+      "mm-inventory",
+      "liquidity-sweep",
+      "orderbook-iceberg",
     ];
 
     const csvFiles = files.filter((f) => f.endsWith(".csv"));
@@ -122,8 +120,10 @@ export const GET: APIRoute = async ({ request }) => {
         .replace(/\.csv$/i, "")
         .replace(/^trades[-_]/i, "")
         .toLowerCase();
-      const idxA = order.indexOf(idA);
-      const idxB = order.indexOf(idB);
+      const cleanA = idA.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+      const cleanB = idB.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+      const idxA = order.indexOf(cleanA) !== -1 ? order.indexOf(cleanA) : order.indexOf(idA);
+      const idxB = order.indexOf(cleanB) !== -1 ? order.indexOf(cleanB) : order.indexOf(idB);
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
 
