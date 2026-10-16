@@ -728,6 +728,40 @@ export default defineComponent({
       lineSeriesTotal.setData(seriesDataTotal);
     },
 
+    getGlobalTimeInfo(): { step: number; startTime: number } {
+      let minTime = Infinity;
+      const nowSec = Math.floor(Date.now() / 1000);
+
+      for (const line of this.lines) {
+        if (!line.data || !line.data.length) continue;
+        for (const row of line.data) {
+          const dateStr = row[1];
+          if (dateStr) {
+            const t = Math.floor(Date.parse(dateStr) / 1000);
+            if (!isNaN(t) && t < minTime) {
+              minTime = t;
+            }
+          }
+        }
+      }
+
+      const effectiveMin = minTime < Infinity ? minTime : nowSec - 1800;
+      const spanSec = Math.max(1, nowSec - effectiveMin);
+
+      let step = 60; // 1 min default
+      if (spanSec > 30 * 86400) {
+        step = 3600; // 1 hour for > 30 days
+      } else if (spanSec > 7 * 86400) {
+        step = 900; // 15 mins for > 7 days
+      } else if (spanSec > 2 * 86400) {
+        step = 300; // 5 mins for > 2 days
+      }
+
+      const startTime = Math.floor(effectiveMin / step) * step;
+
+      return { step, startTime };
+    },
+
     //// Prepare line series
     prepareSeriesData(lineData: string[][]): ISeries[] {
       // Deduplicate rows by (count, dateString) to prevent duplicate trades/ticks
@@ -827,78 +861,104 @@ export default defineComponent({
         }
       );
 
+      const { step, startTime: globalStartTime } = this.getGlobalTimeInfo();
+      const nowSec = Math.floor(Date.now() / 1000);
+      const gridNow = Math.ceil(nowSec / step) * step;
+
+      // Handle empty bot (no trades yet)
       if (mapped.length === 0) {
-        const nowSec = Math.floor(Date.now() / 1000);
-        mapped.push(
-          {
-            time: nowSec - 1800,
+        const start = Math.min(globalStartTime, gridNow - 1800);
+        const seriesData: ISeries[] = [];
+        for (let t = start; t <= gridNow; t += step) {
+          seriesData.push({
+            time: t,
             trade: "HOLD",
             price: 0,
             value: 0,
             tokenName: "",
-          },
-          {
-            time: nowSec,
-            trade: "HOLD",
-            price: 0,
-            value: 0,
-            tokenName: "",
-          }
-        );
-      } else if (mapped.length === 1) {
-        const nowSec = Math.floor(Date.now() / 1000);
-        const nextTime = Math.max(mapped[0].time + 60, nowSec);
-        mapped.push({
-          time: nextTime,
-          trade: "HOLD",
-          price: mapped[0].price,
-          value: mapped[0].value,
-          tokenName: mapped[0].tokenName,
-        });
-      } else if (mapped.length % 2 === 1) {
-        // Active open position: extend line horizontally up to current time
-        const nowSec = Math.floor(Date.now() / 1000);
-        const last = mapped[mapped.length - 1];
-        if (nowSec > last.time + 30) {
-          mapped.push({
-            time: nowSec,
-            trade: "HOLD",
-            price: last.price,
-            value: last.value,
-            tokenName: last.tokenName,
+            count: 0,
+            profitPercent: 0,
           });
         }
-      } else {
-        // Extend completed line horizontally up to current time
-        const nowSec = Math.floor(Date.now() / 1000);
-        const last = mapped[mapped.length - 1];
-        if (nowSec > last.time + 30) {
-          mapped.push({
-            time: nowSec,
-            trade: "HOLD",
-            price: last.price,
-            value: last.value,
-            tokenName: last.tokenName,
-          });
-        }
+        return seriesData;
       }
 
       mapped.sort((a, b) => a.time - b.time);
 
-      // Lightweight-charts requires strictly ascending time for line series.
-      // Keeping only real trade endpoints guarantees 100% straight lines without intermediate kinks.
-      const seriesData: ISeries[] = [];
-      let lastTime = -Infinity;
-      for (const item of mapped) {
-        let time = item.time;
-        if (time <= lastTime) {
-          time = lastTime + 1;
-        }
-        seriesData.push({
-          ...item,
-          time,
+      // Define anchor trade points
+      const anchors = [...mapped];
+
+      // Always extend active open position or completed line horizontally up to current time
+      const last = anchors[anchors.length - 1];
+      if (gridNow > last.time + 30) {
+        anchors.push({
+          time: gridNow,
+          trade: "HOLD",
+          price: last.price,
+          value: last.value,
+          tokenName: last.tokenName,
+          count: 0,
+          profitPercent: 0,
         });
-        lastTime = time;
+      }
+
+      // Map anchor points to the uniform global grid
+      const gridAnchors: Array<{ gridTime: number; item: typeof anchors[0] }> = [];
+      let prevGrid = -1;
+      for (const item of anchors) {
+        let g: number;
+        if (prevGrid === -1) {
+          g = Math.floor(item.time / step) * step;
+        } else {
+          const target = Math.round(item.time / step) * step;
+          g = Math.max(prevGrid + step, target);
+        }
+        gridAnchors.push({ gridTime: g, item });
+        prevGrid = g;
+      }
+
+      // Sample along the uniform grid with constant step so:
+      // 1. Distance strictly corresponds to real elapsed time (no collapsing).
+      // 2. Slopes along segments are mathematically constant (100% straight lines, zero kinks, zero stairs).
+      const seriesData: ISeries[] = [];
+      for (let i = 0; i < gridAnchors.length; i++) {
+        const { gridTime: gCurr, item: itemCurr } = gridAnchors[i];
+        if (i === 0) {
+          seriesData.push({
+            time: gCurr,
+            value: itemCurr.value,
+            price: itemCurr.price,
+            profitPercent: itemCurr.profitPercent,
+            count: itemCurr.count,
+            tokenName: itemCurr.tokenName,
+            trade: itemCurr.trade,
+          });
+        } else {
+          const { gridTime: gPrev, item: itemPrev } = gridAnchors[i - 1];
+          const nSteps = Math.floor((gCurr - gPrev) / step);
+          const valStart = itemPrev.value;
+          const valEnd = itemCurr.value;
+          const priceStart = itemPrev.price;
+          const priceEnd = itemCurr.price;
+
+          for (let k = 1; k <= nSteps; k++) {
+            const t = gPrev + k * step;
+            const ratio = k / nSteps;
+            const v = valStart + (valEnd - valStart) * ratio;
+            const p = priceStart + (priceEnd - priceStart) * ratio;
+            const isAnchor = k === nSteps;
+
+            seriesData.push({
+              time: t,
+              value: v,
+              price: p,
+              profitPercent: isAnchor ? itemCurr.profitPercent : 0,
+              count: isAnchor ? itemCurr.count : 0,
+              tokenName: isAnchor ? itemCurr.tokenName : itemPrev.tokenName,
+              trade: isAnchor ? itemCurr.trade : "",
+            });
+          }
+        }
       }
 
       return seriesData;
@@ -1127,7 +1187,8 @@ export default defineComponent({
         window.localStorage.removeItem("crypto_bot_chart_lines_v3");
         window.localStorage.removeItem("crypto_bot_chart_lines_v4");
         window.localStorage.removeItem("crypto_bot_chart_lines_v5");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v6");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v6");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v7");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1172,7 +1233,7 @@ export default defineComponent({
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v6",
+          "crypto_bot_chart_lines_v7",
           JSON.stringify(toSave)
         );
       } catch (err) {
