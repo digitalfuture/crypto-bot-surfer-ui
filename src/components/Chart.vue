@@ -1120,11 +1120,12 @@ export default defineComponent({
     loadCachedLines(): boolean {
       try {
         if (typeof window === "undefined" || !window.localStorage) return false;
-        // Purge legacy v1, v2, v3 caches from previous sessions
+        // Purge legacy caches from previous sessions and trade resets
         window.localStorage.removeItem("crypto_bot_chart_lines_v1");
         window.localStorage.removeItem("crypto_bot_chart_lines_v2");
         window.localStorage.removeItem("crypto_bot_chart_lines_v3");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v4");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v4");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v5");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1159,7 +1160,7 @@ export default defineComponent({
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v4",
+          "crypto_bot_chart_lines_v5",
           JSON.stringify(toSave)
         );
       } catch (err) {
