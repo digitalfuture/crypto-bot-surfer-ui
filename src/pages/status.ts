@@ -106,7 +106,7 @@ export const GET: APIRoute = async () => {
         .replace(/\.csv$/i, "")
         .replace(/^trades[-_]/i, "")
         .toLowerCase();
-      const displayName = strategyId.toUpperCase();
+      const displayName = strategyId.replace(/^vol[-_]/i, "").toUpperCase();
 
       const csvPath = join(directoryPath, fileName);
       const csvRaw = await readFile(csvPath, "utf8");
@@ -203,9 +203,11 @@ export const GET: APIRoute = async () => {
 
     // Sort bots by standard order: VOLATILITY, CHANNEL, TREND, PULLBACK, SCALPER, ORDERBOOK-WALL, ORDERBOOK-IMBALANCE, ORDERBOOK-ABSORPTION, MM-INVENTORY, LIQUIDITY-SWEEP, ORDERBOOK-ICEBERG
     const order = [
-      "volatility",
+      "momentum",
+      "breakout",
       "vol-momentum",
       "vol-breakout",
+      "volatility",
       "volatility2",
       "volatility3",
       "channel",

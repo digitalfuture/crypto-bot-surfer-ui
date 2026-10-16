@@ -1741,7 +1741,9 @@ export default defineComponent({
 
     formatBotName(name: string): string {
       if (!name) return "";
-      return name.replace(/^ORDERBOOK-/i, "OB-");
+      return name
+        .replace(/^ORDERBOOK-/i, "OB-")
+        .replace(/^VOL[-_]/i, "");
     },
 
     toggleCommission(): void {
