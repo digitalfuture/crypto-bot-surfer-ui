@@ -523,16 +523,23 @@ export default defineComponent({
       const _isAbs = this.isAbsoluteMode;
       const _comm = this.useCommission;
 
-      // If a single bot is enabled (solo mode), show its profit
+      // If a single bot is enabled (solo mode), show its profit from cached series
       if (this.linesEnabled.length === 1) {
         const single = this.linesEnabled[0];
-        const series = this.prepareSeriesData(single.data);
-        const lastVal = series.length > 0 ? series[series.length - 1].value : 0;
+        const idx = this.lines.indexOf(single);
+        const sData = this.linesData[idx];
+        const lastVal =
+          sData && sData.length > 0
+            ? sData[sData.length - 1].value
+            : parseFloat(single.data?.[single.data.length - 1]?.[8]) || 0;
         return lastVal != null && !isNaN(lastVal) ? lastVal.toFixed(2) : "0.00";
       }
 
-      const totalSeries = this.prepareSeriesDataTotal();
-      const lastValue = totalSeries[totalSeries.length - 1]?.value;
+      const totalSeries = this.linesDataTotal;
+      const lastValue =
+        totalSeries && totalSeries.length > 0
+          ? totalSeries[totalSeries.length - 1]?.value
+          : 0;
       return lastValue != null && !isNaN(lastValue)
         ? lastValue.toFixed(2)
         : "0.00";
@@ -549,10 +556,12 @@ export default defineComponent({
       const targetLines = isAllLines ? this.lines : this.linesEnabled;
       let sum = 0;
       for (const line of targetLines) {
-        if (!line?.data || line.data.length === 0) continue;
-        const series = this.prepareSeriesData(line.data);
-        if (series.length > 0) {
-          sum += series[series.length - 1].value;
+        const idx = this.lines.indexOf(line);
+        const sData = this.linesData[idx];
+        if (sData && sData.length > 0) {
+          sum += sData[sData.length - 1].value;
+        } else if (line.data && line.data.length > 0) {
+          sum += parseFloat(line.data[line.data.length - 1][8]) || 0;
         }
       }
       return sum > 0 ? `+${sum.toFixed(2)}` : sum.toFixed(2);
@@ -694,7 +703,7 @@ export default defineComponent({
         const seriesData = this.prepareSeriesData(line.data);
 
         lineSeries.push(newLineSeries);
-        newLineSeries.setData(isVisible ? seriesData : []);
+        newLineSeries.setData(seriesData);
 
         linesData.push(seriesData);
       }
@@ -977,9 +986,18 @@ export default defineComponent({
         return [];
       }
 
-      const allPreparedLines = lines.map((line: ILine) =>
-        this.prepareSeriesData(line.data)
-      );
+      const allPreparedLines: ISeries[][] = [];
+      for (const line of lines) {
+        const idx = this.lines.indexOf(line);
+        let sData = this.linesData[idx];
+        if (!sData || !sData.length) {
+          sData = this.prepareSeriesData(line.data);
+          this.linesData[idx] = sData;
+        }
+        if (sData && sData.length) {
+          allPreparedLines.push(sData);
+        }
+      }
 
       const allTimesSet = new Set<number>();
       for (const series of allPreparedLines) {
@@ -1316,7 +1334,12 @@ export default defineComponent({
           l.disabled = true;
         });
         this.isLineTotalVisible = true;
-        this.initChart();
+        for (let i = 0; i < this.lines.length; i++) {
+          lineSeries[i]?.applyOptions({ visible: false });
+        }
+        this.updateLineTotal();
+        this.applyLongestScale();
+        this.refreshMarks();
         return;
       }
 
@@ -1390,7 +1413,8 @@ export default defineComponent({
 
       for (const line of targetLines) {
         if (!line?.data || line.data.length === 0) continue;
-        const seriesData = this.prepareSeriesData(line.data);
+        const idx = this.lines.indexOf(line);
+        const seriesData = this.linesData[idx] || this.prepareSeriesData(line.data);
         if (!seriesData || seriesData.length === 0) continue;
 
         const first = seriesData[0].time;
@@ -1444,10 +1468,17 @@ export default defineComponent({
       const line = this.lines[index];
       if (!line) return;
 
-      // Line
+      // Fast toggle without destroying chart or re-parsing datasets
       line.disabled = !line.disabled;
 
-      this.initChart();
+      if (lineSeries[index]) {
+        const isVisible = !this.hasLineTotalOnly && !line.disabled;
+        lineSeries[index]?.applyOptions({ visible: isVisible });
+      }
+
+      this.updateLineTotal();
+      this.refreshMarks();
+      chart?.priceScale("right").applyOptions({ autoScale: true });
     },
 
     soloLine(index: number): void {
@@ -1469,7 +1500,15 @@ export default defineComponent({
         });
       }
 
-      this.initChart();
+      // Fast path: update all line series visibility in-place
+      for (let i = 0; i < this.lines.length; i++) {
+        const isVisible = !this.hasLineTotalOnly && !this.lines[i].disabled;
+        lineSeries[i]?.applyOptions({ visible: isVisible });
+      }
+
+      this.updateLineTotal();
+      this.refreshMarks();
+      this.applyLongestScale();
     },
 
     async selectBotChart(botName: string): Promise<void> {
@@ -1490,7 +1529,16 @@ export default defineComponent({
       // 3. Ensure chart container is rendered in DOM and has positive dimensions
       await this.$nextTick();
 
-      await this.initChart();
+      if (!chart || lineSeries.length !== this.lines.length) {
+        await this.initChart();
+      } else {
+        for (let i = 0; i < this.lines.length; i++) {
+          lineSeries[i]?.applyOptions({ visible: i === targetIndex });
+        }
+        this.updateLineTotal();
+        this.refreshMarks();
+        this.applyLongestScale();
+      }
     },
 
     updateLines(): void {
@@ -1509,7 +1557,7 @@ export default defineComponent({
               formatter: (val: number) => this.formatProfit(val),
             },
           });
-          lineSeries[index]?.setData(isVisible ? seriesData : []);
+          lineSeries[index]?.setData(seriesData);
         } else if (chart) {
           const newLineSeries = chart.addLineSeries({
             color: line.color,
@@ -1526,7 +1574,7 @@ export default defineComponent({
             autoscaleInfoProvider: (original) =>
               this.getSeriesAutoscaleInfo(original),
           });
-          newLineSeries.setData(isVisible ? seriesData : []);
+          newLineSeries.setData(seriesData);
           lineSeries.push(newLineSeries);
         }
         linesData.push(seriesData);
@@ -1669,7 +1717,7 @@ export default defineComponent({
         const index = this.lines.indexOf(line);
         if (index === -1 || !lineSeries[index]) return;
 
-        const lineData = this.prepareSeriesData(line.data);
+        const lineData = this.linesData[index] || this.prepareSeriesData(line.data);
         const markers: SeriesMarker<Time>[] = lineData
           .filter(({ trade }) => trade === "BUY" || trade === "SELL")
           .map(({ trade, time, count }) => ({
