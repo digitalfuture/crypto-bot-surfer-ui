@@ -24,26 +24,26 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          BOTS: <strong>{{ systemStatus.runningBots || botStatusList.length || 12 }}/{{ systemStatus.totalBots || botStatusList.length || 12 }} RUNNING</strong>
+          BOTS: <strong>{{ systemStatus.runningBots || botStatusList.length || 4 }}/{{ systemStatus.totalBots || botStatusList.length || 4 }} RUNNING</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 12 }}</strong>
+          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 4 }}</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          {{ isAbsoluteMode ? 'TOTAL PNL:' : 'AVG PROFIT:' }}
+          PORTFOLIO PNL:
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
             {{ formatProfit(totalProfit) }}
           </strong>
         </span>
-        <span class="summary-sep">|</span>
-        <span class="summary-item">
-          {{ isAbsoluteMode ? 'PORTFOLIO EQ:' : 'TOTAL SUM:' }}
-          <strong :class="isAbsoluteMode ? 'text-green' : (parseFloat(totalSumProfit) >= 0 ? 'text-green' : 'text-red')">
-            {{ isAbsoluteMode ? '$' + portfolioEquity : totalSumProfit + '%' }}
-          </strong>
-        </span>
+        <template v-if="isAbsoluteMode">
+          <span class="summary-sep">|</span>
+          <span class="summary-item">
+            PORTFOLIO EQ:
+            <strong class="text-green">${{ portfolioEquity }}</strong>
+          </span>
+        </template>
       </div>
     </div>
 
@@ -140,7 +140,7 @@
           :class="systemStatus.status === 'HEALTHY' ? 'status-indicator--green' : 'status-indicator--yellow'"
         />
         <span class="status-btn-text">
-          {{ systemStatus.runningBots || botStatusList.length || 12 }}/{{ systemStatus.totalBots || botStatusList.length || 12 }} BOTS
+          {{ systemStatus.runningBots || botStatusList.length || 4 }}/{{ systemStatus.totalBots || botStatusList.length || 4 }} BOTS
         </span>
         <span
           v-if="systemStatus.activePositionsCount > 0"
@@ -215,12 +215,12 @@
         :title="
           isAbsoluteMode
             ? 'Total Portfolio profit: ' + formatProfit(totalProfit) + ' (Base $' + initialBotCapital + '/bot, Equity: $' + portfolioEquity + ')'
-            : 'Average active bots profit: ' + totalProfit + '%, Total cumulative: ' + totalSumProfit + '%'
+            : 'Portfolio Net PnL: ' + totalProfit + '%'
         "
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isAbsoluteMode ? 'PORTFOLIO (EQ $' + portfolioEquity + ')' : 'AVG (Σ ' + totalSumProfit + '%)' }}
+            {{ isAbsoluteMode ? 'PORTFOLIO (EQ $' + portfolioEquity + ')' : 'PORTFOLIO PNL' }}
           </span>
           <span class="line__last-value">
             {{ formatProfit(totalProfit) }}

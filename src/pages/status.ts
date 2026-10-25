@@ -11,6 +11,9 @@ export interface IBotPosition {
   stopLoss?: number | null;
   takeProfit?: number | null;
   volatility?: number | null;
+  slope?: number | null;
+  r2?: number | null;
+  zScore?: number | null;
 }
 
 export interface IBotStatus {
@@ -21,6 +24,14 @@ export interface IBotStatus {
   totalTrades: number;
   totalProfit: number;
   lastTradeDate?: string;
+  metrics?: {
+    slope?: number;
+    slopePct?: number;
+    r2?: number;
+    zScore?: number;
+    regime?: string;
+    period?: number;
+  } | null;
 }
 
 export interface IStatusResponse {
@@ -149,6 +160,7 @@ export const GET: APIRoute = async () => {
 
       // Check state file: <fileName>.state.json
       let statePosition: IBotPosition | null = null;
+      let stateMetrics: IBotStatus["metrics"] = null;
       const stateFile = join(directoryPath, `${fileName}.state.json`);
       if (existsSync(stateFile)) {
         try {
@@ -161,6 +173,7 @@ export const GET: APIRoute = async () => {
             stopLoss?: string | number;
             takeProfit?: string | number;
             volatility?: string | number;
+            metrics?: any;
           };
           const toFloat = (
             val: string | number | undefined | null
@@ -169,6 +182,10 @@ export const GET: APIRoute = async () => {
             const num = typeof val === "number" ? val : parseFloat(String(val));
             return isNaN(num) ? null : num;
           };
+
+          if (stateData && stateData.metrics) {
+            stateMetrics = stateData.metrics;
+          }
 
           if (stateData && stateData.symbol) {
             statePosition = {
@@ -179,6 +196,9 @@ export const GET: APIRoute = async () => {
               stopLoss: toFloat(stateData.stopLoss),
               takeProfit: toFloat(stateData.takeProfit),
               volatility: toFloat(stateData.volatility),
+              slope: stateData.metrics?.slope ?? null,
+              r2: stateData.metrics?.r2 ?? null,
+              zScore: stateData.metrics?.zScore ?? null,
             };
           }
         } catch {
@@ -200,10 +220,20 @@ export const GET: APIRoute = async () => {
         totalTrades: lines.length,
         totalProfit,
         lastTradeDate,
+        metrics: stateMetrics,
       });
     }
 
     const order = [
+      "btc-5m",
+      "btc-15m",
+      "btc-30m",
+      "btc-1h",
+      "lr-trend",
+      "lr-reversion",
+      "lr-pullback",
+      "lr-squeeze",
+      "lr-portfolio",
       "momentum",
       "breakout",
       "channel",
@@ -227,8 +257,8 @@ export const GET: APIRoute = async () => {
       "orderbook-iceberg",
     ];
     bots.sort((a, b) => {
-      const cleanA = a.id.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
-      const cleanB = b.id.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+      const cleanA = a.id.replace(/^(orderbook|ob|mm|vol|lr)[-_]/i, "");
+      const cleanB = b.id.replace(/^(orderbook|ob|mm|vol|lr)[-_]/i, "");
       const idxA = order.indexOf(cleanA) !== -1 ? order.indexOf(cleanA) : order.indexOf(a.id);
       const idxB = order.indexOf(cleanB) !== -1 ? order.indexOf(cleanB) : order.indexOf(b.id);
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
@@ -237,7 +267,7 @@ export const GET: APIRoute = async () => {
     const systemStatus: IStatusResponse["system"] = {
       status: watchdogData?.status || "HEALTHY",
       runningBots: watchdogData?.runningBots ?? bots.length,
-      totalBots: watchdogData?.totalBots ?? Math.max(11, bots.length),
+      totalBots: watchdogData?.totalBots ?? bots.length,
       uiStatus: watchdogData?.uiStatus ?? "running",
       timestamp: watchdogData?.timestamp || new Date().toISOString(),
       activePositionsCount,

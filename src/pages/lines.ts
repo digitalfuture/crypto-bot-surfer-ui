@@ -88,6 +88,15 @@ export const GET: APIRoute = async ({ request }) => {
     const fileList: IServerLine[] = [];
 
     const order = [
+      "btc-5m",
+      "btc-15m",
+      "btc-30m",
+      "btc-1h",
+      "lr-trend",
+      "lr-reversion",
+      "lr-pullback",
+      "lr-squeeze",
+      "lr-portfolio",
       "momentum",
       "breakout",
       "channel",
@@ -120,8 +129,8 @@ export const GET: APIRoute = async ({ request }) => {
         .replace(/\.csv$/i, "")
         .replace(/^trades[-_]/i, "")
         .toLowerCase();
-      const cleanA = idA.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
-      const cleanB = idB.replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
+      const cleanA = idA.replace(/^(orderbook|ob|mm|vol|lr)[-_]/i, "");
+      const cleanB = idB.replace(/^(orderbook|ob|mm|vol|lr)[-_]/i, "");
       const idxA = order.indexOf(cleanA) !== -1 ? order.indexOf(cleanA) : order.indexOf(idA);
       const idxB = order.indexOf(cleanB) !== -1 ? order.indexOf(cleanB) : order.indexOf(idB);
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
