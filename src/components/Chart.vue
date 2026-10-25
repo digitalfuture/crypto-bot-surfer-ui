@@ -32,7 +32,7 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          PORTFOLIO PNL:
+          PORTFOLIO {{ useCommission ? 'NET PNL' : 'GROSS PNL' }}:
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
             {{ formatProfit(totalProfit) }}
           </strong>
@@ -156,14 +156,22 @@
       <!-- Commission toggle (SECOND) -->
       <div
         class="use-commission-container cursor-pointer"
+        :class="{ 'use-commission--off': !useCommission }"
         @click="toggleCommission"
-        :title="useCommission ? 'With Commission (click to disable)' : 'Without Commission (click to enable)'"
+        :title="
+          useCommission
+            ? 'Комиссия: УЧИТЫВАЕТСЯ (Net PnL, -0.10% за сделку) — Нажмите, чтобы отключить'
+            : 'Комиссия: НЕ УЧИТЫВАЕТСЯ (Gross PnL, без комиссии) — Нажмите, чтобы включить'
+        "
       >
         <img
           :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
-          alt="DNATRADE"
+          alt="Commission Mode"
           class="use-commission-button cursor-pointer"
         />
+        <span class="use-commission-badge">
+          {{ useCommission ? 'COMM ON' : 'COMM OFF' }}
+        </span>
       </div>
 
       <!-- Mode toggle (% vs $ Wallet) (THIRD) -->
@@ -215,12 +223,12 @@
         :title="
           isAbsoluteMode
             ? 'Total Portfolio profit: ' + formatProfit(totalProfit) + ' (Base $' + initialBotCapital + '/bot, Equity: $' + portfolioEquity + ')'
-            : 'Portfolio Net PnL: ' + totalProfit + '%'
+            : 'Portfolio ' + (useCommission ? 'Net' : 'Gross (No Fee)') + ' PnL: ' + totalProfit + '%'
         "
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isAbsoluteMode ? 'PORTFOLIO (EQ $' + portfolioEquity + ')' : 'PORTFOLIO PNL' }}
+            {{ isAbsoluteMode ? 'PORTFOLIO (EQ $' + portfolioEquity + ')' : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__last-value">
             {{ formatProfit(totalProfit) }}
@@ -1885,6 +1893,16 @@ export default defineComponent({
 
     toggleCommission(): void {
       this.useCommission = !this.useCommission;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(
+            "crypto_bot_use_commission",
+            this.useCommission ? "true" : "false"
+          );
+        }
+      } catch (e) {
+        console.warn("Could not save commission mode to localStorage:", e);
+      }
     },
 
     getBotPnl(bot: IBotStatus | null | undefined): number {
@@ -1926,9 +1944,18 @@ export default defineComponent({
         } else if (savedMode === "percent") {
           this.isAbsoluteMode = false;
         }
+
+        const savedComm = window.localStorage.getItem(
+          "crypto_bot_use_commission"
+        );
+        if (savedComm === "false") {
+          this.useCommission = false;
+        } else if (savedComm === "true") {
+          this.useCommission = true;
+        }
       }
     } catch (e) {
-      console.warn("Could not load calc mode from localStorage:", e);
+      console.warn("Could not load settings from localStorage:", e);
     }
 
     const hasCache = this.loadCachedLines();
@@ -2031,6 +2058,13 @@ export default defineComponent({
       }
     }
 
+    .use-commission-container {
+      padding: 0 4px;
+      .use-commission-badge {
+        display: none;
+      }
+    }
+
     .calc-mode-container {
       .calc-mode-button {
         width: 22px;
@@ -2043,11 +2077,41 @@ export default defineComponent({
     position: relative;
     display: inline-flex;
     align-items: center;
+    gap: 5px;
+    height: 25px;
+    padding: 0 6px 0 4px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     flex-shrink: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      opacity: 0.85;
+      transform: scale(1.03);
+    }
 
     .use-commission-button {
-      width: 25px;
-      height: auto;
+      width: 18px;
+      height: 18px;
+    }
+
+    .use-commission-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      user-select: none;
+      line-height: 1;
+      color: #15803d;
+    }
+
+    &.use-commission--off {
+      background: rgba(185, 28, 28, 0.08);
+      border-color: rgba(185, 28, 28, 0.25);
+
+      .use-commission-badge {
+        color: #b91c1c;
+      }
     }
   }
 
