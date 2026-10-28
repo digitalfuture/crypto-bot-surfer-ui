@@ -40,6 +40,10 @@
         <template v-if="isAbsoluteMode">
           <span class="summary-sep">|</span>
           <span class="summary-item">
+            СТАРТ: <strong>${{ initialBotCapital.toLocaleString() }}/бот</strong>
+          </span>
+          <span class="summary-sep">|</span>
+          <span class="summary-item">
             PORTFOLIO EQ:
             <strong class="text-green">${{ portfolioEquity }}</strong>
           </span>
@@ -178,14 +182,23 @@
       <!-- Mode toggle (% vs $ Wallet) (THIRD) -->
       <div
         class="calc-mode-container cursor-pointer"
-        @click="toggleCalcMode"
-        :title="isAbsoluteMode ? 'Dollar Compounding Mode ($100 base) - Click to switch to Relative %' : 'Percentage Mode (%) - Click to switch to Dollar Compounding ($100 base)'"
+        :class="{ 'calc-mode--active': isAbsoluteMode }"
+        @click.stop.prevent="toggleCalcMode"
+        :title="
+          isAbsoluteMode
+            ? `Режим: Реинвестирование (сложный %, старт $${initialBotCapital.toLocaleString()}/бот) — Нажмите для переключения в %`
+            : `Режим: Относительные проценты (%) — Нажмите для переключения в реинвестирование (старт $${initialBotCapital.toLocaleString()}/бот)`
+        "
       >
         <img
           :src="isAbsoluteMode ? '/icons/wallet.svg' : '/icons/percent.svg'"
           alt="Mode"
           class="calc-mode-button cursor-pointer"
+          draggable="false"
         />
+        <span class="calc-mode-badge">
+          {{ isAbsoluteMode ? `РЕИНВ. ($${(initialBotCapital / 1000).toFixed(0)}K СТАРТ)` : '% PNL' }}
+        </span>
       </div>
     </div>
 
@@ -229,7 +242,7 @@
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isAbsoluteMode ? 'PORTFOLIO (EQ $' + portfolioEquity + ')' : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
+            {{ isAbsoluteMode ? 'PORTFOLIO (СТАРТ $' + initialBotCapital.toLocaleString() + ' → EQ $' + portfolioEquity + ')' : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__last-value">
             {{ formatProfit(totalProfit) }}
@@ -358,7 +371,7 @@ export default defineComponent({
       isLineMarked: false as boolean,
       useCommission: true as boolean,
       isAbsoluteMode: false as boolean,
-      initialBotCapital: 100 as number,
+      initialBotCapital: 10000 as number,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
       botStatusList: [] as IBotStatus[],
@@ -627,7 +640,7 @@ export default defineComponent({
       if (val == null) return this.isAbsoluteMode ? "$0.00" : "0.00%";
       const num = typeof val === "number" ? val : parseFloat(String(val));
       if (isNaN(num)) return this.isAbsoluteMode ? "$0.00" : "0.00%";
-      const abs = Math.abs(num).toFixed(2);
+      const abs = Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const sign = abs === "0.00" ? "" : num > 0 ? "+" : "-";
       if (this.isAbsoluteMode) {
         return `${sign}$${abs}`;
@@ -638,6 +651,8 @@ export default defineComponent({
     setCalcMode(isAbsolute: boolean): void {
       if (this.isAbsoluteMode === isAbsolute) return;
       this.isAbsoluteMode = isAbsolute;
+      this.linesData = [];
+      this.linesDataTotal = [];
       try {
         if (typeof window !== "undefined" && window.localStorage) {
           window.localStorage.setItem(
@@ -2075,9 +2090,13 @@ export default defineComponent({
     }
 
     .calc-mode-container {
+      padding: 0 4px;
+      .calc-mode-badge {
+        display: none;
+      }
       .calc-mode-button {
-        width: 22px;
-        height: auto;
+        width: 18px;
+        height: 18px;
       }
     }
   }
@@ -2131,16 +2150,44 @@ export default defineComponent({
     position: relative;
     display: inline-flex;
     align-items: center;
+    gap: 5px;
+    height: 25px;
+    padding: 0 6px 0 4px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     flex-shrink: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      opacity: 0.85;
+      transform: scale(1.03);
+    }
 
     .calc-mode-button {
-      width: 25px;
-      height: auto;
-      transition: opacity 0.15s ease, transform 0.15s ease;
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+      user-select: none;
+    }
 
-      &:hover {
-        opacity: 0.8;
-        transform: scale(1.05);
+    .calc-mode-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      user-select: none;
+      line-height: 1;
+      color: #555;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    &.calc-mode--active {
+      background: rgba(21, 128, 61, 0.12);
+      border-color: rgba(21, 128, 61, 0.35);
+
+      .calc-mode-badge {
+        color: #15803d;
       }
     }
   }
