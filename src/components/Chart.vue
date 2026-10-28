@@ -39,6 +39,10 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
+          MAX DD: <strong class="text-red">{{ formatDrawdown(portfolioMaxDrawdown) }}</strong>
+        </span>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
           MODE: <strong>{{ isAbsoluteMode ? 'REINVESTMENT (COMPOUND %)' : 'SIMPLE %' }}</strong>
         </span>
       </div>
@@ -237,6 +241,9 @@
           <span class="line__name">
             {{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
+          <span class="line__max-dd" :title="'Portfolio Max Drawdown: ' + formatDrawdown(portfolioMaxDrawdown)">
+            MAX DD: <strong class="text-red">{{ formatDrawdown(portfolioMaxDrawdown) }}</strong>
+          </span>
           <span class="line__last-value">
             {{ formatProfit(totalProfit) }}
           </span>
@@ -278,6 +285,10 @@
             :title="`${getBotPosition(line.name).side} ${getBotPosition(line.name).symbol}`"
           >
             {{ getBotPosition(line.name).symbol }}
+          </span>
+
+          <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(getBotMaxDrawdown(index))">
+            DD: <strong class="text-red">{{ formatDrawdown(getBotMaxDrawdown(index)) }}</strong>
           </span>
 
           <span class="line__last-value" v-text="getLegendValue(index)" />
@@ -533,6 +544,37 @@ export default defineComponent({
       return (baseCapital + profit).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     },
 
+    portfolioMaxDrawdown(): number {
+      const _isAbs = this.isAbsoluteMode;
+      const _comm = this.useCommission;
+
+      let series: ISeries[] = [];
+      if (this.linesEnabled.length === 1) {
+        const single = this.linesEnabled[0];
+        const idx = this.lines.indexOf(single);
+        series = this.linesData[idx] || [];
+      } else {
+        series = this.linesDataTotal || [];
+      }
+
+      if (!series || series.length === 0) return 0;
+
+      let peak = 100;
+      let maxDd = 0;
+      for (let i = 0; i < series.length; i++) {
+        const bal = 100 + (series[i]?.value || 0);
+        if (bal > peak) {
+          peak = bal;
+        }
+        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+        if (dd < maxDd) {
+          maxDd = dd;
+        }
+      }
+
+      return Number(maxDd.toFixed(2));
+    },
+
     totalProfit(): string {
       // Track reactivity on calc mode & commission
       const _isAbs = this.isAbsoluteMode;
@@ -636,6 +678,37 @@ export default defineComponent({
       const abs = Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const sign = abs === "0.00" ? "" : num > 0 ? "+" : "-";
       return `${sign}${abs}%`;
+    },
+
+    formatDrawdown(val: number | string | undefined | null): string {
+      if (val == null) return "0.00%";
+      const num = typeof val === "number" ? val : parseFloat(String(val));
+      if (isNaN(num) || num === 0) return "0.00%";
+      const abs = Math.abs(num).toFixed(2);
+      return `-${abs}%`;
+    },
+
+    getBotMaxDrawdown(index: number): number {
+      const _isAbs = this.isAbsoluteMode;
+      const _comm = this.useCommission;
+
+      const series = this.linesData[index];
+      if (!series || series.length === 0) return 0;
+
+      let peak = 100;
+      let maxDd = 0;
+      for (let i = 0; i < series.length; i++) {
+        const bal = 100 + (series[i]?.value || 0);
+        if (bal > peak) {
+          peak = bal;
+        }
+        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+        if (dd < maxDd) {
+          maxDd = dd;
+        }
+      }
+
+      return Number(maxDd.toFixed(2));
     },
 
     setCalcMode(isAbsolute: boolean): void {
@@ -2412,10 +2485,31 @@ export default defineComponent({
   flex-grow: 1;
 
   .line__name,
-  .line__last-value {
+  .line__last-value,
+  .line__max-dd {
     background: var(--background-color);
     padding-inline: 7px;
     white-space: nowrap;
+  }
+
+  .line__max-dd {
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: auto;
+    margin-right: 12px;
+    letter-spacing: 0.3px;
+    opacity: 0.95;
+    white-space: nowrap;
+
+    @media (max-width: 600px) {
+      font-size: 10px;
+      margin-right: 6px;
+    }
+
+    strong {
+      color: #ef4444;
+      font-weight: 700;
+    }
   }
 
   .micro-pos-tag {
@@ -2439,7 +2533,7 @@ export default defineComponent({
 
   .line__last-value {
     font-weight: bold;
-    margin-left: auto;
+    margin-left: 0;
     margin-right: 16px;
   }
 
