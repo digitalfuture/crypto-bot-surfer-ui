@@ -40,7 +40,7 @@
         <template v-if="isAbsoluteMode">
           <span class="summary-sep">|</span>
           <span class="summary-item">
-            СТАРТ: <strong>${{ initialBotCapital.toLocaleString() }}/бот</strong>
+            START: <strong>${{ initialBotCapital.toLocaleString() }}/BOT</strong>
           </span>
           <span class="summary-sep">|</span>
           <span class="summary-item">
@@ -164,8 +164,8 @@
         @click.stop.prevent="toggleCommission"
         :title="
           useCommission
-            ? 'Комиссия: УЧИТЫВАЕТСЯ (Net PnL, -0.10% за сделку) — Нажмите, чтобы отключить'
-            : 'Комиссия: НЕ УЧИТЫВАЕТСЯ (Gross PnL, без комиссии) — Нажмите, чтобы включить'
+            ? 'Commission: ON (Net PnL, -0.10% round-trip) - Click to disable'
+            : 'Commission: OFF (Gross PnL, no fee) - Click to enable'
         "
       >
         <img
@@ -186,8 +186,8 @@
         @click.stop.prevent="toggleCalcMode"
         :title="
           isAbsoluteMode
-            ? 'Реинвестирование: ВКЛЮЧЕНО (сложный %, старт $' + initialBotCapital.toLocaleString() + ' на бота) — Нажмите, чтобы отключить'
-            : 'Реинвестирование: ВЫКЛЮЧЕНО (относительные %, без сложного %) — Нажмите, чтобы включить (старт $' + initialBotCapital.toLocaleString() + ' на бота)'
+            ? 'Reinvestment: ON (Compounding, start $' + initialBotCapital.toLocaleString() + '/bot) - Click to disable'
+            : 'Reinvestment: OFF (Relative %, no compounding) - Click to enable (start $' + initialBotCapital.toLocaleString() + '/bot)'
         "
       >
         <img
@@ -197,7 +197,7 @@
           draggable="false"
         />
         <span class="calc-mode-badge">
-          {{ isAbsoluteMode ? 'REINVEST ON ($10,000)' : 'REINVEST OFF' }}
+          {{ isAbsoluteMode ? 'REINVEST ON ($' + initialBotCapital.toLocaleString() + ')' : 'REINVEST OFF' }}
         </span>
       </div>
     </div>
@@ -236,13 +236,13 @@
         @click="updateLineTotalVisibility"
         :title="
           isAbsoluteMode
-            ? 'Портфель: прибыль ' + formatProfit(totalProfit) + ' (Старт $' + initialBotCapital.toLocaleString() + ' на бота, Эквити: $' + portfolioEquity + ')'
-            : 'Портфель: ' + (useCommission ? 'Чистая прибыль (Net)' : 'Грязная прибыль (Gross, без комиссий)') + ' PnL: ' + totalProfit + '%'
+            ? 'Portfolio profit: ' + formatProfit(totalProfit) + ' (Start $' + initialBotCapital.toLocaleString() + '/bot, Equity: $' + portfolioEquity + ')'
+            : 'Portfolio ' + (useCommission ? 'Net PnL' : 'Gross PnL (No Fee)') + ': ' + totalProfit + '%'
         "
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isAbsoluteMode ? 'PORTFOLIO (СТАРТ $' + initialBotCapital.toLocaleString() + ' → EQ $' + portfolioEquity + ')' : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
+            {{ isAbsoluteMode ? 'PORTFOLIO (START $' + initialBotCapital.toLocaleString() + ' → EQ $' + portfolioEquity + ')' : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__last-value">
             {{ formatProfit(totalProfit) }}
@@ -371,7 +371,7 @@ export default defineComponent({
       isLineMarked: false as boolean,
       useCommission: true as boolean,
       isAbsoluteMode: false as boolean,
-      initialBotCapital: 10000 as number,
+      initialBotCapital: 100 as number,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
       botStatusList: [] as IBotStatus[],
@@ -537,7 +537,7 @@ export default defineComponent({
       const count = targetLines.length || 12;
       const baseCapital = count * this.initialBotCapital;
       const profit = parseFloat(this.totalSumProfit) || 0;
-      return (baseCapital + profit).toFixed(2);
+      return (baseCapital + profit).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     },
 
     totalProfit(): string {
