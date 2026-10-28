@@ -2489,7 +2489,12 @@ export default defineComponent({
   .line__max-dd {
     background: var(--background-color);
     padding-inline: 7px;
+    height: 20px;
+    line-height: 20px;
+    display: inline-flex;
+    align-items: center;
     white-space: nowrap;
+    box-sizing: border-box;
   }
 
   .line__max-dd {
@@ -2517,10 +2522,15 @@ export default defineComponent({
     font-size: 14px;
     font-weight: 600;
     padding-inline: 7px;
+    height: 20px;
+    line-height: 20px;
+    display: inline-flex;
+    align-items: center;
     margin-left: 6px;
     letter-spacing: 0.3px;
     white-space: nowrap;
     border: none;
+    box-sizing: border-box;
 
     &--long {
       color: var(--green-color);
