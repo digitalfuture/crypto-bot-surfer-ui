@@ -157,7 +157,7 @@
       <div
         class="use-commission-container cursor-pointer"
         :class="{ 'use-commission--off': !useCommission }"
-        @click="toggleCommission"
+        @click.stop.prevent="toggleCommission"
         :title="
           useCommission
             ? 'Комиссия: УЧИТЫВАЕТСЯ (Net PnL, -0.10% за сделку) — Нажмите, чтобы отключить'
@@ -168,6 +168,7 @@
           :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
           alt="Commission Mode"
           class="use-commission-button cursor-pointer"
+          draggable="false"
         />
         <span class="use-commission-badge">
           {{ useCommission ? 'COMM ON' : 'COMM OFF' }}
@@ -603,14 +604,20 @@ export default defineComponent({
     },
 
     useCommission() {
+      this.linesData = [];
+      this.linesDataTotal = [];
       this.initChart();
     },
 
     isAbsoluteMode() {
+      this.linesData = [];
+      this.linesDataTotal = [];
       this.initChart();
     },
 
     tradeDirection() {
+      this.linesData = [];
+      this.linesDataTotal = [];
       this.initChart();
     },
   },
@@ -671,10 +678,12 @@ export default defineComponent({
       }
       lineSeries = [];
       lineSeriesTotal = null;
+      this.linesData = [];
+      this.linesDataTotal = [];
       chart = createChart(chartContainer, this.chartOptions);
 
-      this.setupChartTotal();
       this.setupChartLines();
+      this.setupChartTotal();
 
       this.applyLongestScale();
 
@@ -2094,6 +2103,8 @@ export default defineComponent({
     .use-commission-button {
       width: 18px;
       height: 18px;
+      pointer-events: none;
+      user-select: none;
     }
 
     .use-commission-badge {
@@ -2103,6 +2114,7 @@ export default defineComponent({
       user-select: none;
       line-height: 1;
       color: #15803d;
+      pointer-events: none;
     }
 
     &.use-commission--off {
