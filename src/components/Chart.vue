@@ -182,12 +182,12 @@
       <!-- Mode toggle (% vs $ Wallet) (THIRD) -->
       <div
         class="calc-mode-container cursor-pointer"
-        :class="{ 'calc-mode--active': isAbsoluteMode }"
+        :class="{ 'calc-mode--off': !isAbsoluteMode }"
         @click.stop.prevent="toggleCalcMode"
         :title="
           isAbsoluteMode
-            ? `Режим: Реинвестирование (сложный %, старт $${initialBotCapital.toLocaleString()}/бот) — Нажмите для переключения в %`
-            : `Режим: Относительные проценты (%) — Нажмите для переключения в реинвестирование (старт $${initialBotCapital.toLocaleString()}/бот)`
+            ? 'Реинвестирование: ВКЛЮЧЕНО (сложный %, старт $' + initialBotCapital.toLocaleString() + ' на бота) — Нажмите, чтобы отключить'
+            : 'Реинвестирование: ВЫКЛЮЧЕНО (относительные %, без сложного %) — Нажмите, чтобы включить (старт $' + initialBotCapital.toLocaleString() + ' на бота)'
         "
       >
         <img
@@ -197,7 +197,7 @@
           draggable="false"
         />
         <span class="calc-mode-badge">
-          {{ isAbsoluteMode ? `РЕИНВ. ($${(initialBotCapital / 1000).toFixed(0)}K СТАРТ)` : '% PNL' }}
+          {{ isAbsoluteMode ? 'REINVEST ON ($10,000)' : 'REINVEST OFF' }}
         </span>
       </div>
     </div>
@@ -236,8 +236,8 @@
         @click="updateLineTotalVisibility"
         :title="
           isAbsoluteMode
-            ? 'Total Portfolio profit: ' + formatProfit(totalProfit) + ' (Base $' + initialBotCapital + '/bot, Equity: $' + portfolioEquity + ')'
-            : 'Portfolio ' + (useCommission ? 'Net' : 'Gross (No Fee)') + ' PnL: ' + totalProfit + '%'
+            ? 'Портфель: прибыль ' + formatProfit(totalProfit) + ' (Старт $' + initialBotCapital.toLocaleString() + ' на бота, Эквити: $' + portfolioEquity + ')'
+            : 'Портфель: ' + (useCommission ? 'Чистая прибыль (Net)' : 'Грязная прибыль (Gross, без комиссий)') + ' PnL: ' + totalProfit + '%'
         "
       >
         <div class="line__details info">
@@ -2154,8 +2154,8 @@ export default defineComponent({
     height: 25px;
     padding: 0 6px 0 4px;
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(21, 128, 61, 0.09);
+    border: 1px solid rgba(21, 128, 61, 0.3);
     flex-shrink: 0;
     transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
 
@@ -2177,17 +2177,17 @@ export default defineComponent({
       letter-spacing: 0.5px;
       user-select: none;
       line-height: 1;
-      color: #555;
+      color: #15803d;
       pointer-events: none;
       white-space: nowrap;
     }
 
-    &.calc-mode--active {
-      background: rgba(21, 128, 61, 0.12);
-      border-color: rgba(21, 128, 61, 0.35);
+    &.calc-mode--off {
+      background: rgba(185, 28, 28, 0.08);
+      border-color: rgba(185, 28, 28, 0.25);
 
       .calc-mode-badge {
-        color: #15803d;
+        color: #b91c1c;
       }
     }
   }
