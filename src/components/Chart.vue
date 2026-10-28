@@ -32,22 +32,15 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          PORTFOLIO {{ useCommission ? 'NET PNL' : 'GROSS PNL' }}:
+          PORTFOLIO {{ isAbsoluteMode ? (useCommission ? 'COMPOUND NET PNL' : 'COMPOUND GROSS PNL') : (useCommission ? 'NET PNL' : 'GROSS PNL') }}:
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
             {{ formatProfit(totalProfit) }}
           </strong>
         </span>
-        <template v-if="isAbsoluteMode">
-          <span class="summary-sep">|</span>
-          <span class="summary-item">
-            START: <strong>${{ initialBotCapital.toLocaleString() }}/BOT</strong>
-          </span>
-          <span class="summary-sep">|</span>
-          <span class="summary-item">
-            PORTFOLIO EQ:
-            <strong class="text-green">${{ portfolioEquity }}</strong>
-          </span>
-        </template>
+        <span class="summary-sep">|</span>
+        <span class="summary-item">
+          MODE: <strong>{{ isAbsoluteMode ? 'REINVESTMENT (COMPOUND %)' : 'SIMPLE %' }}</strong>
+        </span>
       </div>
     </div>
 
@@ -186,8 +179,8 @@
         @click.stop.prevent="toggleCalcMode"
         :title="
           isAbsoluteMode
-            ? 'Reinvestment: ON (Compounding, start $' + initialBotCapital.toLocaleString() + '/bot) - Click to disable'
-            : 'Reinvestment: OFF (Relative %, no compounding) - Click to enable (start $' + initialBotCapital.toLocaleString() + '/bot)'
+            ? 'Reinvestment: ON (Compounding %) - Click to disable'
+            : 'Reinvestment: OFF (Simple %) - Click to enable'
         "
       >
         <img
@@ -197,7 +190,7 @@
           draggable="false"
         />
         <span class="calc-mode-badge">
-          {{ isAbsoluteMode ? 'REINVEST ON ($' + initialBotCapital.toLocaleString() + ')' : 'REINVEST OFF' }}
+          {{ isAbsoluteMode ? 'REINVEST ON' : 'REINVEST OFF' }}
         </span>
       </div>
     </div>
@@ -236,13 +229,13 @@
         @click="updateLineTotalVisibility"
         :title="
           isAbsoluteMode
-            ? 'Portfolio profit: ' + formatProfit(totalProfit) + ' (Start $' + initialBotCapital.toLocaleString() + '/bot, Equity: $' + portfolioEquity + ')'
-            : 'Portfolio ' + (useCommission ? 'Net PnL' : 'Gross PnL (No Fee)') + ': ' + totalProfit + '%'
+            ? 'Portfolio Compound Profit: ' + formatProfit(totalProfit)
+            : 'Portfolio ' + (useCommission ? 'Net PnL' : 'Gross PnL (No Fee)') + ': ' + formatProfit(totalProfit)
         "
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isAbsoluteMode ? 'PORTFOLIO (START $' + initialBotCapital.toLocaleString() + ' → EQ $' + portfolioEquity + ')' : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
+            {{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__last-value">
             {{ formatProfit(totalProfit) }}
@@ -637,14 +630,11 @@ export default defineComponent({
 
   methods: {
     formatProfit(val: number | string | undefined | null): string {
-      if (val == null) return this.isAbsoluteMode ? "$0.00" : "0.00%";
+      if (val == null) return "0.00%";
       const num = typeof val === "number" ? val : parseFloat(String(val));
-      if (isNaN(num)) return this.isAbsoluteMode ? "$0.00" : "0.00%";
+      if (isNaN(num)) return "0.00%";
       const abs = Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const sign = abs === "0.00" ? "" : num > 0 ? "+" : "-";
-      if (this.isAbsoluteMode) {
-        return `${sign}$${abs}`;
-      }
       return `${sign}${abs}%`;
     },
 
@@ -1087,11 +1077,7 @@ export default defineComponent({
             activeCount++;
           }
         }
-        const finalValue = this.isAbsoluteMode
-          ? sum
-          : activeCount > 0
-          ? sum / activeCount
-          : 0;
+        const finalValue = activeCount > 0 ? sum / activeCount : 0;
 
         return {
           time,
@@ -1382,12 +1368,24 @@ export default defineComponent({
     },
 
     computeZoomCondition(): boolean {
-      return this.linesEnabled && this.linesEnabled.length === 1;
+      if (!chart || this.linesEnabled.length !== 1) return false;
+      try {
+        const range = chart.timeScale().getVisibleRange();
+        if (!range || range.from == null || range.to == null) return false;
+        const fromSec = typeof range.from === "number" ? range.from : Number(range.from);
+        const toSec = typeof range.to === "number" ? range.to : Number(range.to);
+        const durationSec = toSec - fromSec;
+        // ~90 days (7,776,000s): optimal threshold for displaying trade markers without clutter
+        const MAX_ZOOM_SECONDS = 90 * 86400;
+        return durationSec > 0 && durationSec <= MAX_ZOOM_SECONDS;
+      } catch (e) {
+        return false;
+      }
     },
 
     refreshMarks(): void {
       if (!chart || this.isMonitorView) return;
-      if (this.linesEnabled.length === 1) {
+      if (this.computeZoomCondition()) {
         this.setMarks();
       } else {
         this.clearMarks();
@@ -1490,6 +1488,7 @@ export default defineComponent({
 
       // Automatically recalibrate and scale vertical height for currently visible lines
       chart.priceScale("right").applyOptions({ autoScale: true });
+      this.refreshMarks();
     },
 
     zoomToLine(_line?: ILine): void {
@@ -1738,35 +1737,34 @@ export default defineComponent({
 
     // Line marks
     setMarks(): void {
-      // Clear markers on all series first
-      lineSeries.forEach((s) => s?.setMarkers([]));
-      this.lineSeriesMarked = null;
-      this.isLineMarked = false;
+      if (this.linesEnabled.length !== 1) return;
+      const line = this.linesEnabled[0];
+      const index = this.lines.indexOf(line);
+      if (index === -1 || !lineSeries[index]) return;
 
-      // Only show markers when an individual bot chart is selected
-      if (this.linesEnabled.length === 1) {
-        const line = this.linesEnabled[0];
-        const index = this.lines.indexOf(line);
-        if (index === -1 || !lineSeries[index]) return;
-
-        const lineData = this.linesData[index] || this.prepareSeriesData(line.data);
-        const markers: SeriesMarker<Time>[] = lineData
-          .filter(({ trade }) => trade === "BUY" || trade === "SELL")
-          .map(({ trade, time, count }) => ({
-            time: time as UTCTimestamp,
-            position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
-            color: trade === "BUY" ? "green" : "red",
-            shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
-            id: `${time}-${trade}-${count || 0}`,
-          }));
-
-        this.lineSeriesMarked = lineSeries[index];
-        this.lineSeriesMarked?.setMarkers(markers);
-        this.isLineMarked = true;
+      if (this.isLineMarked && this.lineSeriesMarked === lineSeries[index]) {
+        return;
       }
+
+      lineSeries.forEach((s) => s?.setMarkers([]));
+      const lineData = this.linesData[index] || this.prepareSeriesData(line.data);
+      const markers: SeriesMarker<Time>[] = lineData
+        .filter(({ trade }) => trade === "BUY" || trade === "SELL")
+        .map(({ trade, time, count }) => ({
+          time: time as UTCTimestamp,
+          position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
+          color: trade === "BUY" ? "green" : "red",
+          shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
+          id: `${time}-${trade}-${count || 0}`,
+        }));
+
+      this.lineSeriesMarked = lineSeries[index];
+      this.lineSeriesMarked?.setMarkers(markers);
+      this.isLineMarked = true;
     },
 
     clearMarks(): void {
+      if (!this.isLineMarked && !this.lineSeriesMarked) return;
       lineSeries.forEach((s) => s?.setMarkers([]));
       this.lineSeriesMarked = null;
       this.isLineMarked = false;
