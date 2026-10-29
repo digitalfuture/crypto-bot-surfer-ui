@@ -323,6 +323,8 @@ import {
   type UTCTimestamp,
   type DeepPartial,
   type ChartOptions,
+  type ISeriesPrimitive,
+  type SeriesAttachedParameter,
 } from "lightweight-charts";
 import type { IBotPosition, IBotStatus, IStatusResponse } from "../pages/status";
 
@@ -361,6 +363,117 @@ let lineSeries: (ISeriesApi<"Line"> | null)[] = [];
 let lineSeriesTotal: ISeriesApi<"Line"> | null = null;
 
 const totalLineColor = "dimgray";
+
+interface IOutlineArrow {
+  time: Time;
+  value: number;
+  up: boolean;
+  color: string;
+}
+
+// Built-in markers are always filled, so position opens are drawn as outline-only arrows by a series primitive
+class OutlineArrowsPrimitive implements ISeriesPrimitive<Time> {
+  private arrows: IOutlineArrow[] = [];
+  private param: SeriesAttachedParameter<Time> | null = null;
+
+  attached(param: SeriesAttachedParameter<Time>): void {
+    this.param = param;
+  }
+
+  detached(): void {
+    this.param = null;
+  }
+
+  setArrows(arrows: IOutlineArrow[]): void {
+    this.arrows = arrows;
+    this.param?.requestUpdate();
+  }
+
+  paneViews() {
+    return [
+      {
+        renderer: () => ({
+          draw: (target: any) => {
+            const param = this.param;
+            if (!param) return;
+            const timeScale = param.chart.timeScale();
+            const barSpacing = timeScale.options().barSpacing;
+            // roughly the size of built-in markers with size: 2
+            const w = Math.min(Math.max(barSpacing, 12), 30) * 0.9;
+            const h = w * 1.3;
+            const gap = w * 0.6;
+            target.useMediaCoordinateSpace(({ context: ctx }: { context: CanvasRenderingContext2D }) => {
+              ctx.lineWidth = 1.5;
+              for (const a of this.arrows) {
+                const x = timeScale.timeToCoordinate(a.time);
+                const y = param.series.priceToCoordinate(a.value);
+                if (x === null || y === null) continue;
+                // up arrow sits below the line with its tip up, down arrow above the line with its tip down
+                const tip = a.up ? y + gap : y - gap;
+                const dir = a.up ? 1 : -1;
+                const head = tip + dir * h * 0.5;
+                const base = tip + dir * h;
+                ctx.beginPath();
+                ctx.moveTo(x, tip);
+                ctx.lineTo(x + w / 2, head);
+                ctx.lineTo(x + w * 0.18, head);
+                ctx.lineTo(x + w * 0.18, base);
+                ctx.lineTo(x - w * 0.18, base);
+                ctx.lineTo(x - w * 0.18, head);
+                ctx.lineTo(x - w / 2, head);
+                ctx.closePath();
+                ctx.strokeStyle = a.color;
+                ctx.stroke();
+              }
+            });
+          },
+        }),
+      },
+    ];
+  }
+}
+
+const closeArrows = new OutlineArrowsPrimitive();
+let closeArrowsSeries: ISeriesApi<"Line"> | null = null;
+
+interface ITradeState {
+  isOpen: boolean;
+  side: "LONG" | "SHORT";
+  // other positions held right after this trade
+  held: Array<{ token: string; side: "LONG" | "SHORT"; price: number }>;
+}
+
+// Per-token open/close replay of a line's trades (legs of one token alternate open -> close)
+const tradeStatesCache = new WeakMap<object, Map<object, ITradeState>>();
+function getTradeStates(items: ISeries[]): Map<object, ITradeState> {
+  const cached = tradeStatesCache.get(items);
+  if (cached) return cached;
+  const states = new Map<object, ITradeState>();
+  const held = new Map<string, { side: "LONG" | "SHORT"; price: number }>();
+  for (const item of items) {
+    if (item.trade !== "BUY" && item.trade !== "SELL") continue;
+    const token = item.tokenName || "";
+    const pos = held.get(token);
+    let side: "LONG" | "SHORT";
+    if (pos) {
+      side = pos.side;
+      held.delete(token);
+    } else {
+      side = item.trade === "BUY" ? "LONG" : "SHORT";
+      held.set(token, { side, price: item.price ?? 0 });
+    }
+    states.set(item, {
+      isOpen: !pos,
+      side,
+      held: [...held].filter(([t]) => t !== token).map(([t, p]) => ({ token: t, ...p })),
+    });
+  }
+  tradeStatesCache.set(items, states);
+  return states;
+}
+
+const formatTradePrice = (price: number | undefined): string =>
+  typeof price === "number" ? (price < 0.01 ? price.toFixed(8) : price.toFixed(4)) : "";
 
 export default defineComponent({
   name: "Chart",
@@ -768,7 +881,10 @@ export default defineComponent({
       this.setupZoomListener();
       this.setupAnnotations();
 
-      this.refreshMarks();
+      // The new chart reports its default (narrow) visible range until the scale is applied,
+      // which would briefly show every marker; decide only after the range has settled.
+      this.clearMarks();
+      setTimeout(() => this.refreshMarks(), 200);
     },
 
     /// Setup lines
@@ -1786,12 +1902,18 @@ export default defineComponent({
           );
 
           if (line?.trade) {
-            annotationTokenText += `${line.tokenName}<br>`;
-            const formattedPrice =
-              typeof line.price === "number"
-                ? (line.price < 0.01 ? line.price.toFixed(8) : line.price.toFixed(4))
-                : "";
-            annotationPriceText += `${formattedPrice}<br>`;
+            const state =
+              line.trade === "BUY" || line.trade === "SELL"
+                ? getTradeStates(this.linesData[index]).get(line)
+                : undefined;
+            const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
+            annotationTokenText += `${line.tokenName}${action}<br>`;
+            annotationPriceText += `${formatTradePrice(line.price)}<br>`;
+            // the rest of the portfolio at this moment, with entry prices
+            for (const p of state?.held ?? []) {
+              annotationTokenText += `${p.token} ${p.side}<br>`;
+              annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+            }
             color = this.lines[index]?.color || "transparent";
           }
         });
@@ -1821,24 +1943,54 @@ export default defineComponent({
 
       lineSeries.forEach((s) => s?.setMarkers([]));
       const lineData = this.linesData[index] || this.prepareSeriesData(line.data);
-      const markers: SeriesMarker<Time>[] = lineData
-        .filter(({ trade }) => trade === "BUY" || trade === "SELL")
-        .map(({ trade, time, count }) => ({
-          time: time as UTCTimestamp,
-          position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
-          color: trade === "BUY" ? "green" : "red",
-          shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
-          id: `${time}-${trade}-${count || 0}`,
-        }));
+      // BUY/SELL alone is ambiguous in multi-coin long/short portfolios (closing a short is a BUY),
+      // so open/close is inferred per token: legs of one token always alternate open -> close.
+      const openByToken = new Map<string, boolean>();
+      const markers: SeriesMarker<Time>[] = [];
+      const outlines: IOutlineArrow[] = [];
+      for (const { trade, time, count, tokenName, profitPercent, value } of lineData) {
+        if (trade !== "BUY" && trade !== "SELL") continue;
+        const token = tokenName || "";
+        const isOpen = !openByToken.get(token);
+        openByToken.set(token, isOpen);
+        if (isOpen) {
+          // Open: outline arrow, green for long, red for short
+          outlines.push({
+            time: time as UTCTimestamp,
+            value,
+            up: trade === "BUY",
+            color: trade === "BUY" ? "green" : "red",
+          });
+        } else {
+          // Close: filled arrow in the direction of the closing order, colored by result
+          markers.push({
+            time: time as UTCTimestamp,
+            position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
+            color: (Number(profitPercent) || 0) >= 0 ? "green" : "red",
+            shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
+            size: 2,
+            id: `${time}-${trade}-${count || 0}`,
+          });
+        }
+      }
 
       this.lineSeriesMarked = lineSeries[index];
       this.lineSeriesMarked?.setMarkers(markers);
+      if (closeArrowsSeries !== lineSeries[index]) {
+        closeArrowsSeries?.detachPrimitive(closeArrows);
+        closeArrowsSeries = lineSeries[index];
+        closeArrowsSeries?.attachPrimitive(closeArrows);
+      }
+      closeArrows.setArrows(outlines);
       this.isLineMarked = true;
     },
 
     clearMarks(): void {
       if (!this.isLineMarked && !this.lineSeriesMarked) return;
       lineSeries.forEach((s) => s?.setMarkers([]));
+      closeArrows.setArrows([]);
+      closeArrowsSeries?.detachPrimitive(closeArrows);
+      closeArrowsSeries = null;
       this.lineSeriesMarked = null;
       this.isLineMarked = false;
     },
@@ -2095,6 +2247,9 @@ export default defineComponent({
   right: 100px;
   text-align: right;
   color: white;
+  // above the chart canvas (trade markers), below the top menus
+  z-index: 100;
+  pointer-events: none;
 
   * {
     padding: 5px 10px;
