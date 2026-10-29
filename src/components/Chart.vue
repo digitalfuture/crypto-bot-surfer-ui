@@ -352,6 +352,7 @@ export interface ISeries {
   trade?: string;
   profit?: number;
   profitPercent?: number;
+  tradeResult?: number;
   sum?: number;
   count?: number;
   tokenName?: string;
@@ -1058,6 +1059,7 @@ export default defineComponent({
           profitTotalPercent,
           tokenName,
           count,
+          priceChangePercent,
         }) => {
           let value = profitTotalPercent;
           if (this.isAbsoluteMode) {
@@ -1075,6 +1077,8 @@ export default defineComponent({
             price: tradePrice,
             value,
             profitPercent,
+            // equity-curve reports put each trade's own result here (their "Profit %" is 0)
+            tradeResult: parseFloat(priceChangePercent) || 0,
             count: parseInt(count, 10) || 0,
             tokenName,
           };
@@ -1149,6 +1153,7 @@ export default defineComponent({
             value: itemCurr.value,
             price: itemCurr.price,
             profitPercent: itemCurr.profitPercent,
+            tradeResult: itemCurr.tradeResult,
             count: itemCurr.count,
             tokenName: itemCurr.tokenName,
             trade: itemCurr.trade,
@@ -1173,6 +1178,7 @@ export default defineComponent({
               value: v,
               price: p,
               profitPercent: isAnchor ? itemCurr.profitPercent : 0,
+              tradeResult: isAnchor ? itemCurr.tradeResult : 0,
               count: isAnchor ? itemCurr.count : 0,
               tokenName: isAnchor ? itemCurr.tokenName : itemPrev.tokenName,
               trade: isAnchor ? itemCurr.trade : "",
@@ -1901,7 +1907,7 @@ export default defineComponent({
               item.value === (seriesData as { value?: number })?.value
           );
 
-          if (line?.trade) {
+          if (line?.trade === "BUY" || line?.trade === "SELL") {
             const state =
               line.trade === "BUY" || line.trade === "SELL"
                 ? getTradeStates(this.linesData[index]).get(line)
@@ -1948,7 +1954,7 @@ export default defineComponent({
       const openByToken = new Map<string, boolean>();
       const markers: SeriesMarker<Time>[] = [];
       const outlines: IOutlineArrow[] = [];
-      for (const { trade, time, count, tokenName, profitPercent, value } of lineData) {
+      for (const { trade, time, count, tokenName, profitPercent, tradeResult, value } of lineData) {
         if (trade !== "BUY" && trade !== "SELL") continue;
         const token = tokenName || "";
         const isOpen = !openByToken.get(token);
@@ -1966,7 +1972,7 @@ export default defineComponent({
           markers.push({
             time: time as UTCTimestamp,
             position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
-            color: (Number(profitPercent) || 0) >= 0 ? "green" : "red",
+            color: (tradeResult || Number(profitPercent) || 0) >= 0 ? "green" : "red",
             shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
             size: 2,
             id: `${time}-${trade}-${count || 0}`,
