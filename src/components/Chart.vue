@@ -440,7 +440,8 @@ let closeArrowsSeries: ISeriesApi<"Line"> | null = null;
 interface ITradeState {
   isOpen: boolean;
   side: "LONG" | "SHORT";
-  // other positions held right after this trade
+  isHold?: boolean;
+  // other positions held right after this trade (or positions held during this hold)
   held: Array<{ token: string; side: "LONG" | "SHORT"; price: number }>;
 }
 
@@ -452,6 +453,15 @@ function getTradeStates(items: ISeries[]): Map<object, ITradeState> {
   const states = new Map<object, ITradeState>();
   const held = new Map<string, { side: "LONG" | "SHORT"; price: number }>();
   for (const item of items) {
+    if (item.trade === "HOLD") {
+      states.set(item, {
+        isOpen: false,
+        side: "LONG",
+        isHold: true,
+        held: [...held].map(([t, p]) => ({ token: t, ...p })),
+      });
+      continue;
+    }
     if (item.trade !== "BUY" && item.trade !== "SELL") continue;
     const token = item.tokenName || "";
     const pos = held.get(token);
@@ -1908,14 +1918,24 @@ export default defineComponent({
           );
 
           if (line?.trade === "BUY" || line?.trade === "SELL") {
-            const state =
-              line.trade === "BUY" || line.trade === "SELL"
-                ? getTradeStates(this.linesData[index]).get(line)
-                : undefined;
+            const state = getTradeStates(this.linesData[index]).get(line);
             const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
             annotationTokenText += `${line.tokenName}${action}<br>`;
             annotationPriceText += `${formatTradePrice(line.price)}<br>`;
             // the rest of the portfolio at this moment, with entry prices
+            for (const p of state?.held ?? []) {
+              annotationTokenText += `${p.token} ${p.side}<br>`;
+              annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+            }
+            color = this.lines[index]?.color || "transparent";
+          } else if (line?.trade === "HOLD") {
+            const state = getTradeStates(this.linesData[index]).get(line);
+            const pnl = Number(line.profitPercent) || 0;
+            const pnlSign = pnl >= 0 ? "+" : "";
+            const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
+            const headerLabel = line.tokenName ? `${line.tokenName} HOLD (Переоценка)` : `HOLD (Переоценка)`;
+            annotationTokenText += `${headerLabel}<br>`;
+            annotationPriceText += `${pnlStr}<br>`;
             for (const p of state?.held ?? []) {
               annotationTokenText += `${p.token} ${p.side}<br>`;
               annotationPriceText += `${formatTradePrice(p.price)}<br>`;
