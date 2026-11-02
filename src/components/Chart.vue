@@ -197,6 +197,23 @@
           {{ isAbsoluteMode ? 'REINVEST ON' : 'REINVEST OFF' }}
         </span>
       </div>
+
+      <!-- Coin Filter Toggle (FOURTH) -->
+      <div
+        v-if="allCoins.length > 0"
+        class="coin-filter-container cursor-pointer"
+        :class="{ 'coin-filter--filtered': excludedCoins.size > 0 }"
+        @click.stop.prevent="toggleCoinFilter"
+        :title="
+          excludedCoins.size > 0
+            ? 'Coins: ' + (allCoins.length - excludedCoins.size) + '/' + allCoins.length + ' active (' + excludedCoins.size + ' excluded) - Click to manage'
+            : 'Coins: all ' + allCoins.length + ' active - Click to filter'
+        "
+      >
+        <span class="coin-filter-badge">
+          {{ excludedCoins.size > 0 ? (allCoins.length - excludedCoins.size) + '/' + allCoins.length + ' COINS' : 'COINS (' + allCoins.length + ')' }}
+        </span>
+      </div>
     </div>
 
     <!-- Top Right: Fullscreen Toggle Button -->
@@ -304,6 +321,67 @@
         </div>
       </div>
     </section>
+    <!-- Coin Filter Modal -->
+    <div
+      v-if="isCoinFilterOpen"
+      class="coin-modal-overlay"
+      @click.self="isCoinFilterOpen = false"
+    >
+      <div class="coin-modal">
+        <div class="coin-modal-header">
+          <div class="coin-modal-title">
+            <span>COIN FILTER</span>
+            <span class="coin-modal-subtitle">
+              ({{ allCoins.length - excludedCoins.size }}/{{ allCoins.length }} active)
+            </span>
+          </div>
+          <button class="coin-modal-close" @click="isCoinFilterOpen = false">✕</button>
+        </div>
+
+        <div class="coin-modal-search-row">
+          <input
+            v-model="coinFilterSearch"
+            type="text"
+            class="coin-modal-search"
+            placeholder="Search coin (e.g. BTC, ETH)..."
+          />
+          <button class="coin-btn-action" @click="selectAllCoins">SELECT ALL</button>
+          <button class="coin-btn-action" @click="deselectAllCoins">DESELECT ALL</button>
+        </div>
+
+        <div class="coin-modal-list">
+          <div
+            v-for="coin in filteredCoins"
+            :key="coin.symbol"
+            class="coin-modal-item cursor-pointer"
+            :class="{ 'coin-modal-item--excluded': excludedCoins.has(coin.symbol) }"
+            @click="toggleCoin(coin.symbol)"
+          >
+            <input
+              type="checkbox"
+              :checked="!excludedCoins.has(coin.symbol)"
+              class="coin-checkbox"
+              @click.stop="toggleCoin(coin.symbol)"
+            />
+            <span class="coin-name">{{ coin.symbol }}</span>
+            <span class="coin-trades-count">{{ coin.tradesCount }} trades</span>
+            <span
+              class="coin-pnl-badge"
+              :class="coin.pnlContribution >= 0 ? 'coin-pnl--positive' : 'coin-pnl--negative'"
+            >
+              {{ coin.pnlContribution >= 0 ? '+' : '' }}{{ coin.pnlContribution.toFixed(2) }}%
+            </span>
+          </div>
+          <div v-if="filteredCoins.length === 0" class="coin-empty-search">
+            No coins found
+          </div>
+        </div>
+
+        <div class="coin-modal-footer">
+          <button class="coin-btn-done" @click="isCoinFilterOpen = false">DONE</button>
+        </div>
+      </div>
+    </div>
   </template>
 </template>
 
@@ -524,6 +602,9 @@ export default defineComponent({
       zoomCondition: false as boolean,
 
       tradeDirection: "long" as string,
+      isCoinFilterOpen: false as boolean,
+      coinFilterSearch: "" as string,
+      excludedCoins: new Set<string>(),
 
       colors: [
         "maroon",
@@ -759,6 +840,43 @@ export default defineComponent({
     hasNoLines(): boolean {
       return !this.isLineTotalVisible && this.linesEnabled.length === 0;
     },
+
+    allCoins(): Array<{ symbol: string; tradesCount: number; pnlContribution: number }> {
+      const counts: Record<string, number> = {};
+      const pnls: Record<string, number> = {};
+
+      const targetLines = this.linesEnabled.length === 1 ? this.linesEnabled : this.lines;
+      for (const line of targetLines) {
+        if (!line?.data) continue;
+        for (const row of line.data) {
+          if (!row || row.length < 5) continue;
+          const token = row[2]?.trim();
+          const trade = row[4]?.trim();
+          if (!token || token === "PORTFOLIO" || token === "ACCOUNT") continue;
+          if (trade !== "BUY" && trade !== "SELL") continue;
+          const sym = token.split(/\s+/)[0];
+          counts[sym] = (counts[sym] || 0) + 1;
+          const res = parseFloat(row[3]) || parseFloat(row[7]) || 0;
+          if (!isNaN(res) && res !== 0) {
+            pnls[sym] = (pnls[sym] || 0) + res;
+          }
+        }
+      }
+
+      return Object.keys(counts)
+        .map((sym) => ({
+          symbol: sym,
+          tradesCount: counts[sym],
+          pnlContribution: pnls[sym] || 0,
+        }))
+        .sort((a, b) => b.tradesCount - a.tradesCount);
+    },
+
+    filteredCoins(): Array<{ symbol: string; tradesCount: number; pnlContribution: number }> {
+      const q = this.coinFilterSearch.trim().toUpperCase();
+      if (!q) return this.allCoins;
+      return this.allCoins.filter((c) => c.symbol.toUpperCase().includes(q));
+    },
   },
 
   watch: {
@@ -810,6 +928,53 @@ export default defineComponent({
       if (isNaN(num) || num === 0) return "0.00%";
       const abs = Math.abs(num).toFixed(2);
       return `-${abs}%`;
+    },
+
+    toggleCoinFilter(): void {
+      this.isCoinFilterOpen = !this.isCoinFilterOpen;
+    },
+
+    toggleCoin(symbol: string): void {
+      if (this.excludedCoins.has(symbol)) {
+        this.excludedCoins.delete(symbol);
+      } else {
+        this.excludedCoins.add(symbol);
+      }
+      this.saveExcludedCoins();
+      this.onCoinFilterChanged();
+    },
+
+    selectAllCoins(): void {
+      this.excludedCoins.clear();
+      this.saveExcludedCoins();
+      this.onCoinFilterChanged();
+    },
+
+    deselectAllCoins(): void {
+      for (const c of this.allCoins) {
+        this.excludedCoins.add(c.symbol);
+      }
+      this.saveExcludedCoins();
+      this.onCoinFilterChanged();
+    },
+
+    saveExcludedCoins(): void {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(
+            "crypto_bot_excluded_coins",
+            JSON.stringify([...this.excludedCoins])
+          );
+        }
+      } catch (e) {
+        console.warn("Could not save excluded coins to localStorage:", e);
+      }
+    },
+
+    onCoinFilterChanged(): void {
+      this.linesData = [];
+      this.linesDataTotal = [];
+      this.initChart();
     },
 
     getBotMaxDrawdown(index: number): number {
@@ -1008,40 +1173,85 @@ export default defineComponent({
         dedupedData.push(row);
       }
 
-      const tradeArray = dedupedData
-        .map((row: string[]) => {
-          const [
-            count,
-            dateString,
-            tokenName,
-            priceChangePercent,
-            trade,
-            tradePrice,
-            commission,
-            profitPercent,
-            profitTotalPercent,
-          ] = row;
+      const hasHoldRows = dedupedData.some((r) => r[4]?.trim() === "HOLD");
+      const hasExcluded = this.excludedCoins && this.excludedCoins.size > 0;
 
-          const parsedPrice = parseFloat(tradePrice);
-          const parsedCommission = parseFloat(commission);
-          const parsedProfitPercent = parseFloat(profitPercent);
-          const parsedProfitTotal = parseFloat(profitTotalPercent);
+      let cumExcludedPnl = 0;
+      let runningCumulativeProfit = 0;
 
-          return {
-            dateString,
-            trade: trade ? trade.trim() : "",
-            tradePrice: isNaN(parsedPrice) ? 0 : parsedPrice,
-            commission: isNaN(parsedCommission) ? 0 : parsedCommission,
-            profitPercent: isNaN(parsedProfitPercent) ? 0 : parsedProfitPercent,
-            profitTotalPercent: isNaN(parsedProfitTotal) ? 0 : parsedProfitTotal,
-            tokenName: tokenName ? tokenName.trim() : "",
-            count,
-            priceChangePercent,
-          };
-        })
-        .filter(
-          (item) => item.dateString && !isNaN(Date.parse(item.dateString))
-        );
+      const tradeArray: Array<{
+        dateString: string;
+        trade: string;
+        tradePrice: number;
+        commission: number;
+        profitPercent: number;
+        profitTotalPercent: number;
+        tokenName: string;
+        count: string;
+        priceChangePercent: string;
+      }> = [];
+
+      for (const row of dedupedData) {
+        const [
+          count,
+          dateString,
+          tokenName,
+          priceChangePercent,
+          trade,
+          tradePrice,
+          commission,
+          profitPercent,
+          profitTotalPercent,
+        ] = row;
+
+        if (!dateString || isNaN(Date.parse(dateString))) continue;
+
+        const cleanTrade = trade ? trade.trim() : "";
+        const cleanToken = tokenName ? tokenName.trim() : "";
+        const sym = cleanToken.split(/\s+/)[0];
+        const isExcluded = hasExcluded && sym && this.excludedCoins.has(sym);
+
+        const parsedPrice = parseFloat(tradePrice);
+        const parsedCommission = parseFloat(commission);
+        const parsedProfitPercent = parseFloat(profitPercent);
+        let parsedProfitTotal = parseFloat(profitTotalPercent);
+
+        if (isExcluded && (cleanTrade === "BUY" || cleanTrade === "SELL")) {
+          if (hasHoldRows) {
+            const res = parseFloat(priceChangePercent);
+            if (!isNaN(res) && res !== 0) {
+              cumExcludedPnl += res;
+            }
+          }
+          // Omit trade rows of excluded coins from chart markers/anchors
+          continue;
+        }
+
+        if (hasExcluded) {
+          if (hasHoldRows) {
+            if (!isNaN(parsedProfitTotal)) {
+              parsedProfitTotal -= cumExcludedPnl;
+            }
+          } else {
+            if (!isNaN(parsedProfitPercent)) {
+              runningCumulativeProfit += parsedProfitPercent;
+              parsedProfitTotal = runningCumulativeProfit;
+            }
+          }
+        }
+
+        tradeArray.push({
+          dateString,
+          trade: cleanTrade,
+          tradePrice: isNaN(parsedPrice) ? 0 : parsedPrice,
+          commission: isNaN(parsedCommission) ? 0 : parsedCommission,
+          profitPercent: isNaN(parsedProfitPercent) ? 0 : parsedProfitPercent,
+          profitTotalPercent: isNaN(parsedProfitTotal) ? 0 : parsedProfitTotal,
+          tokenName: cleanToken,
+          count,
+          priceChangePercent,
+        });
+      }
 
       if (!this.useCommission) {
         let cumulativeCommissionPercent = 0;
@@ -1933,7 +2143,7 @@ export default defineComponent({
             const pnl = Number(line.profitPercent) || 0;
             const pnlSign = pnl >= 0 ? "+" : "";
             const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
-            const headerLabel = line.tokenName ? `${line.tokenName} HOLD (Переоценка)` : `HOLD (Переоценка)`;
+            const headerLabel = line.tokenName ? `${line.tokenName} HOLD (Mark-to-Market)` : `HOLD (Mark-to-Market)`;
             annotationTokenText += `${headerLabel}<br>`;
             annotationPriceText += `${pnlStr}<br>`;
             for (const p of state?.held ?? []) {
@@ -2225,6 +2435,16 @@ export default defineComponent({
           this.useCommission = false;
         } else if (savedComm === "true") {
           this.useCommission = true;
+        }
+
+        const savedCoins = window.localStorage.getItem("crypto_bot_excluded_coins");
+        if (savedCoins) {
+          try {
+            const list = JSON.parse(savedCoins);
+            if (Array.isArray(list)) {
+              this.excludedCoins = new Set(list);
+            }
+          } catch (e) {}
         }
       }
     } catch (e) {
@@ -3036,4 +3256,234 @@ export default defineComponent({
 .text-green { color: var(--green-color); }
 .text-red { color: var(--red-color); }
 .text-yellow { color: #d97706; }
+
+  .coin-filter-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 25px;
+    padding: 0 8px 0 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+    cursor: pointer;
+
+    &:hover {
+      opacity: 0.85;
+      transform: scale(1.03);
+    }
+
+    .coin-filter-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      user-select: none;
+      line-height: 1;
+      color: #374151;
+      white-space: nowrap;
+    }
+
+    &.coin-filter--filtered {
+      background: rgba(234, 88, 12, 0.12);
+      border-color: rgba(234, 88, 12, 0.4);
+
+      .coin-filter-badge {
+        color: #c2410c;
+      }
+    }
+  }
+
+.coin-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coin-modal {
+  width: 90%;
+  max-width: 500px;
+  max-height: 85vh;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+
+  .coin-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+
+    .coin-modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .coin-modal-subtitle {
+        font-size: 11px;
+        font-weight: 500;
+        color: #6b7280;
+      }
+    }
+
+    .coin-modal-close {
+      background: transparent;
+      border: none;
+      font-size: 16px;
+      color: #9ca3af;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+
+      &:hover {
+        color: #111827;
+      }
+    }
+  }
+
+  .coin-modal-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #f3f4f6;
+
+    .coin-modal-search {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      outline: none;
+
+      &:focus {
+        border-color: #3b82f6;
+      }
+    }
+
+    .coin-btn-action {
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #374151;
+      cursor: pointer;
+      white-space: nowrap;
+
+      &:hover {
+        background: #e5e7eb;
+      }
+    }
+  }
+
+  .coin-modal-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+    max-height: 55vh;
+
+    .coin-modal-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      transition: background 0.1s ease;
+
+      &:hover {
+        background: #f9fafb;
+      }
+
+      &.coin-modal-item--excluded {
+        opacity: 0.55;
+        background: #fdf2f2;
+      }
+
+      .coin-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      .coin-name {
+        font-size: 13px;
+        font-weight: 700;
+        color: #1f2937;
+        flex: 1;
+      }
+
+      .coin-trades-count {
+        font-size: 11px;
+        color: #6b7280;
+        font-weight: 500;
+      }
+
+      .coin-pnl-badge {
+        font-size: 11px;
+        font-weight: 700;
+        min-width: 65px;
+        text-align: right;
+
+        &.coin-pnl--positive {
+          color: #15803d;
+        }
+
+        &.coin-pnl--negative {
+          color: #b91c1c;
+        }
+      }
+    }
+
+    .coin-empty-search {
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+  }
+
+  .coin-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 16px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+
+    .coin-btn-done {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+
+      &:hover {
+        background: #1d4ed8;
+      }
+    }
+  }
+}
+
 </style>
