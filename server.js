@@ -111,7 +111,7 @@ async function readFiles() {
           .split(/\r?\n/)
           .slice(1)
           .filter((line) => line.trim().length > 0)
-          .slice(-10000),
+          .slice(-100000),
       });
     }
 

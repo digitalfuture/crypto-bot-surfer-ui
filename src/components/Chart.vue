@@ -515,6 +515,79 @@ class OutlineArrowsPrimitive implements ISeriesPrimitive<Time> {
 const closeArrows = new OutlineArrowsPrimitive();
 let closeArrowsSeries: ISeriesApi<"Line"> | null = null;
 
+// Vertical divider line separating historical backtest from live trading
+class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
+  private dividerTime: number | null = null;
+  private dividerLabel: string = "LIVE TRADING";
+  private param: SeriesAttachedParameter<Time> | null = null;
+
+  attached(param: SeriesAttachedParameter<Time>): void {
+    this.param = param;
+  }
+
+  detached(): void {
+    this.param = null;
+  }
+
+  setDivider(time: number | null, label = "LIVE TRADING"): void {
+    this.dividerTime = time;
+    this.dividerLabel = label;
+    this.param?.requestUpdate();
+  }
+
+  paneViews() {
+    return [
+      {
+        renderer: () => ({
+          draw: (target: any) => {
+            const param = this.param;
+            if (!param || !this.dividerTime) return;
+            const timeScale = param.chart.timeScale();
+            const x = timeScale.timeToCoordinate(this.dividerTime as any);
+            if (x === null) return;
+
+            target.useMediaCoordinateSpace(({ context: ctx, mediaSize }: any) => {
+              ctx.save();
+              // Vertical dashed divider line
+              ctx.strokeStyle = "rgba(255, 215, 0, 0.85)";
+              ctx.lineWidth = 1.8;
+              ctx.setLineDash([6, 4]);
+              ctx.beginPath();
+              ctx.moveTo(x, 0);
+              ctx.lineTo(x, mediaSize.height);
+              ctx.stroke();
+
+              // Top pill badge
+              const label = this.dividerLabel;
+              ctx.font = "bold 11px sans-serif";
+              const textWidth = ctx.measureText(label).width;
+              const badgeWidth = textWidth + 18;
+              const badgeHeight = 22;
+              const badgeX = Math.max(5, Math.min(x - badgeWidth / 2, mediaSize.width - badgeWidth - 5));
+              const badgeY = 16;
+
+              ctx.fillStyle = "rgba(18, 20, 29, 0.92)";
+              ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
+              ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
+              ctx.setLineDash([]);
+              ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
+
+              ctx.fillStyle = "#FFD700";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
+              ctx.restore();
+            });
+          },
+        }),
+      },
+    ];
+  }
+}
+
+const verticalDivider = new VerticalDividerPrimitive();
+let verticalDividerSeries: ISeriesApi<"Line"> | null = null;
+
 interface ITradeState {
   isOpen: boolean;
   side: "LONG" | "SHORT";
@@ -578,6 +651,7 @@ export default defineComponent({
       useCommission: true as boolean,
       isAbsoluteMode: false as boolean,
       initialBotCapital: 100 as number,
+      liveStartTime: null as number | null,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
       botStatusList: [] as IBotStatus[],
@@ -1089,6 +1163,13 @@ export default defineComponent({
 
         const seriesData = this.prepareSeriesData(line.data);
 
+        if (lineSeries.length === 0) {
+          if (verticalDividerSeries && verticalDividerSeries !== newLineSeries) {
+            verticalDividerSeries.detachPrimitive(verticalDivider);
+          }
+          verticalDividerSeries = newLineSeries;
+          newLineSeries.attachPrimitive(verticalDivider);
+        }
         lineSeries.push(newLineSeries);
         newLineSeries.setData(seriesData);
 
@@ -1096,6 +1177,9 @@ export default defineComponent({
       }
 
       this.linesData = linesData;
+      if (this.liveStartTime) {
+        verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING");
+      }
     },
 
     setupChartTotal(): void {
@@ -1209,6 +1293,25 @@ export default defineComponent({
         const cleanTrade = trade ? trade.trim() : "";
         const cleanToken = tokenName ? tokenName.trim() : "";
         const sym = cleanToken.split(/\s+/)[0];
+
+        if (cleanTrade === "LIVE_START" || cleanToken === "LIVE_START") {
+          const tSec = Math.floor(Date.parse(dateString) / 1000);
+          if (!isNaN(tSec)) {
+            this.liveStartTime = tSec;
+          }
+          tradeArray.push({
+            dateString,
+            trade: "LIVE_START",
+            tradePrice: 0,
+            commission: 0,
+            profitPercent: 0,
+            profitTotalPercent: isNaN(parseFloat(profitTotalPercent)) ? 0 : parseFloat(profitTotalPercent),
+            tokenName: "LIVE TRADING START",
+            count,
+            priceChangePercent: "0",
+          });
+          continue;
+        }
         const isExcluded = hasExcluded && sym && this.excludedCoins.has(sym);
 
         const parsedPrice = parseFloat(tradePrice);
@@ -1994,6 +2097,13 @@ export default defineComponent({
         const seriesData = this.prepareSeriesData(line.data);
         const isVisible = !this.hasLineTotalOnly && !line.disabled;
 
+        if (index === 0 && lineSeries[0]) {
+          if (verticalDividerSeries !== lineSeries[0]) {
+            verticalDividerSeries?.detachPrimitive(verticalDivider);
+            verticalDividerSeries = lineSeries[0];
+            lineSeries[0]?.attachPrimitive(verticalDivider);
+          }
+        }
         if (lineSeries[index]) {
           lineSeries[index]?.applyOptions({
             visible: isVisible,
@@ -2138,6 +2248,10 @@ export default defineComponent({
               annotationPriceText += `${formatTradePrice(p.price)}<br>`;
             }
             color = this.lines[index]?.color || "transparent";
+          } else if (line?.trade === "LIVE_START") {
+            annotationTokenText += `LIVE TRADING START<br>`;
+            annotationPriceText += `Real execution begins<br>`;
+            color = "#FFD700";
           } else if (line?.trade === "HOLD") {
             const state = getTradeStates(this.linesData[index]).get(line);
             const pnl = Number(line.profitPercent) || 0;
