@@ -119,7 +119,13 @@ export const GET: APIRoute = async ({ request }) => {
       "orderbook-iceberg",
     ];
 
-    const csvFiles = files.filter((f) => f.endsWith(".csv"));
+    const csvFiles = files.filter(
+      (f) =>
+        f.endsWith(".csv") &&
+        !f.endsWith("-demo.csv") &&
+        !f.endsWith("-testnet.csv") &&
+        !f.endsWith("-real.csv")
+    );
     csvFiles.sort((a, b) => {
       const idA = a
         .replace(/\.csv$/i, "")
@@ -224,7 +230,7 @@ export const GET: APIRoute = async ({ request }) => {
             (!clientLast || !serverLastDate || clientLast === serverLastDate);
 
           if (!isConsistent || (clientMtime !== null && fileMtime > clientMtime)) {
-            returnRows = allRows.slice(-10000);
+            returnRows = allRows;
             offset = 0;
             isDelta = false;
           } else {
@@ -252,19 +258,19 @@ export const GET: APIRoute = async ({ request }) => {
             isDelta = true;
           } else {
             // Desync detected! File changed or was prepended/reset -> reload full rows
-            returnRows = allRows.slice(-10000);
+            returnRows = allRows;
             offset = 0;
             isDelta = false;
           }
         } else {
           // File was truncated or reset -> reload full rows
-          returnRows = allRows.slice(-10000);
+          returnRows = allRows;
           offset = 0;
           isDelta = false;
         }
       } else {
         // Initial full load
-        returnRows = allRows.slice(-10000);
+        returnRows = allRows;
         offset = 0;
         isDelta = false;
       }

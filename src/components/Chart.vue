@@ -543,10 +543,27 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
             const param = this.param;
             if (!param || !this.dividerTime) return;
             const timeScale = param.chart.timeScale();
-            const x = timeScale.timeToCoordinate(this.dividerTime as any);
+            let x = timeScale.timeToCoordinate(this.dividerTime as any);
+            if (x === null && param.series) {
+              const data = (param.series as any).data?.() || [];
+              if (data.length > 0) {
+                let closestTime = data[0].time;
+                let minDiff = Math.abs(Number(closestTime) - this.dividerTime);
+                for (let i = 1; i < data.length; i++) {
+                  const diff = Math.abs(Number(data[i].time) - this.dividerTime);
+                  if (diff < minDiff) {
+                    minDiff = diff;
+                    closestTime = data[i].time;
+                  }
+                }
+                x = timeScale.timeToCoordinate(closestTime);
+              }
+            }
             if (x === null) return;
 
             target.useMediaCoordinateSpace(({ context: ctx, mediaSize }: any) => {
+              const w = mediaSize?.width ?? 2000;
+              const h = mediaSize?.height ?? 1000;
               ctx.save();
               // Vertical dashed divider line
               ctx.strokeStyle = "rgba(255, 215, 0, 0.85)";
@@ -554,7 +571,7 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               ctx.setLineDash([6, 4]);
               ctx.beginPath();
               ctx.moveTo(x, 0);
-              ctx.lineTo(x, mediaSize.height);
+              ctx.lineTo(x, h);
               ctx.stroke();
 
               // Top pill badge
@@ -563,7 +580,7 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               const textWidth = ctx.measureText(label).width;
               const badgeWidth = textWidth + 18;
               const badgeHeight = 22;
-              const badgeX = Math.max(5, Math.min(x - badgeWidth / 2, mediaSize.width - badgeWidth - 5));
+              const badgeX = Math.max(5, Math.min(x - badgeWidth / 2, w - badgeWidth - 5));
               const badgeY = 16;
 
               ctx.fillStyle = "rgba(18, 20, 29, 0.92)";
@@ -1163,13 +1180,7 @@ export default defineComponent({
 
         const seriesData = this.prepareSeriesData(line.data);
 
-        if (lineSeries.length === 0) {
-          if (verticalDividerSeries && verticalDividerSeries !== newLineSeries) {
-            verticalDividerSeries.detachPrimitive(verticalDivider);
-          }
-          verticalDividerSeries = newLineSeries;
-          newLineSeries.attachPrimitive(verticalDivider);
-        }
+        // attachVerticalDivider will attach to active/total series
         lineSeries.push(newLineSeries);
         newLineSeries.setData(seriesData);
 
@@ -1177,9 +1188,7 @@ export default defineComponent({
       }
 
       this.linesData = linesData;
-      if (this.liveStartTime) {
-        verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING");
-      }
+      this.attachVerticalDivider();
     },
 
     setupChartTotal(): void {
@@ -1206,6 +1215,45 @@ export default defineComponent({
       const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
 
       lineSeriesTotal.setData(seriesDataTotal);
+      this.attachVerticalDivider();
+    },
+
+    attachVerticalDivider(): void {
+      if (!this.liveStartTime) return;
+      verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING");
+
+      let targetSeries: ISeriesApi<"Line"> | null = null;
+      if (this.isLineTotalVisible && this.linesEnabled.length !== 1 && lineSeriesTotal) {
+        targetSeries = lineSeriesTotal;
+      } else {
+        for (let i = 0; i < this.lines.length; i++) {
+          if (!this.lines[i].disabled && lineSeries[i]) {
+            targetSeries = lineSeries[i];
+            break;
+          }
+        }
+        if (!targetSeries && lineSeriesTotal) {
+          targetSeries = lineSeriesTotal;
+        } else if (!targetSeries && lineSeries[0]) {
+          targetSeries = lineSeries[0];
+        }
+      }
+
+      if (targetSeries && verticalDividerSeries !== targetSeries) {
+        if (verticalDividerSeries) {
+          try {
+            verticalDividerSeries.detachPrimitive(verticalDivider);
+          } catch (e) {
+            // ignore
+          }
+        }
+        verticalDividerSeries = targetSeries;
+        try {
+          targetSeries.attachPrimitive(verticalDivider);
+        } catch (e) {
+          // ignore
+        }
+      }
     },
 
     getGlobalTimeInfo(): { step: number; startTime: number } {
@@ -1742,7 +1790,8 @@ export default defineComponent({
         window.localStorage.removeItem("crypto_bot_chart_lines_v4");
         window.localStorage.removeItem("crypto_bot_chart_lines_v5");
         window.localStorage.removeItem("crypto_bot_chart_lines_v6");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v7");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v7");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v8");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -2097,13 +2146,7 @@ export default defineComponent({
         const seriesData = this.prepareSeriesData(line.data);
         const isVisible = !this.hasLineTotalOnly && !line.disabled;
 
-        if (index === 0 && lineSeries[0]) {
-          if (verticalDividerSeries !== lineSeries[0]) {
-            verticalDividerSeries?.detachPrimitive(verticalDivider);
-            verticalDividerSeries = lineSeries[0];
-            lineSeries[0]?.attachPrimitive(verticalDivider);
-          }
-        }
+        // attachVerticalDivider handles dynamic series selection
         if (lineSeries[index]) {
           lineSeries[index]?.applyOptions({
             visible: isVisible,
@@ -2137,6 +2180,7 @@ export default defineComponent({
       }
 
       this.linesData = linesData;
+      this.attachVerticalDivider();
     },
 
     updateLineTotal(): void {
@@ -2154,6 +2198,7 @@ export default defineComponent({
 
       const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
       lineSeriesTotal?.setData(seriesDataTotal);
+      this.attachVerticalDivider();
     },
 
     async refreshAllData(): Promise<void> {

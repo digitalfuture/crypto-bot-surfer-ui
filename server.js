@@ -84,7 +84,13 @@ async function readFiles() {
       "absorption",
     ];
 
-    const csvFiles = files.filter((fileName) => fileName.endsWith(".csv"));
+    const csvFiles = files.filter(
+      (fileName) =>
+        fileName.endsWith(".csv") &&
+        !fileName.endsWith("-demo.csv") &&
+        !fileName.endsWith("-testnet.csv") &&
+        !fileName.endsWith("-real.csv")
+    );
     csvFiles.sort((a, b) => {
       const idA = a
         .replace(/\.csv$/i, "")
@@ -110,8 +116,7 @@ async function readFiles() {
           .trim()
           .split(/\r?\n/)
           .slice(1)
-          .filter((line) => line.trim().length > 0)
-          .slice(-100000),
+          .filter((line) => line.trim().length > 0),
       });
     }
 
