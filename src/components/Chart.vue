@@ -565,10 +565,12 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               const w = mediaSize?.width ?? 2000;
               const h = mediaSize?.height ?? 1000;
               ctx.save();
-              // Vertical dashed divider line
-              ctx.strokeStyle = "rgba(255, 215, 0, 0.85)";
-              ctx.lineWidth = 1.8;
-              ctx.setLineDash([6, 4]);
+              // Vertical thick dashed divider line with soft neon glow
+              ctx.strokeStyle = "rgba(255, 215, 0, 0.95)";
+              ctx.lineWidth = 3.5;
+              ctx.setLineDash([8, 4]);
+              ctx.shadowColor = "rgba(255, 215, 0, 0.55)";
+              ctx.shadowBlur = 8;
               ctx.beginPath();
               ctx.moveTo(x, 0);
               ctx.lineTo(x, h);
@@ -578,14 +580,17 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               const label = this.dividerLabel;
               ctx.font = "bold 11px sans-serif";
               const textWidth = ctx.measureText(label).width;
-              const badgeWidth = textWidth + 18;
-              const badgeHeight = 22;
+              const badgeWidth = textWidth + 22;
+              const badgeHeight = 24;
               const badgeX = Math.max(5, Math.min(x - badgeWidth / 2, w - badgeWidth - 5));
               const badgeY = 16;
 
-              ctx.fillStyle = "rgba(18, 20, 29, 0.92)";
+              // Reset shadow for crisp badge box
+              ctx.shadowBlur = 0;
+              ctx.fillStyle = "rgba(18, 20, 29, 0.95)";
               ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
-              ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
+              ctx.strokeStyle = "rgba(255, 215, 0, 1)";
+              ctx.lineWidth = 2;
               ctx.setLineDash([]);
               ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
 
@@ -2250,6 +2255,22 @@ export default defineComponent({
 
     setupAnnotations(): void {
       if (!chart) return;
+      let annotationTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const chartContainer = document.getElementById("chart-container");
+      if (chartContainer) {
+        chartContainer.addEventListener("mouseleave", () => {
+          if (annotationTimer) {
+            clearTimeout(annotationTimer);
+            annotationTimer = null;
+          }
+          const annotation = document.querySelector(".annotation") as HTMLElement | null;
+          if (annotation) {
+            annotation.style.display = "none";
+          }
+        });
+      }
+
       chart.subscribeCrosshairMove((param: MouseEventParams) => {
         const annotation: HTMLElement | null = document.querySelector(".annotation");
         const annotationToken: HTMLElement | null =
@@ -2261,67 +2282,130 @@ export default defineComponent({
           return;
         }
 
+        // Cancel previous pending timer
+        if (annotationTimer) {
+          clearTimeout(annotationTimer);
+          annotationTimer = null;
+        }
+
         if (!param || !param.seriesData || !param.point) {
           annotation.style.display = "none";
           return;
         }
 
-        let annotationTokenText = "";
-        let annotationPriceText = "";
-        let color = "transparent";
+        // Keep popup hidden while cursor is actively moving so it never blocks the cursor or chart
+        annotation.style.display = "none";
 
-        lineSeries.forEach((series, index) => {
-          if (!series) return;
-          const seriesData = param.seriesData.get(series);
+        const pointX = param.point.x;
+        const pointY = param.point.y;
 
-          if (this.lines[index]?.disabled) return;
+        // Debounce: pop up only when user rests cursor on a bar for 320ms
+        annotationTimer = setTimeout(() => {
+          let annotationTokenText = "";
+          let annotationPriceText = "";
+          let color = "transparent";
 
-          const line = this.linesData[index]?.find(
-            (item) =>
-              item.time === (seriesData as { time?: number })?.time &&
-              item.value === (seriesData as { value?: number })?.value
-          );
+          // 1. Check individual active bot lines
+          lineSeries.forEach((series, index) => {
+            if (!series) return;
+            const seriesData = param.seriesData.get(series);
+            if (this.lines[index]?.disabled) return;
 
-          if (line?.trade === "BUY" || line?.trade === "SELL") {
-            const state = getTradeStates(this.linesData[index]).get(line);
-            const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
-            annotationTokenText += `${line.tokenName}${action}<br>`;
-            annotationPriceText += `${formatTradePrice(line.price)}<br>`;
-            // the rest of the portfolio at this moment, with entry prices
-            for (const p of state?.held ?? []) {
-              annotationTokenText += `${p.token} ${p.side}<br>`;
-              annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+            const line = this.linesData[index]?.find(
+              (item) =>
+                item.time === (seriesData as { time?: number })?.time &&
+                item.value === (seriesData as { value?: number })?.value
+            );
+
+            if (line?.trade === "BUY" || line?.trade === "SELL") {
+              const state = getTradeStates(this.linesData[index]).get(line);
+              const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
+              annotationTokenText += `${line.tokenName}${action}<br>`;
+              annotationPriceText += `${formatTradePrice(line.price)}<br>`;
+              for (const p of state?.held ?? []) {
+                annotationTokenText += `${p.token} ${p.side}<br>`;
+                annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+              }
+              color = this.lines[index]?.color || "transparent";
+            } else if (line?.trade === "LIVE_START") {
+              annotationTokenText += `LIVE TRADING START<br>`;
+              annotationPriceText += `Real execution begins<br>`;
+              color = "#FFD700";
+            } else if (line?.trade === "HOLD") {
+              const state = getTradeStates(this.linesData[index]).get(line);
+              const pnl = Number(line.profitPercent) || 0;
+              const pnlSign = pnl >= 0 ? "+" : "";
+              const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
+              const headerLabel = line.tokenName ? `${line.tokenName} HOLD (Mark-to-Market)` : `HOLD (Mark-to-Market)`;
+              annotationTokenText += `${headerLabel}<br>`;
+              annotationPriceText += `${pnlStr}<br>`;
+              for (const p of state?.held ?? []) {
+                annotationTokenText += `${p.token} ${p.side}<br>`;
+                annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+              }
+              color = this.lines[index]?.color || "transparent";
             }
-            color = this.lines[index]?.color || "transparent";
-          } else if (line?.trade === "LIVE_START") {
-            annotationTokenText += `LIVE TRADING START<br>`;
-            annotationPriceText += `Real execution begins<br>`;
-            color = "#FFD700";
-          } else if (line?.trade === "HOLD") {
-            const state = getTradeStates(this.linesData[index]).get(line);
-            const pnl = Number(line.profitPercent) || 0;
-            const pnlSign = pnl >= 0 ? "+" : "";
-            const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
-            const headerLabel = line.tokenName ? `${line.tokenName} HOLD (Mark-to-Market)` : `HOLD (Mark-to-Market)`;
-            annotationTokenText += `${headerLabel}<br>`;
-            annotationPriceText += `${pnlStr}<br>`;
-            for (const p of state?.held ?? []) {
-              annotationTokenText += `${p.token} ${p.side}<br>`;
-              annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+          });
+
+          // 2. If in Total Line mode and no bot line was enabled, inspect the portfolio total line
+          if (!annotationTokenText && lineSeriesTotal && this.isLineTotalVisible) {
+            const totalData = param.seriesData.get(lineSeriesTotal);
+            if (totalData && (totalData as any).time) {
+              const t = (totalData as any).time;
+              const line = this.linesData[0]?.find((item) => item.time === t);
+              if (line?.trade === "LIVE_START") {
+                annotationTokenText += `LIVE TRADING START<br>`;
+                annotationPriceText += `Real execution begins<br>`;
+                color = "#FFD700";
+              } else if (line?.trade === "BUY" || line?.trade === "SELL") {
+                const state = getTradeStates(this.linesData[0]).get(line);
+                const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
+                annotationTokenText += `${line.tokenName}${action}<br>`;
+                annotationPriceText += `${formatTradePrice(line.price)}<br>`;
+                for (const p of state?.held ?? []) {
+                  annotationTokenText += `${p.token} ${p.side}<br>`;
+                  annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+                }
+                color = totalLineColor || "#3b82f6";
+              } else if (line?.trade === "HOLD") {
+                const state = getTradeStates(this.linesData[0]).get(line);
+                const pnl = Number(line.profitPercent) || 0;
+                const pnlSign = pnl >= 0 ? "+" : "";
+                const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
+                annotationTokenText += `PORTFOLIO HOLD (Mark-to-Market)<br>`;
+                annotationPriceText += `${pnlStr}<br>`;
+                for (const p of state?.held ?? []) {
+                  annotationTokenText += `${p.token} ${p.side}<br>`;
+                  annotationPriceText += `${formatTradePrice(p.price)}<br>`;
+                }
+                color = totalLineColor || "#3b82f6";
+              }
             }
-            color = this.lines[index]?.color || "transparent";
           }
-        });
 
-        if (annotationTokenText) {
-          annotationToken.innerHTML = annotationTokenText;
-          annotationPrice.innerHTML = annotationPriceText;
-          annotation.style.display = "block";
-          annotationToken.style.background = color;
-          annotationPrice.style.background = color;
-        } else {
-          annotation.style.display = "none";
-        }
+          if (annotationTokenText) {
+            annotationToken.innerHTML = annotationTokenText;
+            annotationPrice.innerHTML = annotationPriceText;
+
+            // Smart positioning: if cursor is near top-right, flip popup to the left
+            const chartW = chartContainer?.clientWidth || window.innerWidth || 1200;
+            if (pointX > chartW - 380 && pointY < 280) {
+              annotation.style.right = "auto";
+              annotation.style.left = "40px";
+              annotation.style.textAlign = "left";
+            } else {
+              annotation.style.left = "auto";
+              annotation.style.right = "100px";
+              annotation.style.textAlign = "right";
+            }
+
+            annotation.style.display = "block";
+            annotationToken.style.background = color;
+            annotationPrice.style.background = color;
+          } else {
+            annotation.style.display = "none";
+          }
+        }, 320);
       });
     },
 
