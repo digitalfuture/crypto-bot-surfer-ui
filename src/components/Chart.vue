@@ -2387,15 +2387,20 @@ export default defineComponent({
             annotationToken.innerHTML = annotationTokenText;
             annotationPrice.innerHTML = annotationPriceText;
 
-            // Smart positioning: if cursor is near top-right, flip popup to the left
+            // Smart positioning: flip popup to opposite half so it NEVER covers cursor or gets overlapped by buttons
             const chartW = chartContainer?.clientWidth || window.innerWidth || 1200;
-            if (pointX > chartW - 380 && pointY < 280) {
+            const isCursorOnRight = pointX > chartW / 2;
+            if (isCursorOnRight) {
+              // Cursor on right half: place popup on left, cleanly below the top buttons
               annotation.style.right = "auto";
-              annotation.style.left = "40px";
+              annotation.style.left = "12px";
+              annotation.style.top = "50px";
               annotation.style.textAlign = "left";
             } else {
+              // Cursor on left half: place popup on right, cleanly below the fullscreen button
               annotation.style.left = "auto";
-              annotation.style.right = "100px";
+              annotation.style.right = "60px";
+              annotation.style.top = "50px";
               annotation.style.textAlign = "right";
             }
 
@@ -2732,17 +2737,20 @@ export default defineComponent({
 <style lang="scss">
 .annotation {
   position: absolute;
-  top: 20px;
-  right: 100px;
+  top: 50px;
+  right: 60px;
   text-align: right;
   color: white;
-  // above the chart canvas (trade markers), below the top menus
-  z-index: 100;
+  // above the chart canvas (trade markers), safely below top button bar
+  z-index: 1000;
   pointer-events: none;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 
   * {
     padding: 5px 10px;
     display: inline-block;
+    border-radius: 3px;
   }
 
   .annotation--price {
