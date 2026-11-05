@@ -32,7 +32,7 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          PORTFOLIO {{ isAbsoluteMode ? (useCommission ? 'COMPOUND NET PNL' : 'COMPOUND GROSS PNL') : (useCommission ? 'NET PNL' : 'GROSS PNL') }}:
+          {{ isLiveOnly ? 'LIVE ' : '' }}PORTFOLIO {{ isAbsoluteMode ? (useCommission ? 'COMPOUND NET PNL' : 'COMPOUND GROSS PNL') : (useCommission ? 'NET PNL' : 'GROSS PNL') }}:
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
             {{ formatProfit(totalProfit) }}
           </strong>
@@ -125,6 +125,20 @@
     <div class="annotation" style="display: none">
       <span class="annotation--token" />
       <span class="annotation--price" />
+    </div>
+
+    <!-- Interactive Live Trading Mode Plaque / Toggle -->
+    <div
+      v-if="!isMonitorView && liveStartTime"
+      class="live-trading-badge cursor-pointer"
+      :class="{ 'live-trading-badge--active': isLiveOnly }"
+      :style="liveBadgeStyle"
+      @click="toggleLiveOnly"
+      :title="isLiveOnly ? 'Click to show full backtest + live history' : 'Click to show LIVE TRADING only (hide backtest)'"
+    >
+      <span class="live-badge-dot" :class="{ 'live-badge-dot--pulse': isLiveOnly }"></span>
+      <span class="live-badge-text">{{ isLiveOnly ? '◀ FULL HISTORY' : '⚡ LIVE TRADING' }}</span>
+      <span class="live-badge-isolate-tag">{{ isLiveOnly ? 'LIVE ONLY' : 'ISOLATE' }}</span>
     </div>
 
     <!-- Top Bar Controls -->
@@ -256,7 +270,7 @@
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
+            {{ isLiveOnly ? 'LIVE ' : '' }}{{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__max-dd" :title="'Portfolio Max Drawdown: ' + formatDrawdown(portfolioMaxDrawdown)">
             MAX DD: <strong class="text-red">{{ formatDrawdown(portfolioMaxDrawdown) }}</strong>
@@ -519,6 +533,7 @@ let closeArrowsSeries: ISeriesApi<"Line"> | null = null;
 class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
   private dividerTime: number | null = null;
   private dividerLabel: string = "LIVE TRADING";
+  private isHidden: boolean = false;
   private param: SeriesAttachedParameter<Time> | null = null;
 
   attached(param: SeriesAttachedParameter<Time>): void {
@@ -529,19 +544,21 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
     this.param = null;
   }
 
-  setDivider(time: number | null, label = "LIVE TRADING"): void {
+  setDivider(time: number | null, label = "LIVE TRADING", isHidden = false): void {
     this.dividerTime = time;
     this.dividerLabel = label;
+    this.isHidden = isHidden;
     this.param?.requestUpdate();
   }
 
   paneViews() {
+    if (this.isHidden) return [];
     return [
       {
         renderer: () => ({
           draw: (target: any) => {
             const param = this.param;
-            if (!param || !this.dividerTime) return;
+            if (!param || !this.dividerTime || this.isHidden) return;
             const timeScale = param.chart.timeScale();
             let x = timeScale.timeToCoordinate(this.dividerTime as any);
             if (x === null && param.series) {
@@ -575,29 +592,6 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               ctx.moveTo(x, 0);
               ctx.lineTo(x, h);
               ctx.stroke();
-
-              // Top pill badge
-              const label = this.dividerLabel;
-              ctx.font = "bold 11px sans-serif";
-              const textWidth = ctx.measureText(label).width;
-              const badgeWidth = textWidth + 22;
-              const badgeHeight = 24;
-              const badgeX = Math.max(5, Math.min(x - badgeWidth / 2, w - badgeWidth - 5));
-              const badgeY = 16;
-
-              // Reset shadow for crisp badge box
-              ctx.shadowBlur = 0;
-              ctx.fillStyle = "rgba(18, 20, 29, 0.95)";
-              ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
-              ctx.strokeStyle = "rgba(255, 215, 0, 1)";
-              ctx.lineWidth = 2;
-              ctx.setLineDash([]);
-              ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
-
-              ctx.fillStyle = "#FFD700";
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
               ctx.restore();
             });
           },
@@ -674,6 +668,8 @@ export default defineComponent({
       isAbsoluteMode: false as boolean,
       initialBotCapital: 100 as number,
       liveStartTime: null as number | null,
+      isLiveOnly: false as boolean,
+      liveBadgeX: null as number | null,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
       botStatusList: [] as IBotStatus[],
@@ -784,6 +780,44 @@ export default defineComponent({
   },
 
   computed: {
+    liveBadgeStyle(): Record<string, string> {
+      if (this.isLiveOnly) {
+        return {
+          left: "50%",
+          top: "10px",
+          transform: "translateX(-50%)",
+        };
+      }
+      const container = typeof document !== "undefined" ? document.getElementById("chart-container") : null;
+      const containerW = container ? container.clientWidth : 1200;
+
+      if (this.liveBadgeX !== null && Number.isFinite(this.liveBadgeX)) {
+        if (this.liveBadgeX >= 0 && this.liveBadgeX <= containerW) {
+          const clampedX = Math.max(90, Math.min(this.liveBadgeX, containerW - 90));
+          return {
+            left: `${clampedX}px`,
+            top: "10px",
+            transform: "translateX(-50%)",
+          };
+        } else if (this.liveBadgeX > containerW) {
+          return {
+            right: "55px",
+            top: "10px",
+          };
+        } else {
+          return {
+            left: "10px",
+            top: "44px",
+          };
+        }
+      }
+
+      return {
+        right: "55px",
+        top: "10px",
+      };
+    },
+
     chartOptions(): DeepPartial<ChartOptions> {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
@@ -1148,6 +1182,14 @@ export default defineComponent({
       this.setupChartLines();
       this.setupChartTotal();
 
+      chart.subscribeClick((param: MouseEventParams) => {
+        if (this.isLiveOnly) return;
+        if (!param.point || this.liveBadgeX === null) return;
+        if (Math.abs(param.point.x - this.liveBadgeX) <= 18) {
+          this.toggleLiveOnly();
+        }
+      });
+
       this.applyLongestScale();
 
       this.setupZoomListener();
@@ -1225,7 +1267,7 @@ export default defineComponent({
 
     attachVerticalDivider(): void {
       if (!this.liveStartTime) return;
-      verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING");
+      verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING", this.isLiveOnly);
 
       let targetSeries: ISeriesApi<"Line"> | null = null;
       if (this.isLineTotalVisible && this.linesEnabled.length !== 1 && lineSeriesTotal) {
@@ -1265,14 +1307,18 @@ export default defineComponent({
       let minTime = Infinity;
       const nowSec = Math.floor(Date.now() / 1000);
 
-      for (const line of this.lines) {
-        if (!line.data || !line.data.length) continue;
-        for (const row of line.data) {
-          const dateStr = row[1];
-          if (dateStr) {
-            const t = Math.floor(Date.parse(dateStr) / 1000);
-            if (!isNaN(t) && t < minTime) {
-              minTime = t;
+      if (this.isLiveOnly && this.liveStartTime) {
+        minTime = this.liveStartTime;
+      } else {
+        for (const line of this.lines) {
+          if (!line.data || !line.data.length) continue;
+          for (const row of line.data) {
+            const dateStr = row[1];
+            if (dateStr) {
+              const t = Math.floor(Date.parse(dateStr) / 1000);
+              if (!isNaN(t) && t < minTime) {
+                minTime = t;
+              }
             }
           }
         }
@@ -1310,7 +1356,40 @@ export default defineComponent({
         dedupedData.push(row);
       }
 
-      const hasHoldRows = dedupedData.some((r) => r[4]?.trim() === "HOLD");
+      // Detect liveStartTime and liveStartIdx
+      let liveStartIdx = -1;
+      for (let i = 0; i < dedupedData.length; i++) {
+        const row = dedupedData[i];
+        const cleanTrade = row[4]?.trim() || "";
+        const cleanToken = row[2]?.trim() || "";
+        if (cleanTrade === "LIVE_START" || cleanToken === "LIVE_START") {
+          liveStartIdx = i;
+          const tSec = Math.floor(Date.parse(row[1]?.trim()) / 1000);
+          if (!isNaN(tSec)) {
+            this.liveStartTime = tSec;
+          }
+          break;
+        }
+      }
+
+      if (liveStartIdx === -1 && this.liveStartTime) {
+        for (let i = 0; i < dedupedData.length; i++) {
+          const tSec = Math.floor(Date.parse(dedupedData[i][1]?.trim()) / 1000);
+          if (!isNaN(tSec) && tSec >= this.liveStartTime) {
+            liveStartIdx = i;
+            break;
+          }
+        }
+      }
+
+      let workingData = dedupedData;
+      let liveBaseProfit = 0;
+      if (this.isLiveOnly && liveStartIdx >= 0) {
+        liveBaseProfit = parseFloat(dedupedData[liveStartIdx][8]) || 0;
+        workingData = dedupedData.slice(liveStartIdx);
+      }
+
+      const hasHoldRows = workingData.some((r) => r[4]?.trim() === "HOLD");
       const hasExcluded = this.excludedCoins && this.excludedCoins.size > 0;
 
       let cumExcludedPnl = 0;
@@ -1328,7 +1407,7 @@ export default defineComponent({
         priceChangePercent: string;
       }> = [];
 
-      for (const row of dedupedData) {
+      for (const row of workingData) {
         const [
           count,
           dateString,
@@ -1358,7 +1437,11 @@ export default defineComponent({
             tradePrice: 0,
             commission: 0,
             profitPercent: 0,
-            profitTotalPercent: isNaN(parseFloat(profitTotalPercent)) ? 0 : parseFloat(profitTotalPercent),
+            profitTotalPercent: this.isLiveOnly
+              ? 0
+              : isNaN(parseFloat(profitTotalPercent))
+              ? 0
+              : parseFloat(profitTotalPercent),
             tokenName: "LIVE TRADING START",
             count,
             priceChangePercent: "0",
@@ -1371,6 +1454,10 @@ export default defineComponent({
         const parsedCommission = parseFloat(commission);
         const parsedProfitPercent = parseFloat(profitPercent);
         let parsedProfitTotal = parseFloat(profitTotalPercent);
+
+        if (this.isLiveOnly && !isNaN(parsedProfitTotal)) {
+          parsedProfitTotal -= liveBaseProfit;
+        }
 
         if (isExcluded && (cleanTrade === "BUY" || cleanTrade === "SELL")) {
           if (hasHoldRows) {
@@ -2044,6 +2131,53 @@ export default defineComponent({
       };
     },
 
+    toggleLiveOnly(): void {
+      this.isLiveOnly = !this.isLiveOnly;
+      this.linesData = [];
+      this.linesDataTotal = [];
+      this.updateChart();
+      this.$nextTick(() => {
+        this.applyLongestScale();
+        this.updateLiveBadgePosition();
+      });
+    },
+
+    updateLiveBadgePosition(): void {
+      if (!chart || !this.liveStartTime || this.isLiveOnly) {
+        this.liveBadgeX = null;
+        return;
+      }
+      try {
+        const timeScale = chart.timeScale();
+        let x = timeScale.timeToCoordinate(this.liveStartTime as any);
+        if (x === null) {
+          const s = lineSeriesTotal || lineSeries[0];
+          if (s) {
+            const data = (s as any).data?.() || [];
+            if (data.length > 0) {
+              let closestTime = data[0].time;
+              let minDiff = Math.abs(Number(closestTime) - this.liveStartTime);
+              for (let i = 1; i < data.length; i++) {
+                const diff = Math.abs(Number(data[i].time) - this.liveStartTime);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closestTime = data[i].time;
+                }
+              }
+              x = timeScale.timeToCoordinate(closestTime);
+            }
+          }
+        }
+        if (x !== null && Number.isFinite(x)) {
+          this.liveBadgeX = Math.round(x);
+        } else {
+          this.liveBadgeX = null;
+        }
+      } catch (e) {
+        this.liveBadgeX = null;
+      }
+    },
+
     applyLongestScale(): void {
       if (!chart || this.isMonitorView) return;
       const container = document.getElementById("chart-container");
@@ -2061,6 +2195,7 @@ export default defineComponent({
       // Automatically recalibrate and scale vertical height for currently visible lines
       chart.priceScale("right").applyOptions({ autoScale: true });
       this.refreshMarks();
+      this.updateLiveBadgePosition();
     },
 
     zoomToLine(_line?: ILine): void {
@@ -2232,6 +2367,7 @@ export default defineComponent({
         if (!chart || this.isMonitorView) return;
         chart.resize(window.innerWidth, this.chartOptions.height, true);
         this.applyLongestScale();
+        this.updateLiveBadgePosition();
       };
 
       window.addEventListener("resize", handler);
@@ -2242,6 +2378,7 @@ export default defineComponent({
       let zoomDebounceTimer: ReturnType<typeof setTimeout> | null = null;
       const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange: TimeRange | null) => {
         if (!newVisibleTimeRange || this.isMonitorView) return;
+        this.updateLiveBadgePosition();
         if (zoomDebounceTimer) clearTimeout(zoomDebounceTimer);
         zoomDebounceTimer = setTimeout(() => {
           this.refreshMarks();
@@ -3737,4 +3874,89 @@ export default defineComponent({
   }
 }
 
+
+.live-trading-badge {
+  position: absolute;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  background: rgba(18, 20, 29, 0.95);
+  border: 1.5px solid rgba(255, 215, 0, 0.85);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 215, 0, 0.25);
+  color: #ffd700;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  user-select: none;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  z-index: 100;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 215, 0, 0.18);
+    border-color: #ffd700;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.55);
+  }
+
+  &--active {
+    background: rgba(255, 215, 0, 0.22);
+    border-color: #ffd700;
+    color: #ffffff;
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.45);
+    animation: liveBadgeGlow 2.5s infinite alternate;
+
+    &:hover {
+      background: rgba(255, 215, 0, 0.32);
+    }
+  }
+
+  .live-badge-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    flex-shrink: 0;
+    animation: liveDotPulse 1.8s infinite;
+
+    &--pulse {
+      background: #ffd700;
+      box-shadow: 0 0 8px #ffd700;
+    }
+  }
+
+  .live-badge-isolate-tag {
+    font-size: 9px;
+    padding: 2px 5px;
+    background: rgba(255, 215, 0, 0.2);
+    border-radius: 4px;
+    color: #ffd700;
+    margin-left: 2px;
+    font-weight: 800;
+  }
+}
+
+@keyframes liveDotPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes liveBadgeGlow {
+  0% {
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.65);
+  }
+}
 </style>
