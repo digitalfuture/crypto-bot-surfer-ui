@@ -784,7 +784,7 @@ export default defineComponent({
       if (this.isLiveOnly) {
         return {
           left: "50%",
-          top: "10px",
+          top: "42px",
           transform: "translateX(-50%)",
         };
       }
@@ -796,25 +796,25 @@ export default defineComponent({
           const clampedX = Math.max(90, Math.min(this.liveBadgeX, containerW - 90));
           return {
             left: `${clampedX}px`,
-            top: "10px",
+            top: "42px",
             transform: "translateX(-50%)",
           };
         } else if (this.liveBadgeX > containerW) {
           return {
-            right: "55px",
-            top: "10px",
+            right: "20px",
+            top: "42px",
           };
         } else {
           return {
-            left: "10px",
-            top: "44px",
+            left: "20px",
+            top: "42px",
           };
         }
       }
 
       return {
-        right: "55px",
-        top: "10px",
+        right: "20px",
+        top: "42px",
       };
     },
 
@@ -2874,7 +2874,7 @@ export default defineComponent({
 <style lang="scss">
 .annotation {
   position: absolute;
-  top: 50px;
+  top: 76px;
   right: 60px;
   text-align: right;
   color: white;
@@ -3882,10 +3882,10 @@ export default defineComponent({
   align-items: center;
   gap: 7px;
   padding: 0 12px;
-  background: rgba(18, 20, 29, 0.95);
+  background: #11141f;
   border: 1.5px solid rgba(255, 215, 0, 0.85);
   border-radius: 14px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 215, 0, 0.25);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 215, 0, 0.25);
   color: #ffd700;
   font-size: 11px;
   font-weight: 700;
@@ -3893,24 +3893,37 @@ export default defineComponent({
   user-select: none;
   white-space: nowrap;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-  z-index: 100;
+  z-index: 10001;
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 215, 0, 0.18);
+    background: #1a1e2e;
     border-color: #ffd700;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.55);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.55);
   }
 
   &--active {
-    background: rgba(255, 215, 0, 0.22);
-    border-color: #ffd700;
+    background: #11141f;
+    border: 2px solid #ffd700;
     color: #ffffff;
-    box-shadow: 0 0 16px rgba(255, 215, 0, 0.45);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 18px rgba(255, 215, 0, 0.5);
     animation: liveBadgeGlow 2.5s infinite alternate;
 
     &:hover {
-      background: rgba(255, 215, 0, 0.32);
+      background: #1a1e2e;
+      border-color: #ffd700;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 24px rgba(255, 215, 0, 0.7);
+    }
+
+    .live-badge-text {
+      color: #ffffff;
+    }
+
+    .live-badge-isolate-tag {
+      background: #ffd700;
+      color: #11141f;
+      border-color: #ffd700;
+      font-weight: 800;
     }
   }
 
@@ -3929,10 +3942,17 @@ export default defineComponent({
     }
   }
 
+  .live-badge-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffd700;
+  }
+
   .live-badge-isolate-tag {
     font-size: 9px;
-    padding: 2px 5px;
-    background: rgba(255, 215, 0, 0.2);
+    padding: 2px 6px;
+    background: rgba(255, 215, 0, 0.18);
+    border: 1px solid rgba(255, 215, 0, 0.4);
     border-radius: 4px;
     color: #ffd700;
     margin-left: 2px;
