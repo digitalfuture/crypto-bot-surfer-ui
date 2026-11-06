@@ -3109,9 +3109,24 @@ export default defineComponent({
   z-index: 9999;
 
   .full-screen-button {
-    width: 28px;
-    height: auto;
+    width: 25px;
+    height: 25px;
+    padding: 3px;
+    background: var(--background-color);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 0;
+    box-shadow: none;
+    box-sizing: border-box;
+    display: block;
     flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+
+    &:hover {
+      opacity: 0.85;
+      transform: scale(1.03);
+    }
   }
 
   @media (max-width: 768px) {
@@ -3120,6 +3135,8 @@ export default defineComponent({
 
     .full-screen-button {
       width: 24px;
+      height: 24px;
+      padding: 3px;
     }
   }
 }
