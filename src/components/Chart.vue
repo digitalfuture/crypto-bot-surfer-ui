@@ -2804,14 +2804,14 @@ export default defineComponent({
   // above the chart canvas (trade markers), safely below top button bar
   z-index: 1000;
   pointer-events: none;
-  border-radius: 4px;
+  border-radius: 0;
   box-shadow: none;
   border: 1px solid rgba(0, 0, 0, 0.25);
 
   * {
     padding: 5px 10px;
     display: inline-block;
-    border-radius: 3px;
+    border-radius: 0;
     box-shadow: none;
     text-shadow: none;
   }
@@ -2901,7 +2901,7 @@ export default defineComponent({
     gap: 6px;
     height: 25px;
     padding: 0 8px 0 6px;
-    border-radius: 4px;
+    border-radius: 0;
     background: rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.15);
     box-shadow: none;
@@ -2955,7 +2955,7 @@ export default defineComponent({
     gap: 5px;
     height: 25px;
     padding: 0 6px 0 4px;
-    border-radius: 4px;
+    border-radius: 0;
     background: rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.1);
     flex-shrink: 0;
@@ -3000,7 +3000,7 @@ export default defineComponent({
     gap: 5px;
     height: 25px;
     padding: 0 6px 0 4px;
-    border-radius: 4px;
+    border-radius: 0;
     background: rgba(21, 128, 61, 0.09);
     border: 1px solid rgba(21, 128, 61, 0.3);
     flex-shrink: 0;
@@ -3582,7 +3582,7 @@ export default defineComponent({
             background: #f7f5f0;
             padding: 3px 7px;
             border-bottom: none;
-            border-radius: 2px;
+            border-radius: 0;
 
             .detail-label {
               color: #374151;
@@ -3640,7 +3640,7 @@ export default defineComponent({
     gap: 5px;
     height: 25px;
     padding: 0 8px 0 6px;
-    border-radius: 4px;
+    border-radius: 0;
     background: rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.15);
     flex-shrink: 0;
@@ -3691,7 +3691,7 @@ export default defineComponent({
   max-width: 500px;
   max-height: 85vh;
   background: #ffffff;
-  border-radius: 6px;
+  border-radius: 0;
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -3748,7 +3748,7 @@ export default defineComponent({
       padding: 6px 10px;
       font-size: 12px;
       border: 1px solid #d1d5db;
-      border-radius: 4px;
+      border-radius: 0;
       outline: none;
 
       &:focus {
@@ -3759,7 +3759,7 @@ export default defineComponent({
     .coin-btn-action {
       background: #f3f4f6;
       border: 1px solid #d1d5db;
-      border-radius: 4px;
+      border-radius: 0;
       padding: 6px 10px;
       font-size: 10px;
       font-weight: 600;
@@ -3849,7 +3849,7 @@ export default defineComponent({
       background: #2563eb;
       color: #ffffff;
       border: none;
-      border-radius: 4px;
+      border-radius: 0;
       padding: 6px 16px;
       font-size: 11px;
       font-weight: 700;
