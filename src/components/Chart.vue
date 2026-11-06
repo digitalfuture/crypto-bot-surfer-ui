@@ -2925,12 +2925,7 @@ export default defineComponent({
     border: 1px solid rgba(0, 0, 0, 0.15);
     box-shadow: none;
     flex-shrink: 0;
-    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
-
-    &:hover {
-      opacity: 0.85;
-      transform: scale(1.03);
-    }
+    cursor: pointer;
 
     .live-toggle-dot {
       width: 7px;
@@ -2978,12 +2973,7 @@ export default defineComponent({
     background: rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.1);
     flex-shrink: 0;
-    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
-
-    &:hover {
-      opacity: 0.85;
-      transform: scale(1.03);
-    }
+    cursor: pointer;
 
     .use-commission-button {
       width: 18px;
@@ -3023,12 +3013,7 @@ export default defineComponent({
     background: rgba(21, 128, 61, 0.09);
     border: 1px solid rgba(21, 128, 61, 0.3);
     flex-shrink: 0;
-    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
-
-    &:hover {
-      opacity: 0.85;
-      transform: scale(1.03);
-    }
+    cursor: pointer;
 
     .calc-mode-button {
       width: 18px;
@@ -3140,12 +3125,6 @@ export default defineComponent({
     flex-shrink: 0;
     cursor: pointer;
     user-select: none;
-    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
-
-    &:hover {
-      opacity: 0.85;
-      transform: scale(1.03);
-    }
   }
 
   @media (max-width: 768px) {
@@ -3680,13 +3659,7 @@ export default defineComponent({
     background: rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.15);
     flex-shrink: 0;
-    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
     cursor: pointer;
-
-    &:hover {
-      opacity: 0.85;
-      transform: scale(1.03);
-    }
 
     .coin-filter-badge {
       font-size: 10px;
