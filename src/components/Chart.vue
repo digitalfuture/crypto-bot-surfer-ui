@@ -127,20 +127,6 @@
       <span class="annotation--price" />
     </div>
 
-    <!-- Interactive Live Trading Mode Plaque / Toggle -->
-    <div
-      v-if="!isMonitorView && liveStartTime"
-      class="live-trading-badge cursor-pointer"
-      :class="{ 'live-trading-badge--active': isLiveOnly }"
-      :style="liveBadgeStyle"
-      @click="toggleLiveOnly"
-      :title="isLiveOnly ? 'Click to show full backtest + live history' : 'Click to show LIVE TRADING only (hide backtest)'"
-    >
-      <span class="live-badge-dot" :class="{ 'live-badge-dot--pulse': isLiveOnly }"></span>
-      <span class="live-badge-text">{{ isLiveOnly ? '◀ FULL HISTORY' : '⚡ LIVE TRADING' }}</span>
-      <span class="live-badge-isolate-tag">{{ isLiveOnly ? 'LIVE ONLY' : 'ISOLATE' }}</span>
-    </div>
-
     <!-- Top Bar Controls -->
     <div class="top-bar-menu">
       <!-- Flat System & Bots Monitor Button / Plaque (FIRST) -->
@@ -168,7 +154,24 @@
         </span>
       </div>
 
-      <!-- Commission toggle (SECOND) -->
+      <!-- Live / Full Chart Toggle Button (FIXED IN TOP BAR MENU) -->
+      <div
+        v-if="liveStartTime"
+        class="live-toggle-container cursor-pointer"
+        :class="{ 'live-toggle--active': isLiveOnly }"
+        @click.stop.prevent="toggleLiveOnly"
+        :title="isLiveOnly ? 'Current: LIVE ONLY (backtest hidden). Click for FULL CHART' : 'Current: FULL CHART. Click to isolate LIVE ONLY'"
+      >
+        <span
+          class="live-toggle-dot"
+          :class="{ 'live-toggle-dot--active': isLiveOnly }"
+        />
+        <span class="live-toggle-badge">
+          {{ isLiveOnly ? 'LIVE ONLY' : 'FULL CHART' }}
+        </span>
+      </div>
+
+      <!-- Commission toggle (THIRD) -->
       <div
         class="use-commission-container cursor-pointer"
         :class="{ 'use-commission--off': !useCommission }"
@@ -582,12 +585,10 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               const w = mediaSize?.width ?? 2000;
               const h = mediaSize?.height ?? 1000;
               ctx.save();
-              // Vertical thick dashed divider line with soft neon glow
-              ctx.strokeStyle = "rgba(255, 215, 0, 0.95)";
-              ctx.lineWidth = 3.5;
-              ctx.setLineDash([8, 4]);
-              ctx.shadowColor = "rgba(255, 215, 0, 0.55)";
-              ctx.shadowBlur = 8;
+              // Flat clean dashed divider line - no glow, no shadow
+              ctx.strokeStyle = "rgba(202, 138, 4, 0.9)";
+              ctx.lineWidth = 2;
+              ctx.setLineDash([6, 4]);
               ctx.beginPath();
               ctx.moveTo(x, 0);
               ctx.lineTo(x, h);
@@ -780,44 +781,6 @@ export default defineComponent({
   },
 
   computed: {
-    liveBadgeStyle(): Record<string, string> {
-      if (this.isLiveOnly) {
-        return {
-          left: "50%",
-          top: "42px",
-          transform: "translateX(-50%)",
-        };
-      }
-      const container = typeof document !== "undefined" ? document.getElementById("chart-container") : null;
-      const containerW = container ? container.clientWidth : 1200;
-
-      if (this.liveBadgeX !== null && Number.isFinite(this.liveBadgeX)) {
-        if (this.liveBadgeX >= 0 && this.liveBadgeX <= containerW) {
-          const clampedX = Math.max(90, Math.min(this.liveBadgeX, containerW - 90));
-          return {
-            left: `${clampedX}px`,
-            top: "42px",
-            transform: "translateX(-50%)",
-          };
-        } else if (this.liveBadgeX > containerW) {
-          return {
-            right: "20px",
-            top: "42px",
-          };
-        } else {
-          return {
-            left: "20px",
-            top: "42px",
-          };
-        }
-      }
-
-      return {
-        right: "20px",
-        top: "42px",
-      };
-    },
-
     chartOptions(): DeepPartial<ChartOptions> {
       return {
         height: this.isFullScreen ? window.innerHeight : 335,
@@ -1181,14 +1144,6 @@ export default defineComponent({
 
       this.setupChartLines();
       this.setupChartTotal();
-
-      chart.subscribeClick((param: MouseEventParams) => {
-        if (this.isLiveOnly) return;
-        if (!param.point || this.liveBadgeX === null) return;
-        if (Math.abs(param.point.x - this.liveBadgeX) <= 18) {
-          this.toggleLiveOnly();
-        }
-      });
 
       this.applyLongestScale();
 
@@ -2143,39 +2098,7 @@ export default defineComponent({
     },
 
     updateLiveBadgePosition(): void {
-      if (!chart || !this.liveStartTime || this.isLiveOnly) {
-        this.liveBadgeX = null;
-        return;
-      }
-      try {
-        const timeScale = chart.timeScale();
-        let x = timeScale.timeToCoordinate(this.liveStartTime as any);
-        if (x === null) {
-          const s = lineSeriesTotal || lineSeries[0];
-          if (s) {
-            const data = (s as any).data?.() || [];
-            if (data.length > 0) {
-              let closestTime = data[0].time;
-              let minDiff = Math.abs(Number(closestTime) - this.liveStartTime);
-              for (let i = 1; i < data.length; i++) {
-                const diff = Math.abs(Number(data[i].time) - this.liveStartTime);
-                if (diff < minDiff) {
-                  minDiff = diff;
-                  closestTime = data[i].time;
-                }
-              }
-              x = timeScale.timeToCoordinate(closestTime);
-            }
-          }
-        }
-        if (x !== null && Number.isFinite(x)) {
-          this.liveBadgeX = Math.round(x);
-        } else {
-          this.liveBadgeX = null;
-        }
-      } catch (e) {
-        this.liveBadgeX = null;
-      }
+      // Live toggle button is fixed in top-bar-menu
     },
 
     applyLongestScale(): void {
@@ -2882,12 +2805,15 @@ export default defineComponent({
   z-index: 1000;
   pointer-events: none;
   border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: none;
+  border: 1px solid rgba(0, 0, 0, 0.25);
 
   * {
     padding: 5px 10px;
     display: inline-block;
     border-radius: 3px;
+    box-shadow: none;
+    text-shadow: none;
   }
 
   .annotation--price {
@@ -2942,6 +2868,13 @@ export default defineComponent({
       }
     }
 
+    .live-toggle-container {
+      padding: 0 5px;
+      .live-toggle-badge {
+        font-size: 9px;
+      }
+    }
+
     .use-commission-container {
       padding: 0 4px;
       .use-commission-badge {
@@ -2957,6 +2890,60 @@ export default defineComponent({
       .calc-mode-button {
         width: 18px;
         height: 18px;
+      }
+    }
+  }
+
+  .live-toggle-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 25px;
+    padding: 0 8px 0 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: none;
+    flex-shrink: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      opacity: 0.85;
+      transform: scale(1.03);
+    }
+
+    .live-toggle-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #6b7280;
+      box-shadow: none;
+      flex-shrink: 0;
+
+      &--active {
+        background: var(--green-color);
+        box-shadow: none;
+      }
+    }
+
+    .live-toggle-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      user-select: none;
+      line-height: 1;
+      color: #374151;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    &.live-toggle--active {
+      background: rgba(21, 128, 61, 0.09);
+      border-color: rgba(21, 128, 61, 0.35);
+
+      .live-toggle-badge {
+        color: #15803d;
       }
     }
   }
@@ -3485,8 +3472,8 @@ export default defineComponent({
       box-sizing: border-box;
       overflow: hidden;
       background: #ffffff;
-      border: none;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      border: 1px solid #ede8e0;
+      box-shadow: none;
       display: flex;
       flex-direction: column;
       padding: 0;
@@ -3496,7 +3483,8 @@ export default defineComponent({
       -webkit-user-select: none;
 
       &--in-pos {
-        border: none;
+        border: 1px solid #d1d5db;
+        box-shadow: none;
       }
 
       .bot-card__color-bar {
@@ -3691,7 +3679,7 @@ export default defineComponent({
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -3703,12 +3691,12 @@ export default defineComponent({
   max-width: 500px;
   max-height: 85vh;
   background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.2);
 
   .coin-modal-header {
     display: flex;
@@ -3871,112 +3859,6 @@ export default defineComponent({
         background: #1d4ed8;
       }
     }
-  }
-}
-
-
-.live-trading-badge {
-  position: absolute;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 12px;
-  background: #11141f;
-  border: 1.5px solid rgba(255, 215, 0, 0.85);
-  border-radius: 14px;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 215, 0, 0.25);
-  color: #ffd700;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  user-select: none;
-  white-space: nowrap;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-  z-index: 10001;
-  cursor: pointer;
-
-  &:hover {
-    background: #1a1e2e;
-    border-color: #ffd700;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.55);
-  }
-
-  &--active {
-    background: #11141f;
-    border: 2px solid #ffd700;
-    color: #ffffff;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 18px rgba(255, 215, 0, 0.5);
-    animation: liveBadgeGlow 2.5s infinite alternate;
-
-    &:hover {
-      background: #1a1e2e;
-      border-color: #ffd700;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 24px rgba(255, 215, 0, 0.7);
-    }
-
-    .live-badge-text {
-      color: #ffffff;
-    }
-
-    .live-badge-isolate-tag {
-      background: #ffd700;
-      color: #11141f;
-      border-color: #ffd700;
-      font-weight: 800;
-    }
-  }
-
-  .live-badge-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #10b981;
-    box-shadow: 0 0 6px #10b981;
-    flex-shrink: 0;
-    animation: liveDotPulse 1.8s infinite;
-
-    &--pulse {
-      background: #ffd700;
-      box-shadow: 0 0 8px #ffd700;
-    }
-  }
-
-  .live-badge-text {
-    font-size: 11px;
-    font-weight: 700;
-    color: #ffd700;
-  }
-
-  .live-badge-isolate-tag {
-    font-size: 9px;
-    padding: 2px 6px;
-    background: rgba(255, 215, 0, 0.18);
-    border: 1px solid rgba(255, 215, 0, 0.4);
-    border-radius: 4px;
-    color: #ffd700;
-    margin-left: 2px;
-    font-weight: 800;
-  }
-}
-
-@keyframes liveDotPulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-}
-
-@keyframes liveBadgeGlow {
-  0% {
-    box-shadow: 0 0 8px rgba(255, 215, 0, 0.25);
-  }
-  100% {
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.65);
   }
 }
 </style>
