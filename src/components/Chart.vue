@@ -669,7 +669,7 @@ export default defineComponent({
       isAbsoluteMode: false as boolean,
       initialBotCapital: 100 as number,
       liveStartTime: null as number | null,
-      isLiveOnly: false as boolean,
+      isLiveOnly: true as boolean,
       liveBadgeX: null as number | null,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
@@ -2088,6 +2088,16 @@ export default defineComponent({
 
     toggleLiveOnly(): void {
       this.isLiveOnly = !this.isLiveOnly;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(
+            "crypto_bot_live_only",
+            this.isLiveOnly ? "true" : "false"
+          );
+        }
+      } catch (e) {
+        console.warn("Could not save live only mode to localStorage:", e);
+      }
       this.linesData = [];
       this.linesDataTotal = [];
       this.updateChart();
@@ -2743,6 +2753,15 @@ export default defineComponent({
           this.useCommission = false;
         } else if (savedComm === "true") {
           this.useCommission = true;
+        }
+
+        const savedLiveOnly = window.localStorage.getItem(
+          "crypto_bot_live_only"
+        );
+        if (savedLiveOnly === "false") {
+          this.isLiveOnly = false;
+        } else if (savedLiveOnly === "true") {
+          this.isLiveOnly = true;
         }
 
         const savedCoins = window.localStorage.getItem("crypto_bot_excluded_coins");
