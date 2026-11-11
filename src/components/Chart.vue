@@ -539,6 +539,7 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
   private dividerLabel: string = "LIVE TRADING";
   private isHidden: boolean = false;
   private param: SeriesAttachedParameter<Time> | null = null;
+  private knownTimes: number[] = [];
 
   attached(param: SeriesAttachedParameter<Time>): void {
     this.param = param;
@@ -548,10 +549,13 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
     this.param = null;
   }
 
-  setDivider(time: number | null, label = "LIVE TRADING", isHidden = false): void {
+  setDivider(time: number | null, label = "LIVE TRADING", isHidden = false, times: number[] = []): void {
     this.dividerTime = time;
     this.dividerLabel = label;
     this.isHidden = isHidden;
+    if (times && times.length > 0) {
+      this.knownTimes = times;
+    }
     this.param?.requestUpdate();
   }
 
@@ -565,35 +569,63 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
             if (!param || !this.dividerTime || this.isHidden) return;
             const timeScale = param.chart.timeScale();
             let x = timeScale.timeToCoordinate(this.dividerTime as any);
-            if (x === null && param.series) {
-              const data = (param.series as any).data?.() || [];
-              if (data.length > 0) {
-                let closestTime = data[0].time;
-                let minDiff = Math.abs(Number(closestTime) - this.dividerTime);
-                for (let i = 1; i < data.length; i++) {
-                  const diff = Math.abs(Number(data[i].time) - this.dividerTime);
-                  if (diff < minDiff) {
-                    minDiff = diff;
-                    closestTime = data[i].time;
-                  }
+            if ((x === null || isNaN(x)) && this.knownTimes.length > 0) {
+              let closestTime = this.knownTimes[0];
+              let minDiff = Math.abs(closestTime - this.dividerTime);
+              for (let i = 1; i < this.knownTimes.length; i++) {
+                const diff = Math.abs(this.knownTimes[i] - this.dividerTime);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closestTime = this.knownTimes[i];
                 }
-                x = timeScale.timeToCoordinate(closestTime);
               }
+              x = timeScale.timeToCoordinate(closestTime as any);
             }
-            if (x === null) return;
+            if (x === null || isNaN(x)) return;
 
             target.useMediaCoordinateSpace(({ context: ctx, mediaSize }: any) => {
               const w = mediaSize?.width ?? 2000;
               const h = mediaSize?.height ?? 1000;
+              if (x < -100 || x > w + 100) return;
+
               ctx.save();
-              // Flat clean dashed divider line - no glow, no shadow
-              ctx.strokeStyle = "rgba(202, 138, 4, 0.9)";
+              // Bright golden dashed divider line
+              ctx.strokeStyle = "rgba(234, 179, 8, 0.95)";
               ctx.lineWidth = 2;
               ctx.setLineDash([6, 4]);
               ctx.beginPath();
               ctx.moveTo(x, 0);
               ctx.lineTo(x, h);
               ctx.stroke();
+
+              // Top badge "⚡ LIVE TRADING START"
+              const text = "⚡ LIVE TRADING START";
+              ctx.font = "bold 11px Arial, sans-serif";
+              const textMetrics = ctx.measureText(text);
+              const badgeW = textMetrics.width + 16;
+              const badgeH = 22;
+              const badgeX = Math.max(4, Math.min(x - badgeW / 2, w - badgeW - 60));
+              const badgeY = 10;
+
+              ctx.fillStyle = "rgba(24, 24, 27, 0.92)";
+              ctx.beginPath();
+              if (typeof (ctx as any).roundRect === "function") {
+                (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+              } else {
+                ctx.rect(badgeX, badgeY, badgeW, badgeH);
+              }
+              ctx.fill();
+
+              ctx.strokeStyle = "rgba(234, 179, 8, 1)";
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([]);
+              ctx.stroke();
+
+              ctx.fillStyle = "#FACC15";
+              ctx.textBaseline = "middle";
+              ctx.textAlign = "center";
+              ctx.fillText(text, badgeX + badgeW / 2, badgeY + badgeH / 2);
+
               ctx.restore();
             });
           },
@@ -1180,6 +1212,25 @@ export default defineComponent({
         this.convertServerDataToLines({ isUpdate: false });
       }
 
+      // Pre-detect liveStartTime across all loaded lines
+      if (!this.liveStartTime) {
+        for (const line of this.lines) {
+          if (!line.data) continue;
+          for (const row of line.data) {
+            const cleanTrade = row[4]?.trim() || "";
+            const cleanToken = row[2]?.trim() || "";
+            if (cleanTrade === "LIVE_START" || cleanToken === "LIVE_START") {
+              const tSec = Math.floor(Date.parse(row[1]?.trim()) / 1000);
+              if (!isNaN(tSec)) {
+                this.liveStartTime = tSec;
+                break;
+              }
+            }
+          }
+          if (this.liveStartTime) break;
+        }
+      }
+
       const chartContainer = document.getElementById("chart-container");
       if (!chartContainer) {
         console.error("chartContainer element not found");
@@ -1279,7 +1330,18 @@ export default defineComponent({
 
     attachVerticalDivider(): void {
       if (!this.liveStartTime) return;
-      verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING", this.isLiveOnly);
+
+      const allTimes: number[] = [];
+      if (this.linesDataTotal && this.linesDataTotal.length) {
+        for (const item of this.linesDataTotal) allTimes.push(item.time);
+      }
+      for (const series of this.linesData) {
+        if (series && series.length) {
+          for (const item of series) allTimes.push(item.time);
+        }
+      }
+
+      verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING", false, allTimes);
 
       let targetSeries: ISeriesApi<"Line"> | null = null;
       if (this.isLineTotalVisible && this.linesEnabled.length !== 1 && lineSeriesTotal) {
@@ -1303,19 +1365,21 @@ export default defineComponent({
         }
       }
 
-      if (targetSeries && verticalDividerSeries !== targetSeries) {
-        if (verticalDividerSeries) {
+      if (targetSeries) {
+        if (verticalDividerSeries && verticalDividerSeries !== targetSeries) {
           try {
             verticalDividerSeries.detachPrimitive(verticalDivider);
           } catch (e) {
             // ignore
           }
         }
-        verticalDividerSeries = targetSeries;
-        try {
-          targetSeries.attachPrimitive(verticalDivider);
-        } catch (e) {
-          // ignore
+        if (verticalDividerSeries !== targetSeries) {
+          verticalDividerSeries = targetSeries;
+          try {
+            targetSeries.attachPrimitive(verticalDivider);
+          } catch (e) {
+            // ignore
+          }
         }
       }
     },
