@@ -24,11 +24,11 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          BOTS: <strong>{{ systemStatus.runningBots || botStatusList.length || 4 }}/{{ systemStatus.totalBots || botStatusList.length || 4 }} RUNNING</strong>
+          BOTS: <strong>{{ displayBotStatusList.length }}/{{ displayBotStatusList.length }} RUNNING</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          IN POSITION: <strong>{{ systemStatus.activePositionsCount }} / {{ botStatusList.length || 4 }}</strong>
+          IN POSITION: <strong>{{ activeLivePositionsCount }} / {{ displayBotStatusList.length }}</strong>
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
@@ -51,7 +51,7 @@
     <!-- 11 Bots Flat Grid -->
     <div class="monitor-bots-grid">
       <div
-        v-for="bot in botStatusList"
+        v-for="bot in displayBotStatusList"
         :key="bot.id"
         class="bot-card cursor-pointer"
         :class="{ 'bot-card--in-pos': bot.hasOpenPosition }"
@@ -141,13 +141,13 @@
           :class="systemStatus.status === 'HEALTHY' ? 'status-indicator--green' : 'status-indicator--yellow'"
         />
         <span class="status-btn-text">
-          {{ systemStatus.runningBots || botStatusList.length || 4 }}/{{ systemStatus.totalBots || botStatusList.length || 4 }} BOTS
+          {{ displayBotStatusList.length }}/{{ displayBotStatusList.length }} BOTS
         </span>
         <span
-          v-if="systemStatus.activePositionsCount > 0"
+          v-if="activeLivePositionsCount > 0"
           class="status-btn-badge"
         >
-          {{ systemStatus.activePositionsCount }} IN POS
+          {{ activeLivePositionsCount }} IN POS
         </span>
         <span v-if="isMonitorView" class="status-view-active">
           • MONITOR
@@ -294,49 +294,50 @@
 
     <!-- Tickers lines (hidden when in monitor view or fullscreen) -->
     <section v-show="!isMonitorView && !isFullScreen" ref="legend" class="legend">
-      <div
-        v-for="(line, index) in lines"
-        :key="index"
-        :style="{
-          'background-color': !line.disabled ? line.color : 'transparent',
-        }"
-        class="line clip-right cursor-pointer"
-        :class="{
-          'line--disabled': hasLineTotalOnly,
-        }"
-        @click="updateLineVisibility(index)"
-        @dblclick="soloLine(index)"
-        :title="'Click to toggle, double-click to view only this chart and trades'"
-      >
-        <div class="line__details">
-          <span class="line__name" v-text="formatBotName(line.name)" />
+      <template v-for="(line, index) in lines" :key="index">
+        <div
+          v-if="!isLiveOnly || isLineLive(line)"
+          :style="{
+            'background-color': !line.disabled ? line.color : 'transparent',
+          }"
+          class="line clip-right cursor-pointer"
+          :class="{
+            'line--disabled': hasLineTotalOnly,
+          }"
+          @click="updateLineVisibility(index)"
+          @dblclick="soloLine(index)"
+          :title="'Click to toggle, double-click to view only this chart and trades'"
+        >
+          <div class="line__details">
+            <span class="line__name" v-text="formatBotName(line.name)" />
 
-          <!-- Micro position chip in legend -->
-          <span
-            v-if="getBotPosition(line.name)"
-            class="micro-pos-tag"
-            :class="getBotPosition(line.name).side === 'LONG' ? 'micro-pos-tag--long' : 'micro-pos-tag--short'"
-            :title="`${getBotPosition(line.name).side} ${getBotPosition(line.name).symbol}`"
-          >
-            {{ getBotPosition(line.name).symbol }}
-          </span>
+            <!-- Micro position chip in legend -->
+            <span
+              v-if="getBotPosition(line.name)"
+              class="micro-pos-tag"
+              :class="getBotPosition(line.name).side === 'LONG' ? 'micro-pos-tag--long' : 'micro-pos-tag--short'"
+              :title="`${getBotPosition(line.name).side} ${getBotPosition(line.name).symbol}`"
+            >
+              {{ getBotPosition(line.name).symbol }}
+            </span>
 
-          <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(getBotMaxDrawdown(index))">
-            DD: <strong class="text-red">{{ formatDrawdown(getBotMaxDrawdown(index)) }}</strong>
-          </span>
+            <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(getBotMaxDrawdown(index))">
+              DD: <strong class="text-red">{{ formatDrawdown(getBotMaxDrawdown(index)) }}</strong>
+            </span>
 
-          <span class="line__last-value" v-text="getLegendValue(index)" />
-          <span
-            class="round"
-            :class="{
-              'round--green':
-                linesData[index]?.[linesData[index]?.length - 1]?.value > 0,
-              'round--red':
-                linesData[index]?.[linesData[index]?.length - 1]?.value < 0,
-            }"
-          />
+            <span class="line__last-value" v-text="getLegendValue(index)" />
+            <span
+              class="round"
+              :class="{
+                'round--green':
+                  linesData[index]?.[linesData[index]?.length - 1]?.value > 0,
+                'round--red':
+                  linesData[index]?.[linesData[index]?.length - 1]?.value < 0,
+              }"
+            />
+          </div>
         </div>
-      </div>
+      </template>
     </section>
     <!-- Coin Filter Modal -->
     <div
@@ -835,8 +836,11 @@ export default defineComponent({
         this.hasLineTotalOnly ||
         this.hasNoLines ||
         this.linesEnabled.length === 0;
-      const targetLines = isAllLines ? this.lines : this.linesEnabled;
-      const count = targetLines.length || 12;
+      const baseLines = this.isLiveOnly
+        ? this.lines.filter((l) => this.isLineLive(l))
+        : this.lines;
+      const targetLines = isAllLines ? baseLines : this.linesEnabled;
+      const count = targetLines.length || 1;
       const baseCapital = count * this.initialBotCapital;
       const profit = parseFloat(this.totalSumProfit) || 0;
       return (baseCapital + profit).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -908,14 +912,17 @@ export default defineComponent({
         this.hasLineTotalOnly ||
         this.hasNoLines ||
         this.linesEnabled.length === 0;
-      const targetLines = isAllLines ? this.lines : this.linesEnabled;
+      const baseLines = this.isLiveOnly
+        ? this.lines.filter((l) => this.isLineLive(l))
+        : this.lines;
+      const targetLines = isAllLines ? baseLines : this.linesEnabled;
       let sum = 0;
       for (const line of targetLines) {
         const idx = this.lines.indexOf(line);
         const sData = this.linesData[idx];
         if (sData && sData.length > 0) {
           sum += sData[sData.length - 1].value;
-        } else if (line.data && line.data.length > 0) {
+        } else if (line.data && line.data.length > 0 && (!this.isLiveOnly || this.isLineLive(line))) {
           sum += parseFloat(line.data[line.data.length - 1][8]) || 0;
         }
       }
@@ -923,7 +930,9 @@ export default defineComponent({
     },
 
     linesEnabled(): ILine[] {
-      return this.lines.filter((line: ILine) => !line.disabled);
+      return this.lines.filter(
+        (line: ILine) => (!this.isLiveOnly || this.isLineLive(line)) && !line.disabled
+      );
     },
 
     hasLineTotalOnly(): boolean {
@@ -938,11 +947,18 @@ export default defineComponent({
       const counts: Record<string, number> = {};
       const pnls: Record<string, number> = {};
 
-      const targetLines = this.linesEnabled.length === 1 ? this.linesEnabled : this.lines;
+      const baseLines = this.isLiveOnly
+        ? this.lines.filter((l) => this.isLineLive(l))
+        : this.lines;
+      const targetLines = this.linesEnabled.length === 1 ? this.linesEnabled : baseLines;
       for (const line of targetLines) {
         if (!line?.data) continue;
         for (const row of line.data) {
           if (!row || row.length < 5) continue;
+          if (this.isLiveOnly && this.liveStartTime) {
+            const tSec = Math.floor(Date.parse(row[1]?.trim()) / 1000);
+            if (!isNaN(tSec) && tSec < this.liveStartTime) continue;
+          }
           const token = row[2]?.trim();
           const trade = row[4]?.trim();
           if (!token || token === "PORTFOLIO" || token === "ACCOUNT") continue;
@@ -963,6 +979,17 @@ export default defineComponent({
           pnlContribution: pnls[sym] || 0,
         }))
         .sort((a, b) => b.tradesCount - a.tradesCount);
+    },
+
+    displayBotStatusList(): IBotStatus[] {
+      if (this.isLiveOnly) {
+        return this.botStatusList.filter((b) => this.isBotLive(b.name || b.id));
+      }
+      return this.botStatusList;
+    },
+
+    activeLivePositionsCount(): number {
+      return this.displayBotStatusList.filter((b) => b.hasOpenPosition).length;
     },
 
     filteredCoins(): Array<{ symbol: string; tradesCount: number; pnlContribution: number }> {
@@ -1114,6 +1141,32 @@ export default defineComponent({
       this.setCalcMode(!this.isAbsoluteMode);
     },
 
+    isLineLive(line: ILine): boolean {
+      if (!line || !line.data || !line.data.length) return false;
+      return line.data.some((row) => {
+        const trade = row[4]?.trim();
+        const token = row[2]?.trim();
+        return trade === "LIVE_START" || token === "LIVE_START";
+      });
+    },
+
+    isBotLive(botName: string): boolean {
+      if (!botName) return false;
+      const clean = this.normalizeBotName(botName);
+      const line = this.lines.find(
+        (l) =>
+          this.normalizeBotName(l.name || "") === clean ||
+          this.normalizeBotName(l.fileName || "") === clean
+      );
+      if (line) return this.isLineLive(line);
+      const bot = this.botStatusList.find(
+        (b) =>
+          this.normalizeBotName(b.name || "") === clean ||
+          this.normalizeBotName(b.id || "") === clean
+      );
+      return (bot as any)?.isLive ?? false;
+    },
+
     getLegendValue(index: number): string {
       const _ = this.isAbsoluteMode;
       const lineData = this.linesData[index] || [];
@@ -1162,7 +1215,11 @@ export default defineComponent({
       const linesData: ISeries[][] = [];
 
       for (const line of this.lines) {
-        const isVisible = !this.hasLineTotalOnly && !line.disabled;
+        const isLiveBot = this.isLineLive(line);
+        const isVisible =
+          (!this.isLiveOnly || isLiveBot) &&
+          !this.hasLineTotalOnly &&
+          !line.disabled;
 
         const newLineSeries = chart.addLineSeries({
           color: line.color,
@@ -1229,15 +1286,20 @@ export default defineComponent({
         targetSeries = lineSeriesTotal;
       } else {
         for (let i = 0; i < this.lines.length; i++) {
-          if (!this.lines[i].disabled && lineSeries[i]) {
+          if ((!this.isLiveOnly || this.isLineLive(this.lines[i])) && !this.lines[i].disabled && lineSeries[i]) {
             targetSeries = lineSeries[i];
             break;
           }
         }
         if (!targetSeries && lineSeriesTotal) {
           targetSeries = lineSeriesTotal;
-        } else if (!targetSeries && lineSeries[0]) {
-          targetSeries = lineSeries[0];
+        } else if (!targetSeries) {
+          const liveIdx = this.lines.findIndex((l) => !this.isLiveOnly || this.isLineLive(l));
+          if (liveIdx !== -1 && lineSeries[liveIdx]) {
+            targetSeries = lineSeries[liveIdx];
+          } else if (lineSeries[0]) {
+            targetSeries = lineSeries[0];
+          }
         }
       }
 
@@ -1313,18 +1375,25 @@ export default defineComponent({
 
       // Detect liveStartTime and liveStartIdx
       let liveStartIdx = -1;
+      let hasExplicitLiveStart = false;
       for (let i = 0; i < dedupedData.length; i++) {
         const row = dedupedData[i];
         const cleanTrade = row[4]?.trim() || "";
         const cleanToken = row[2]?.trim() || "";
         if (cleanTrade === "LIVE_START" || cleanToken === "LIVE_START") {
           liveStartIdx = i;
+          hasExplicitLiveStart = true;
           const tSec = Math.floor(Date.parse(row[1]?.trim()) / 1000);
           if (!isNaN(tSec)) {
             this.liveStartTime = tSec;
           }
           break;
         }
+      }
+
+      // If LIVE ONLY mode and line is pure backtest (no LIVE_START), hide data completely
+      if (this.isLiveOnly && !hasExplicitLiveStart) {
+        return [];
       }
 
       if (liveStartIdx === -1 && this.liveStartTime) {
@@ -1612,8 +1681,12 @@ export default defineComponent({
       const isAllLinesSelected: boolean =
         this.hasLineTotalOnly || this.hasNoLines;
 
+      const baseLines = this.isLiveOnly
+        ? this.lines.filter((l) => this.isLineLive(l))
+        : this.lines;
+
       const lines: ILine[] = isAllLinesSelected
-        ? this.lines
+        ? baseLines
         : this.linesEnabled;
 
       if (!lines.length) {
@@ -1838,7 +1911,8 @@ export default defineComponent({
         window.localStorage.removeItem("crypto_bot_chart_lines_v5");
         window.localStorage.removeItem("crypto_bot_chart_lines_v6");
         window.localStorage.removeItem("crypto_bot_chart_lines_v7");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v8");
+        window.localStorage.removeItem("crypto_bot_chart_lines_v8");
+        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v9");
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (
@@ -1883,7 +1957,7 @@ export default defineComponent({
           disabled: l.disabled,
         }));
         window.localStorage.setItem(
-          "crypto_bot_chart_lines_v7",
+          "crypto_bot_chart_lines_v9",
           JSON.stringify(toSave)
         );
       } catch (err) {
@@ -2053,7 +2127,10 @@ export default defineComponent({
         this.hasLineTotalOnly ||
         this.hasNoLines ||
         this.linesEnabled.length === 0;
-      const targetLines = isAllLines ? this.lines : this.linesEnabled;
+      const baseLines = this.isLiveOnly
+        ? this.lines.filter((l) => this.isLineLive(l))
+        : this.lines;
+      const targetLines = isAllLines ? baseLines : this.linesEnabled;
 
       for (const line of targetLines) {
         if (!line?.data || line.data.length === 0) continue;
@@ -2097,6 +2174,17 @@ export default defineComponent({
         }
       } catch (e) {
         console.warn("Could not save live only mode to localStorage:", e);
+      }
+      if (this.isLiveOnly) {
+        const soloedNonLive = this.lines.some(
+          (l) => !l.disabled && !this.isLineLive(l)
+        );
+        if (soloedNonLive) {
+          this.lines.forEach((l) => {
+            l.disabled = true;
+          });
+          this.isLineTotalVisible = true;
+        }
       }
       this.linesData = [];
       this.linesDataTotal = [];
@@ -2143,7 +2231,8 @@ export default defineComponent({
       line.disabled = !line.disabled;
 
       if (lineSeries[index]) {
-        const isVisible = !this.hasLineTotalOnly && !line.disabled;
+        const isLiveBot = this.isLineLive(line);
+        const isVisible = (!this.isLiveOnly || isLiveBot) && !this.hasLineTotalOnly && !line.disabled;
         lineSeries[index]?.applyOptions({ visible: isVisible });
       }
 
@@ -2160,9 +2249,9 @@ export default defineComponent({
         this.linesEnabled.length === 1 && this.linesEnabled[0] === line;
 
       if (isAlreadySolo) {
-        // Re-enable all lines
+        // Re-enable lines
         this.lines.forEach((l) => {
-          l.disabled = false;
+          l.disabled = this.isLiveOnly ? !this.isLineLive(l) : false;
         });
       } else {
         // Solo this line
@@ -2173,7 +2262,8 @@ export default defineComponent({
 
       // Fast path: update all line series visibility in-place
       for (let i = 0; i < this.lines.length; i++) {
-        const isVisible = !this.hasLineTotalOnly && !this.lines[i].disabled;
+        const isLiveBot = this.isLineLive(this.lines[i]);
+        const isVisible = (!this.isLiveOnly || isLiveBot) && !this.hasLineTotalOnly && !this.lines[i].disabled;
         lineSeries[i]?.applyOptions({ visible: isVisible });
       }
 
@@ -2185,9 +2275,20 @@ export default defineComponent({
     async selectBotChart(botName: string): Promise<void> {
       const clean = this.normalizeBotName(botName);
       const targetIndex = this.lines.findIndex(
-        (l) => this.normalizeBotName(l.name || "") === clean
+        (l) => this.normalizeBotName(l.name || "") === clean ||
+               this.normalizeBotName(l.fileName || "") === clean
       );
       if (targetIndex === -1) return;
+
+      const targetLine = this.lines[targetIndex];
+      if (this.isLiveOnly && !this.isLineLive(targetLine)) {
+        this.isLiveOnly = false;
+        try {
+          if (typeof window !== "undefined" && window.localStorage) {
+            window.localStorage.setItem("crypto_bot_live_only", "false");
+          }
+        } catch (e) {}
+      }
 
       // 1. Switch to Chart View first so DOM starts rendering #chart-container
       this.isMonitorView = false;
@@ -2217,7 +2318,11 @@ export default defineComponent({
 
       for (const [index, line] of this.lines.entries()) {
         const seriesData = this.prepareSeriesData(line.data);
-        const isVisible = !this.hasLineTotalOnly && !line.disabled;
+        const isLiveBot = this.isLineLive(line);
+        const isVisible =
+          (!this.isLiveOnly || isLiveBot) &&
+          !this.hasLineTotalOnly &&
+          !line.disabled;
 
         // attachVerticalDivider handles dynamic series selection
         if (lineSeries[index]) {

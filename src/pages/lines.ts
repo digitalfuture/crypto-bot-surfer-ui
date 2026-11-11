@@ -88,6 +88,8 @@ export const GET: APIRoute = async ({ request }) => {
     const fileList: IServerLine[] = [];
 
     const order = [
+      "trend-mtf",
+      "trend-mtf-smartlab",
       "btc-5m",
       "btc-15m",
       "btc-30m",

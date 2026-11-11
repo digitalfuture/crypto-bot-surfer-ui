@@ -24,6 +24,7 @@ export interface IBotStatus {
   totalTrades: number;
   totalProfit: number;
   lastTradeDate?: string;
+  isLive?: boolean;
   metrics?: {
     slope?: number;
     slopePct?: number;
@@ -110,7 +111,13 @@ export const GET: APIRoute = async () => {
     let activePositionsCount = 0;
 
     // Filter CSV files
-    const csvFiles = files.filter((f) => f.endsWith(".csv"));
+    const csvFiles = files.filter(
+      (f) =>
+        f.endsWith(".csv") &&
+        !f.endsWith("-demo.csv") &&
+        !f.endsWith("-testnet.csv") &&
+        !f.endsWith("-real.csv")
+    );
 
     for (const fileName of csvFiles) {
       const strategyId = fileName
@@ -129,6 +136,11 @@ export const GET: APIRoute = async () => {
         .slice(1)
         .filter((l) => l.trim().length > 0);
 
+      const isLive = lines.some((l) => {
+        const parts = l.split(",");
+        return parts[4]?.trim() === "LIVE_START" || parts[2]?.trim() === "LIVE_START";
+      });
+
       let totalProfit = 0;
       let lastTradeDate = "";
       let isLastTradeOpen = false;
@@ -141,9 +153,9 @@ export const GET: APIRoute = async () => {
         if (!isNaN(lastTotalProfit)) totalProfit = lastTotalProfit;
         lastTradeDate = lastRow[1] || "";
 
-        // Odd row count (1, 3, 5...) means the position is currently open
+        // Odd row count (1, 3, 5...) means the position is currently open (for live bots)
         const isOddRow = lines.length % 2 === 1;
-        if (isOddRow) {
+        if (isLive && isOddRow) {
           isLastTradeOpen = true;
           const sym = lastRow[2];
           const tradeAction = lastRow[4];
@@ -158,10 +170,12 @@ export const GET: APIRoute = async () => {
         }
       }
 
-      // Check state file: <fileName>.state.json
+      // Check state file: <strategyId>.state.json or <fileName>.state.json
       let statePosition: IBotPosition | null = null;
       let stateMetrics: IBotStatus["metrics"] = null;
-      const stateFile = join(directoryPath, `${fileName}.state.json`);
+      const stateFile = existsSync(join(directoryPath, `${strategyId}.state.json`))
+        ? join(directoryPath, `${strategyId}.state.json`)
+        : join(directoryPath, `${fileName}.state.json`);
       if (existsSync(stateFile)) {
         try {
           const rawState = await readFile(stateFile, "utf8");
@@ -206,8 +220,8 @@ export const GET: APIRoute = async () => {
         }
       }
 
-      const activePos = statePosition || fallbackPosition;
-      const hasOpenPosition = isLastTradeOpen || activePos !== null;
+      const activePos = isLive ? (statePosition || fallbackPosition) : null;
+      const hasOpenPosition = isLive && (isLastTradeOpen || activePos !== null);
       if (hasOpenPosition) {
         activePositionsCount++;
       }
@@ -221,10 +235,13 @@ export const GET: APIRoute = async () => {
         totalProfit,
         lastTradeDate,
         metrics: stateMetrics,
+        isLive,
       });
     }
 
     const order = [
+      "trend-mtf",
+      "trend-mtf-smartlab",
       "btc-5m",
       "btc-15m",
       "btc-30m",
@@ -264,10 +281,11 @@ export const GET: APIRoute = async () => {
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
 
+    const liveBots = bots.filter((b) => b.isLive);
     const systemStatus: IStatusResponse["system"] = {
       status: watchdogData?.status || "HEALTHY",
-      runningBots: watchdogData?.runningBots ?? bots.length,
-      totalBots: watchdogData?.totalBots ?? bots.length,
+      runningBots: watchdogData?.runningBots ?? (liveBots.length > 0 ? liveBots.length : bots.length),
+      totalBots: watchdogData?.totalBots ?? (liveBots.length > 0 ? liveBots.length : bots.length),
       uiStatus: watchdogData?.uiStatus ?? "running",
       timestamp: watchdogData?.timestamp || new Date().toISOString(),
       activePositionsCount,
