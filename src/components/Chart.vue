@@ -597,35 +597,6 @@ class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
               ctx.moveTo(x, 0);
               ctx.lineTo(x, h);
               ctx.stroke();
-
-              // Top badge "⚡ LIVE TRADING START"
-              const text = "⚡ LIVE TRADING START";
-              ctx.font = "bold 11px Arial, sans-serif";
-              const textMetrics = ctx.measureText(text);
-              const badgeW = textMetrics.width + 16;
-              const badgeH = 22;
-              const badgeX = Math.max(4, Math.min(x - badgeW / 2, w - badgeW - 60));
-              const badgeY = 10;
-
-              ctx.fillStyle = "rgba(24, 24, 27, 0.92)";
-              ctx.beginPath();
-              if (typeof (ctx as any).roundRect === "function") {
-                (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-              } else {
-                ctx.rect(badgeX, badgeY, badgeW, badgeH);
-              }
-              ctx.fill();
-
-              ctx.strokeStyle = "rgba(234, 179, 8, 1)";
-              ctx.lineWidth = 1.5;
-              ctx.setLineDash([]);
-              ctx.stroke();
-
-              ctx.fillStyle = "#FACC15";
-              ctx.textBaseline = "middle";
-              ctx.textAlign = "center";
-              ctx.fillText(text, badgeX + badgeW / 2, badgeY + badgeH / 2);
-
               ctx.restore();
             });
           },
