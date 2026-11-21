@@ -32,7 +32,7 @@
         </span>
         <span class="summary-sep">|</span>
         <span class="summary-item">
-          {{ isLiveOnly ? 'LIVE ' : '' }}PORTFOLIO {{ isAbsoluteMode ? (useCommission ? 'COMPOUND NET PNL' : 'COMPOUND GROSS PNL') : (useCommission ? 'NET PNL' : 'GROSS PNL') }}:
+          {{ !isLiveServer && isLiveOnly ? 'LIVE ' : '' }}PORTFOLIO {{ isAbsoluteMode ? (useCommission ? 'COMPOUND NET PNL' : 'COMPOUND GROSS PNL') : (useCommission ? 'NET PNL' : 'GROSS PNL') }}:
           <strong :class="parseFloat(totalProfit) >= 0 ? 'text-green' : 'text-red'">
             {{ formatProfit(totalProfit) }}
           </strong>
@@ -45,6 +45,22 @@
         <span class="summary-item">
           MODE: <strong>{{ isAbsoluteMode ? 'REINVESTMENT (COMPOUND %)' : 'SIMPLE %' }}</strong>
         </span>
+        <template v-if="isLiveServer && accountInfo">
+          <span class="summary-sep">|</span>
+          <span class="summary-item" v-if="accountInfo.balance !== null">
+            BALANCE: <strong class="text-green">{{ formatUsd(accountInfo.balance) }}</strong>
+          </span>
+          <span class="summary-sep" v-if="accountInfo.leverage">|</span>
+          <span class="summary-item" v-if="accountInfo.leverage">
+            LEVERAGE: <strong>{{ accountInfo.leverage }}x</strong><template v-if="accountInfo.grossExposure !== null"> (GROSS {{ accountInfo.grossExposure.toFixed(2) }}x)</template>
+          </span>
+        </template>
+        <template v-else>
+          <span class="summary-sep">|</span>
+          <span class="summary-item">
+            LEVERAGE: <strong>{{ leverage }}x</strong>
+          </span>
+        </template>
       </div>
     </div>
 
@@ -70,7 +86,27 @@
         </div>
 
         <div class="bot-card__body">
-          <template v-if="bot.position">
+          <template v-if="bot.positions && bot.positions.length > 0">
+            <div
+              v-for="pos in bot.positions"
+              :key="pos.symbol"
+              class="pos-item-container"
+              style="margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.06);"
+            >
+              <div class="pos-row pos-row--main" style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <span class="pos-side" :class="pos.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
+                    {{ pos.side }}
+                  </span>
+                  <span class="pos-symbol">{{ pos.symbol }}</span>
+                </div>
+                <span class="pos-entry-price" style="font-size: 12px; font-weight: bold; color: #ccc;">
+                  @{{ formatTarget(pos.entryPrice) }}
+                </span>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="bot.position">
             <div class="pos-row pos-row--main">
               <span class="pos-side" :class="bot.position.side === 'LONG' ? 'pos-side--long' : 'pos-side--short'">
                 {{ bot.position.side }}
@@ -156,7 +192,7 @@
 
       <!-- Live / Full Chart Toggle Button (FIXED IN TOP BAR MENU) -->
       <div
-        v-if="liveStartTime"
+        v-if="!isLiveServer && liveStartTime"
         class="live-toggle-container cursor-pointer"
         :class="{ 'live-toggle--active': isLiveOnly }"
         @click.stop.prevent="toggleLiveOnly"
@@ -213,6 +249,43 @@
         <span class="calc-mode-badge">
           {{ isAbsoluteMode ? 'REINVEST ON' : 'REINVEST OFF' }}
         </span>
+      </div>
+
+      <!-- Real Account Balance & Current Leverage (LIVE SERVER ONLY, no selector) -->
+      <div
+        v-if="isLiveServer && accountInfo"
+        class="live-account-badge"
+        title="Real Binance Futures account balance and active trading leverage"
+      >
+        <span class="live-account-dot" />
+        <span v-if="accountInfo.balance !== null" class="live-account-balance">
+          {{ formatUsd(accountInfo.balance) }}
+        </span>
+        <span v-if="accountInfo.leverage" class="live-account-lev">
+          LEV {{ accountInfo.leverage }}x
+        </span>
+        <span v-if="accountInfo.grossExposure !== null" class="live-account-gross">
+          EXP {{ accountInfo.grossExposure.toFixed(2) }}x
+        </span>
+      </div>
+
+      <!-- Leverage Selector (TEST / DEMO UI ONLY, default 1x = no leverage) -->
+      <div
+        v-if="!isLiveServer"
+        class="leverage-selector"
+        title="Simulated trading leverage for backtests & demo (default: 1x / no leverage)"
+      >
+        <span class="leverage-label">LEV</span>
+        <button
+          v-for="lev in leverageOptions"
+          :key="lev"
+          type="button"
+          class="leverage-btn cursor-pointer"
+          :class="{ 'leverage-btn--active': leverage === lev }"
+          @click.stop.prevent="setLeverage(lev)"
+        >
+          {{ lev }}x
+        </button>
       </div>
 
       <!-- Coin Filter Toggle (FOURTH) -->
@@ -273,7 +346,7 @@
       >
         <div class="line__details info">
           <span class="line__name">
-            {{ isLiveOnly ? 'LIVE ' : '' }}{{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
+            {{ !isLiveServer && isLiveOnly ? 'LIVE ' : '' }}{{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__max-dd" :title="'Portfolio Max Drawdown: ' + formatDrawdown(portfolioMaxDrawdown)">
             MAX DD: <strong class="text-red">{{ formatDrawdown(portfolioMaxDrawdown) }}</strong>
@@ -310,16 +383,6 @@
         >
           <div class="line__details">
             <span class="line__name" v-text="formatBotName(line.name)" />
-
-            <!-- Micro position chip in legend -->
-            <span
-              v-if="getBotPosition(line.name)"
-              class="micro-pos-tag"
-              :class="getBotPosition(line.name).side === 'LONG' ? 'micro-pos-tag--long' : 'micro-pos-tag--short'"
-              :title="`${getBotPosition(line.name).side} ${getBotPosition(line.name).symbol}`"
-            >
-              {{ getBotPosition(line.name).symbol }}
-            </span>
 
             <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(getBotMaxDrawdown(index))">
               DD: <strong class="text-red">{{ formatDrawdown(getBotMaxDrawdown(index)) }}</strong>
@@ -422,7 +485,7 @@ import {
   type ISeriesPrimitive,
   type SeriesAttachedParameter,
 } from "lightweight-charts";
-import type { IBotPosition, IBotStatus, IStatusResponse } from "../pages/status";
+import type { IAccountInfo, IBotPosition, IBotStatus, IStatusResponse } from "../pages/status";
 
 export interface IServerLine {
   name: string;
@@ -673,7 +736,11 @@ export default defineComponent({
       isAbsoluteMode: false as boolean,
       initialBotCapital: 100 as number,
       liveStartTime: null as number | null,
-      isLiveOnly: true as boolean,
+      isLiveOnly: false as boolean,
+      isLiveServer: false as boolean,
+      leverage: 1 as number,
+      leverageOptions: [1, 2, 3, 5] as number[],
+      accountInfo: null as IAccountInfo | null,
       liveBadgeX: null as number | null,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
@@ -992,7 +1059,15 @@ export default defineComponent({
     },
 
     activeLivePositionsCount(): number {
-      return this.displayBotStatusList.filter((b) => b.hasOpenPosition).length;
+      const symbols = new Set<string>();
+      for (const b of this.displayBotStatusList) {
+        if (b.positions && b.positions.length > 0) {
+          for (const p of b.positions) symbols.add(p.symbol);
+        } else if (b.position?.symbol) {
+          symbols.add(b.position.symbol);
+        }
+      }
+      return symbols.size;
     },
 
     filteredCoins(): Array<{ symbol: string; tradesCount: number; pnlContribution: number }> {
@@ -1028,6 +1103,24 @@ export default defineComponent({
       this.initChart();
     },
 
+    leverage() {
+      this.linesData = [];
+      this.linesDataTotal = [];
+      this.initChart();
+    },
+
+    isLiveServer(val: boolean) {
+      if (val) {
+        this.isLiveOnly = false;
+        this.leverage = 1;
+      }
+      if (chart) {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.initChart();
+      }
+    },
+
     tradeDirection() {
       this.linesData = [];
       this.linesDataTotal = [];
@@ -1043,6 +1136,25 @@ export default defineComponent({
       const abs = Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const sign = abs === "0.00" ? "" : num > 0 ? "+" : "-";
       return `${sign}${abs}%`;
+    },
+
+    formatUsd(val: number | string | undefined | null): string {
+      if (val == null) return "$0.00";
+      const num = typeof val === "number" ? val : parseFloat(String(val));
+      if (isNaN(num)) return "$0.00";
+      return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    setLeverage(lev: number): void {
+      if (this.isLiveServer || this.leverage === lev) return;
+      this.leverage = lev;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem("crypto_bot_leverage", String(lev));
+        }
+      } catch (e) {
+        console.warn("Could not save leverage to localStorage:", e);
+      }
     },
 
     formatDrawdown(val: number | string | undefined | null): string {
@@ -1145,6 +1257,7 @@ export default defineComponent({
     },
 
     isLineLive(line: ILine): boolean {
+      if (this.isLiveServer) return true;
       if (!line || !line.data || !line.data.length) return false;
       return line.data.some((row) => {
         const trade = row[4]?.trim();
@@ -1300,7 +1413,7 @@ export default defineComponent({
     },
 
     attachVerticalDivider(): void {
-      if (!this.liveStartTime) return;
+      if (this.isLiveServer || !this.liveStartTime) return;
 
       const allTimes: number[] = [];
       if (this.linesDataTotal && this.linesDataTotal.length) {
@@ -1427,7 +1540,7 @@ export default defineComponent({
       }
 
       // If LIVE ONLY mode and line is pure backtest (no LIVE_START), hide data completely
-      if (this.isLiveOnly && !hasExplicitLiveStart) {
+      if (!this.isLiveServer && this.isLiveOnly && !hasExplicitLiveStart) {
         return [];
       }
 
@@ -1571,6 +1684,7 @@ export default defineComponent({
 
       let currentBalance = this.initialBotCapital;
       let prevProfitTotalPercent = 0;
+      const effLev = this.isLiveServer ? 1 : (this.leverage || 1);
 
       const mapped = tradeArray.map(
         ({
@@ -1583,9 +1697,9 @@ export default defineComponent({
           count,
           priceChangePercent,
         }) => {
-          let value = profitTotalPercent;
+          let value = profitTotalPercent * effLev;
           if (this.isAbsoluteMode) {
-            const deltaPercent = profitTotalPercent - prevProfitTotalPercent;
+            const deltaPercent = (profitTotalPercent - prevProfitTotalPercent) * effLev;
             if (deltaPercent !== 0) {
               currentBalance = Math.max(0, currentBalance * (1 + deltaPercent / 100));
             }
@@ -2764,6 +2878,12 @@ export default defineComponent({
           const data = await response.json();
           if (data?.system) {
             this.systemStatus = data.system;
+            if (typeof (data.system as any).isLiveServer === "boolean") {
+              this.isLiveServer = (data.system as any).isLiveServer;
+            }
+          }
+          if (data?.account) {
+            this.accountInfo = data.account;
           }
           if (Array.isArray(data?.bots)) {
             this.botStatusList = data.bots;
@@ -2784,15 +2904,23 @@ export default defineComponent({
         .replace(/^(orderbook|ob|mm|vol)[-_]/i, "");
     },
 
-    getBotPosition(lineName: string): IBotPosition | null {
-      if (!lineName || !this.botStatusList) return null;
+    getBotPositions(lineName: string): IBotPosition[] {
+      if (!lineName || !this.botStatusList) return [];
       const clean = this.normalizeBotName(lineName);
       const found = this.botStatusList.find(
         (b: IBotStatus) =>
           this.normalizeBotName(b.name || "") === clean ||
           this.normalizeBotName(b.id || "") === clean
       );
-      return found?.position || null;
+      if (found?.positions && found.positions.length > 0) {
+        return found.positions;
+      }
+      return found?.position ? [found.position] : [];
+    },
+
+    getBotPosition(lineName: string): IBotPosition | null {
+      const posList = this.getBotPositions(lineName);
+      return posList.length > 0 ? posList[0] : null;
     },
 
     getBotColor(botName: string): string {
@@ -2895,13 +3023,24 @@ export default defineComponent({
           this.useCommission = true;
         }
 
-        const savedLiveOnly = window.localStorage.getItem(
+        if (this.isLiveServer) {
+        this.isLiveOnly = false;
+      }
+      const savedLiveOnly = window.localStorage.getItem(
           "crypto_bot_live_only"
         );
         if (savedLiveOnly === "false") {
           this.isLiveOnly = false;
         } else if (savedLiveOnly === "true") {
           this.isLiveOnly = true;
+        }
+
+        const savedLev = window.localStorage.getItem("crypto_bot_leverage");
+        if (savedLev) {
+          const parsedLev = Number(savedLev);
+          if ([1, 2, 3, 5].includes(parsedLev)) {
+            this.leverage = parsedLev;
+          }
         }
 
         const savedCoins = window.localStorage.getItem("crypto_bot_excluded_coins");
@@ -2925,8 +3064,7 @@ export default defineComponent({
       await this.initChart();
     }
 
-    await this.fetchData(!hasCache);
-    this.fetchBotStatus();
+    await Promise.all([this.fetchData(!hasCache), this.fetchBotStatus()]);
 
     if (!hasCache) {
       await this.initChart();
@@ -3180,6 +3318,92 @@ export default defineComponent({
       .calc-mode-badge {
         color: #b91c1c;
       }
+    }
+  }
+
+  .leverage-selector {
+    display: inline-flex;
+    align-items: center;
+    height: 25px;
+    border: 1px solid rgba(100, 116, 139, 0.35);
+    background: rgba(100, 116, 139, 0.08);
+    flex-shrink: 0;
+    user-select: none;
+
+    .leverage-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #475569;
+      padding: 0 6px;
+      line-height: 1;
+    }
+
+    .leverage-btn {
+      height: 100%;
+      padding: 0 6px;
+      border: none;
+      border-left: 1px solid rgba(100, 116, 139, 0.25);
+      background: transparent;
+      color: #334155;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      line-height: 1;
+
+      &:hover {
+        background: rgba(15, 23, 42, 0.08);
+      }
+
+      &.leverage-btn--active {
+        background: #1e293b;
+        color: #ffffff;
+      }
+    }
+  }
+
+  .live-account-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 25px;
+    padding: 0 8px;
+    border: 1px solid rgba(21, 128, 61, 0.35);
+    background: rgba(21, 128, 61, 0.09);
+    flex-shrink: 0;
+    user-select: none;
+    white-space: nowrap;
+
+    .live-account-dot {
+      width: 6px;
+      height: 6px;
+      background: #15803d;
+      flex-shrink: 0;
+    }
+
+    .live-account-balance {
+      font-size: 11px;
+      font-weight: 700;
+      color: #15803d;
+      letter-spacing: 0.3px;
+    }
+
+    .live-account-lev {
+      font-size: 10px;
+      font-weight: 700;
+      color: #1e293b;
+      padding-left: 6px;
+      border-left: 1px solid rgba(21, 128, 61, 0.25);
+      letter-spacing: 0.4px;
+    }
+
+    .live-account-gross {
+      font-size: 10px;
+      font-weight: 600;
+      color: #475569;
+      padding-left: 6px;
+      border-left: 1px solid rgba(21, 128, 61, 0.25);
+      letter-spacing: 0.3px;
     }
   }
 

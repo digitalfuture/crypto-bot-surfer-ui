@@ -21,6 +21,7 @@ export interface IBotStatus {
   name: string;
   hasOpenPosition: boolean;
   position: IBotPosition | null;
+  positions?: IBotPosition[];
   totalTrades: number;
   totalProfit: number;
   lastTradeDate?: string;
@@ -35,6 +36,16 @@ export interface IBotStatus {
   } | null;
 }
 
+export interface IAccountInfo {
+  mode: "live" | "demo" | "paper";
+  balance: number | null;
+  leverage: number | null;
+  grossExposure: number | null;
+  maxGross: number | null;
+  openPositions: number | null;
+  execMode?: string | null;
+}
+
 export interface IStatusResponse {
   system: {
     status: "HEALTHY" | "WARNING" | "OFFLINE";
@@ -43,7 +54,9 @@ export interface IStatusResponse {
     uiStatus?: string;
     timestamp: string;
     activePositionsCount: number;
+    isLiveServer?: boolean;
   };
+  account?: IAccountInfo;
   bots: IBotStatus[];
 }
 
@@ -136,7 +149,8 @@ export const GET: APIRoute = async () => {
         .slice(1)
         .filter((l) => l.trim().length > 0);
 
-      const isLive = lines.some((l) => {
+      const isLiveServer = process.env.LIVE_SERVER !== "false";
+      const isLive = isLiveServer || lines.some((l) => {
         const parts = l.split(",");
         return parts[4]?.trim() === "LIVE_START" || parts[2]?.trim() === "LIVE_START";
       });
@@ -173,8 +187,12 @@ export const GET: APIRoute = async () => {
       // Check state file: <strategyId>.state.json or <fileName>.state.json
       let statePosition: IBotPosition | null = null;
       let stateMetrics: IBotStatus["metrics"] = null;
+      let statePositions: IBotPosition[] = [];
+      const baseStrategyId = strategyId.replace(/[-_]live$/i, "");
       const stateFile = existsSync(join(directoryPath, `${strategyId}.state.json`))
         ? join(directoryPath, `${strategyId}.state.json`)
+        : existsSync(join(directoryPath, `${baseStrategyId}.state.json`))
+        ? join(directoryPath, `${baseStrategyId}.state.json`)
         : join(directoryPath, `${fileName}.state.json`);
       if (existsSync(stateFile)) {
         try {
@@ -201,6 +219,25 @@ export const GET: APIRoute = async () => {
             stateMetrics = stateData.metrics;
           }
 
+          if (stateData && (stateData as any).sleeves) {
+            for (const sl of Object.values((stateData as any).sleeves as Record<string, any>)) {
+              if (sl && sl.pos) {
+                for (const [sym, p] of Object.entries(sl.pos as Record<string, any>)) {
+                  if (p && Number((p as any).units) > 0) {
+                    statePositions.push({
+                      symbol: sym,
+                      side: Number((p as any).dir) > 0 ? "LONG" : "SHORT",
+                      entryPrice: Number((p as any).entry) || 0,
+                    });
+                  }
+                }
+              }
+            }
+            if (statePositions.length > 0) {
+              statePosition = statePositions[0];
+            }
+          }
+
           if (stateData && stateData.symbol) {
             statePosition = {
               symbol: stateData.symbol,
@@ -220,17 +257,35 @@ export const GET: APIRoute = async () => {
         }
       }
 
-      const activePos = isLive ? (statePosition || fallbackPosition) : null;
-      const hasOpenPosition = isLive && (isLastTradeOpen || activePos !== null);
-      if (hasOpenPosition) {
-        activePositionsCount++;
+      // For live bot, match real execution prices from CSV trades
+      if (strategyId.toLowerCase().includes("live") && lines.length > 0 && statePositions.length > 0) {
+        for (const p of statePositions) {
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const rowParts = lines[i].split(",");
+            const sym = (rowParts[2] || "").trim();
+            const action = (rowParts[4] || "").toUpperCase().trim();
+            if (sym.startsWith(p.symbol) && (action === "BUY" || action === "SELL")) {
+              const liveFill = parseFloat(rowParts[5]);
+              if (!isNaN(liveFill) && liveFill > 0) {
+                p.entryPrice = liveFill;
+              }
+              break;
+            }
+          }
+        }
+        statePosition = statePositions[0];
       }
+
+      const activePos = isLive ? (statePosition || fallbackPosition) : null;
+      const activePositions = isLive ? (statePositions.length > 0 ? statePositions : (activePos ? [activePos] : [])) : [];
+      const hasOpenPosition = isLive && (isLastTradeOpen || activePositions.length > 0);
 
       bots.push({
         id: strategyId,
         name: displayName,
         hasOpenPosition,
         position: activePos,
+        positions: activePositions,
         totalTrades: lines.length,
         totalProfit,
         lastTradeDate,
@@ -240,6 +295,7 @@ export const GET: APIRoute = async () => {
     }
 
     const order = [
+      "trend-mtf-v2",
       "trend-mtf",
       "trend-mtf-smartlab",
       "btc-5m",
@@ -282,18 +338,78 @@ export const GET: APIRoute = async () => {
     });
 
     const liveBots = bots.filter((b) => b.isLive);
+    const uniqueCoinsInPos = new Set<string>();
+    for (const b of (liveBots.length > 0 ? liveBots : bots)) {
+      if (b.positions && b.positions.length > 0) {
+        for (const p of b.positions) uniqueCoinsInPos.add(p.symbol);
+      } else if (b.position?.symbol) {
+        uniqueCoinsInPos.add(b.position.symbol);
+      }
+    }
+    // Read real/demo account balance & leverage from state files (preferring live > demo > any exec)
+    const hasLiveCsv = files.some((f) => f.endsWith("-live.csv"));
+    const hasDemoCsv = files.some((f) => f.endsWith("-demo.csv"));
+    let accountInfo: IAccountInfo = {
+      mode: hasLiveCsv && !hasDemoCsv ? "live" : hasDemoCsv ? "demo" : "paper",
+      balance: null,
+      leverage: null,
+      grossExposure: null,
+      maxGross: null,
+      openPositions: null,
+      execMode: null,
+    };
+    const stateFiles = files
+      .filter((f) => f.endsWith(".state.json"))
+      .sort((a, b) => (a.includes("v2") ? -1 : b.includes("v2") ? 1 : 0));
+    for (const sf of stateFiles) {
+      try {
+        const parsed = JSON.parse(await readFile(join(directoryPath, sf), "utf8"));
+        const ex = parsed?.exec;
+        if (!ex) continue;
+        const mode: "live" | "demo" | "paper" =
+          ex.execution === "live" ? "live" : ex.execution === "demo" ? "demo" : accountInfo.mode;
+        const bal = typeof ex.lastEquity === "number" && ex.lastEquity > 0 ? ex.lastEquity : null;
+        if (bal !== null || ex.execution === "live" || ex.execution === "demo") {
+          // Prefer live over demo over paper
+          const rank = (m: string) => (m === "live" ? 3 : m === "demo" ? 2 : 1);
+          if (accountInfo.balance === null || rank(mode) >= rank(accountInfo.mode)) {
+            accountInfo = {
+              mode,
+              balance: bal,
+              leverage: typeof ex.leverage === "number" ? ex.leverage : Number(process.env.LEVERAGE || 3),
+              grossExposure: typeof ex.grossExposure === "number" ? ex.grossExposure : null,
+              maxGross: typeof ex.maxGross === "number" ? ex.maxGross : null,
+              openPositions: typeof ex.openPositions === "number" ? ex.openPositions : null,
+              execMode: ex.execMode ?? null,
+            };
+          }
+        }
+      } catch {
+        // ignore unreadable state files
+      }
+    }
+
+    const isLiveServer =
+      process.env.LIVE_SERVER === "true"
+        ? true
+        : process.env.LIVE_SERVER === "false"
+        ? false
+        : accountInfo.mode === "live" || (hasLiveCsv && !hasDemoCsv);
+
     const systemStatus: IStatusResponse["system"] = {
       status: watchdogData?.status || "HEALTHY",
       runningBots: watchdogData?.runningBots ?? (liveBots.length > 0 ? liveBots.length : bots.length),
       totalBots: watchdogData?.totalBots ?? (liveBots.length > 0 ? liveBots.length : bots.length),
       uiStatus: watchdogData?.uiStatus ?? "running",
       timestamp: watchdogData?.timestamp || new Date().toISOString(),
-      activePositionsCount,
+      activePositionsCount: uniqueCoinsInPos.size,
+      isLiveServer,
     };
 
     return new Response(
       JSON.stringify({
         system: systemStatus,
+        account: accountInfo,
         bots,
       }),
       {
