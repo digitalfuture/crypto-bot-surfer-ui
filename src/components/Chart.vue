@@ -746,6 +746,55 @@ function getTradeStates(items: ISeries[]): Map<object, ITradeState> {
 const formatTradePrice = (price: number | undefined): string =>
   typeof price === "number" ? (price < 0.01 ? price.toFixed(8) : price.toFixed(4)) : "";
 
+interface IAnchorLists {
+  all: ISeries[];
+  trades: ISeries[];
+}
+const anchorsCache = new WeakMap<object, IAnchorLists>();
+function getAnchorLists(items: ISeries[]): IAnchorLists {
+  const cached = anchorsCache.get(items);
+  if (cached) return cached;
+  const all: ISeries[] = [];
+  const trades: ISeries[] = [];
+  for (const item of items) {
+    if (
+      item.trade === "BUY" ||
+      item.trade === "SELL" ||
+      item.trade === "LIVE_START"
+    ) {
+      all.push(item);
+      trades.push(item);
+    } else if (item.trade === "HOLD") {
+      all.push(item);
+    }
+  }
+  const result = { all, trades };
+  anchorsCache.set(items, result);
+  return result;
+}
+
+function findNearestByTime(list: ISeries[], targetTime: number): ISeries | null {
+  const n = list.length;
+  if (n === 0) return null;
+  if (targetTime <= list[0].time) return list[0];
+  if (targetTime >= list[n - 1].time) return list[n - 1];
+
+  let lo = 0;
+  let hi = n - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = list[mid].time;
+    if (t === targetTime) return list[mid];
+    if (t < targetTime) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  const prev = list[hi];
+  const next = list[lo];
+  return Math.abs(targetTime - prev.time) <= Math.abs(next.time - targetTime)
+    ? prev
+    : next;
+}
+
 export default defineComponent({
   name: "Chart",
 
@@ -2593,137 +2642,213 @@ export default defineComponent({
 
     setupAnnotations(): void {
       if (!chart) return;
-      let annotationTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastRenderedKey = "";
+
+      const hideAnnotation = () => {
+        lastRenderedKey = "";
+        const annotation = document.querySelector(".annotation") as HTMLElement | null;
+        if (annotation) {
+          annotation.style.display = "none";
+        }
+      };
 
       const chartContainer = document.getElementById("chart-container");
       if (chartContainer) {
-        chartContainer.addEventListener("mouseleave", () => {
-          if (annotationTimer) {
-            clearTimeout(annotationTimer);
-            annotationTimer = null;
-          }
-          const annotation = document.querySelector(".annotation") as HTMLElement | null;
-          if (annotation) {
-            annotation.style.display = "none";
-          }
-        });
+        const prevHandler = (chartContainer as any).__annLeaveHandler;
+        if (prevHandler) {
+          chartContainer.removeEventListener("mouseleave", prevHandler);
+        }
+        (chartContainer as any).__annLeaveHandler = hideAnnotation;
+        chartContainer.addEventListener("mouseleave", hideAnnotation);
       }
+
+      const snapToAnchor = (
+        seriesList: ISeries[],
+        targetTime: number,
+        pointX: number
+      ): ISeries | null => {
+        if (!chart || !seriesList || seriesList.length === 0) return null;
+        const { all, trades } = getAnchorLists(seriesList);
+        if (all.length === 0) return null;
+
+        const nearestTrade = findNearestByTime(trades, targetTime);
+        if (nearestTrade) {
+          const tradeX = chart.timeScale().timeToCoordinate(nearestTrade.time as any);
+          if (tradeX !== null && Math.abs(tradeX - pointX) <= 14) {
+            return nearestTrade;
+          }
+        }
+        return findNearestByTime(all, targetTime);
+      };
 
       chart.subscribeCrosshairMove((param: MouseEventParams) => {
         const annotation: HTMLElement | null = document.querySelector(".annotation");
         const annotationBody: HTMLElement | null =
           document.querySelector(".annotation--body");
 
-        if (!annotation || !annotationBody) {
+        if (!annotation || !annotationBody || !chart) {
           return;
         }
 
-        // Cancel previous pending timer
-        if (annotationTimer) {
-          clearTimeout(annotationTimer);
-          annotationTimer = null;
-        }
+        const chartW = chartContainer?.clientWidth || window.innerWidth || 1200;
+        const chartH = chartContainer?.clientHeight || 335;
 
-        if (!param || !param.seriesData || !param.point) {
-          annotation.style.display = "none";
+        if (
+          !param ||
+          !param.point ||
+          param.point.x < 0 ||
+          param.point.y < 0 ||
+          param.point.x > chartW ||
+          param.point.y > chartH
+        ) {
+          hideAnnotation();
           return;
         }
-
-        // Keep popup hidden while cursor is actively moving so it never blocks the cursor or chart
-        annotation.style.display = "none";
 
         const pointX = param.point.x;
+        const pointY = param.point.y;
 
-        // Debounce: pop up only when user rests cursor on a bar for 320ms
-        annotationTimer = setTimeout(() => {
-          type AnnRow = {
-            side: "LONG" | "SHORT" | "HOLD" | "LIVE" | "";
-            label: string;
-            token: string;
-            price: string;
-          };
-          const rows: AnnRow[] = [];
-          let color = "#1e293b";
+        let cursorTime: number | null =
+          typeof param.time === "number" ? param.time : null;
+        if (cursorTime === null) {
+          const coordTime = chart.timeScale().coordinateToTime(pointX);
+          if (typeof coordTime === "number") {
+            cursorTime = coordTime;
+          } else {
+            cursorTime = pointX > chartW / 2 ? Infinity : -Infinity;
+          }
+        }
 
-          const pushTradeRows = (
-            line: ISeries,
-            seriesList: ISeries[],
-            defaultHeader: string,
-            lineColor: string
-          ) => {
-            if (line.trade === "BUY" || line.trade === "SELL") {
-              const state = getTradeStates(seriesList).get(line);
-              const side: "LONG" | "SHORT" = (state?.side === "LONG" || state?.side === "SHORT")
-                ? state.side
-                : line.trade === "BUY" ? "LONG" : "SHORT";
-              const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
+        type AnnRow = {
+          side: "LONG" | "SHORT" | "HOLD" | "LIVE" | "";
+          label: string;
+          token: string;
+          price: string;
+        };
+        const rows: AnnRow[] = [];
+        let color = "#1e293b";
+        let snappedKey = "";
+
+        const pushTradeRows = (
+          line: ISeries,
+          seriesList: ISeries[],
+          defaultHeader: string,
+          lineColor: string
+        ) => {
+          if (line.trade === "BUY" || line.trade === "SELL") {
+            const state = getTradeStates(seriesList).get(line);
+            const side: "LONG" | "SHORT" = (state?.side === "LONG" || state?.side === "SHORT")
+              ? state.side
+              : line.trade === "BUY" ? "LONG" : "SHORT";
+            const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
+            rows.push({
+              side,
+              label: `${side}${action}`,
+              token: line.tokenName || "",
+              price: formatTradePrice(line.price),
+            });
+            for (const p of state?.held ?? []) {
+              const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
               rows.push({
-                side,
-                label: `${side}${action}`,
-                token: line.tokenName || "",
-                price: formatTradePrice(line.price),
+                side: pSide,
+                label: pSide,
+                token: p.token,
+                price: formatTradePrice(p.price),
               });
-              for (const p of state?.held ?? []) {
-                const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
-                rows.push({
-                  side: pSide,
-                  label: pSide,
-                  token: p.token,
-                  price: formatTradePrice(p.price),
-                });
-              }
-              color = lineColor;
-            } else if (line.trade === "LIVE_START") {
-              rows.push({ side: "LIVE", label: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
-              color = "#b45309";
-            } else if (line.trade === "HOLD") {
-              const state = getTradeStates(seriesList).get(line);
-              const pnl = Number(line.profitPercent) || 0;
-              const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
-              const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
-              rows.push({ side: "HOLD", label: "HOLD", token: headerLabel, price: pnlStr });
-              for (const p of state?.held ?? []) {
-                const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
-                rows.push({
-                  side: pSide,
-                  label: pSide,
-                  token: p.token,
-                  price: formatTradePrice(p.price),
-                });
-              }
-              color = lineColor;
             }
-          };
+            color = lineColor;
+          } else if (line.trade === "LIVE_START") {
+            rows.push({ side: "LIVE", label: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
+            color = "#b45309";
+          } else if (line.trade === "HOLD") {
+            const state = getTradeStates(seriesList).get(line);
+            const pnl = Number(line.profitPercent) || 0;
+            const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
+            const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
+            rows.push({ side: "HOLD", label: "HOLD", token: headerLabel, price: pnlStr });
+            for (const p of state?.held ?? []) {
+              const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
+              rows.push({
+                side: pSide,
+                label: pSide,
+                token: p.token,
+                price: formatTradePrice(p.price),
+              });
+            }
+            color = lineColor;
+          }
+        };
 
-          // 1. Check individual active bot lines
+        // 1. Find nearest anchor among active visible bot lines
+        let bestCandidate: {
+          idx: number;
+          item: ISeries;
+          seriesList: ISeries[];
+          lineColor: string;
+          distSq: number;
+        } | null = null;
+
+        if (!this.hasLineTotalOnly) {
           lineSeries.forEach((series, index) => {
-            if (!series) return;
-            const seriesData = param.seriesData.get(series);
-            if (this.lines[index]?.disabled) return;
+            const lineObj = this.lines[index];
+            if (!series || !lineObj || lineObj.disabled) return;
+            if (this.isLiveOnly && !this.isLineLive(lineObj)) return;
+            const seriesList = this.linesData[index];
+            if (!seriesList || seriesList.length === 0) return;
 
-            const line = this.linesData[index]?.find(
-              (item) =>
-                item.time === (seriesData as { time?: number })?.time &&
-                item.value === (seriesData as { value?: number })?.value
-            );
-            if (line) {
-              pushTradeRows(line, this.linesData[index], "HOLD (Mark-to-Market)", this.lines[index]?.color || "#1e293b");
+            const snapped = snapToAnchor(seriesList, cursorTime!, pointX);
+            if (!snapped) return;
+
+            const sx = chart!.timeScale().timeToCoordinate(snapped.time as any);
+            const sy = series.priceToCoordinate(snapped.value);
+            const dx = sx !== null ? sx - pointX : 0;
+            const dy = sy !== null ? sy - pointY : 0;
+            const distSq = dx * dx + dy * dy;
+
+            if (!bestCandidate || distSq < bestCandidate.distSq) {
+              bestCandidate = {
+                idx: index,
+                item: snapped,
+                seriesList,
+                lineColor: lineObj.color || "#1e293b",
+                distSq,
+              };
             }
           });
+        }
 
-          // 2. If in Total Line mode and no bot line was enabled, inspect the portfolio total line
-          if (rows.length === 0 && lineSeriesTotal && this.isLineTotalVisible) {
-            const totalData = param.seriesData.get(lineSeriesTotal);
-            if (totalData && (totalData as any).time) {
-              const t = (totalData as any).time;
-              const line = this.linesData[0]?.find((item) => item.time === t);
-              if (line) {
-                pushTradeRows(line, this.linesData[0], "PORTFOLIO (Mark-to-Market)", totalLineColor || "#3b82f6");
-              }
-            }
+        if (bestCandidate) {
+          const c = bestCandidate as {
+            idx: number;
+            item: ISeries;
+            seriesList: ISeries[];
+            lineColor: string;
+          };
+          snappedKey = `line:${c.idx}:${c.item.time}:${c.item.trade}:${c.item.count}`;
+          pushTradeRows(c.item, c.seriesList, "HOLD (Mark-to-Market)", c.lineColor);
+        } else if (lineSeriesTotal && this.isLineTotalVisible) {
+          // 2. Total Line mode: snap to nearest anchor on the primary active line
+          const activeIdx = this.lines.findIndex(
+            (l) => !l.disabled && (!this.isLiveOnly || this.isLineLive(l))
+          );
+          const primaryList = this.linesData[activeIdx >= 0 ? activeIdx : 0];
+          const snapped = primaryList
+            ? snapToAnchor(primaryList, cursorTime, pointX)
+            : null;
+          if (snapped) {
+            snappedKey = `total:${snapped.time}:${snapped.trade}:${snapped.count}`;
+            pushTradeRows(
+              snapped,
+              primaryList,
+              "PORTFOLIO (Mark-to-Market)",
+              totalLineColor || "#3b82f6"
+            );
           }
+        }
 
-          if (rows.length > 0) {
+        if (rows.length > 0) {
+          if (snappedKey !== lastRenderedKey) {
+            lastRenderedKey = snappedKey;
             const esc = (s: string) =>
               String(s)
                 .replace(/&/g, "&amp;")
@@ -2740,25 +2865,24 @@ export default defineComponent({
                 return `<tr><td class="ann-side ${sideClass}">${esc(r.label)}</td><td class="ann-token" style="background:${color}">${esc(r.token)}</td><td class="ann-price" style="background:${color}">${esc(r.price)}</td></tr>`;
               })
               .join("");
-
-            // Smart positioning: flip popup to opposite half so it NEVER covers cursor or gets overlapped by buttons
-            const chartW = chartContainer?.clientWidth || window.innerWidth || 1200;
-            const isCursorOnRight = pointX > chartW / 2;
-            if (isCursorOnRight) {
-              annotation.style.right = "auto";
-              annotation.style.left = "12px";
-              annotation.style.top = "50px";
-            } else {
-              annotation.style.left = "auto";
-              annotation.style.right = "60px";
-              annotation.style.top = "50px";
-            }
-
-            annotation.style.display = "block";
-          } else {
-            annotation.style.display = "none";
           }
-        }, 320);
+
+          // Smart positioning: flip popup to opposite half so it NEVER covers cursor or gets overlapped by buttons
+          const isCursorOnRight = pointX > chartW / 2;
+          if (isCursorOnRight) {
+            annotation.style.right = "auto";
+            annotation.style.left = "12px";
+            annotation.style.top = "50px";
+          } else {
+            annotation.style.left = "auto";
+            annotation.style.right = "60px";
+            annotation.style.top = "50px";
+          }
+
+          annotation.style.display = "block";
+        } else {
+          hideAnnotation();
+        }
       });
     },
 
