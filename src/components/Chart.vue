@@ -172,8 +172,9 @@
 
   <template v-else>
     <div class="annotation" style="display: none">
-      <span class="annotation--token" />
-      <span class="annotation--price" />
+      <table class="annotation-table">
+        <tbody class="annotation--body" />
+      </table>
     </div>
 
     <!-- Top Bar Controls -->
@@ -2608,12 +2609,10 @@ export default defineComponent({
 
       chart.subscribeCrosshairMove((param: MouseEventParams) => {
         const annotation: HTMLElement | null = document.querySelector(".annotation");
-        const annotationToken: HTMLElement | null =
-          document.querySelector(".annotation--token");
-        const annotationPrice: HTMLElement | null =
-          document.querySelector(".annotation--price");
+        const annotationBody: HTMLElement | null =
+          document.querySelector(".annotation--body");
 
-        if (!annotation || !annotationToken || !annotationPrice) {
+        if (!annotation || !annotationBody) {
           return;
         }
 
@@ -2632,13 +2631,53 @@ export default defineComponent({
         annotation.style.display = "none";
 
         const pointX = param.point.x;
-        const pointY = param.point.y;
 
         // Debounce: pop up only when user rests cursor on a bar for 320ms
         annotationTimer = setTimeout(() => {
-          let annotationTokenText = "";
-          let annotationPriceText = "";
-          let color = "transparent";
+          type AnnRow = { side: "LONG" | "SHORT" | "HOLD" | "LIVE" | ""; token: string; price: string };
+          const rows: AnnRow[] = [];
+          let color = "#1e293b";
+
+          const pushTradeRows = (
+            line: ISeries,
+            seriesList: ISeries[],
+            defaultHeader: string,
+            lineColor: string
+          ) => {
+            if (line.trade === "BUY" || line.trade === "SELL") {
+              const state = getTradeStates(seriesList).get(line);
+              const side = (state?.side === "LONG" || state?.side === "SHORT")
+                ? state.side
+                : line.trade === "BUY" ? "LONG" : "SHORT";
+              const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
+              rows.push({ side, token: `${line.tokenName || ""}${action}`, price: formatTradePrice(line.price) });
+              for (const p of state?.held ?? []) {
+                rows.push({
+                  side: p.side === "LONG" ? "LONG" : "SHORT",
+                  token: p.token,
+                  price: formatTradePrice(p.price),
+                });
+              }
+              color = lineColor;
+            } else if (line.trade === "LIVE_START") {
+              rows.push({ side: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
+              color = "#b45309";
+            } else if (line.trade === "HOLD") {
+              const state = getTradeStates(seriesList).get(line);
+              const pnl = Number(line.profitPercent) || 0;
+              const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
+              const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
+              rows.push({ side: "HOLD", token: headerLabel, price: pnlStr });
+              for (const p of state?.held ?? []) {
+                rows.push({
+                  side: p.side === "LONG" ? "LONG" : "SHORT",
+                  token: p.token,
+                  price: formatTradePrice(p.price),
+                });
+              }
+              color = lineColor;
+            }
+          };
 
           // 1. Check individual active bot lines
           lineSeries.forEach((series, index) => {
@@ -2651,97 +2690,55 @@ export default defineComponent({
                 item.time === (seriesData as { time?: number })?.time &&
                 item.value === (seriesData as { value?: number })?.value
             );
-
-            if (line?.trade === "BUY" || line?.trade === "SELL") {
-              const state = getTradeStates(this.linesData[index]).get(line);
-              const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
-              annotationTokenText += `${line.tokenName}${action}<br>`;
-              annotationPriceText += `${formatTradePrice(line.price)}<br>`;
-              for (const p of state?.held ?? []) {
-                annotationTokenText += `${p.token} ${p.side}<br>`;
-                annotationPriceText += `${formatTradePrice(p.price)}<br>`;
-              }
-              color = this.lines[index]?.color || "transparent";
-            } else if (line?.trade === "LIVE_START") {
-              annotationTokenText += `LIVE TRADING START<br>`;
-              annotationPriceText += `Real execution begins<br>`;
-              color = "#FFD700";
-            } else if (line?.trade === "HOLD") {
-              const state = getTradeStates(this.linesData[index]).get(line);
-              const pnl = Number(line.profitPercent) || 0;
-              const pnlSign = pnl >= 0 ? "+" : "";
-              const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
-              const headerLabel = line.tokenName ? `${line.tokenName} HOLD (Mark-to-Market)` : `HOLD (Mark-to-Market)`;
-              annotationTokenText += `${headerLabel}<br>`;
-              annotationPriceText += `${pnlStr}<br>`;
-              for (const p of state?.held ?? []) {
-                annotationTokenText += `${p.token} ${p.side}<br>`;
-                annotationPriceText += `${formatTradePrice(p.price)}<br>`;
-              }
-              color = this.lines[index]?.color || "transparent";
+            if (line) {
+              pushTradeRows(line, this.linesData[index], "HOLD (Mark-to-Market)", this.lines[index]?.color || "#1e293b");
             }
           });
 
           // 2. If in Total Line mode and no bot line was enabled, inspect the portfolio total line
-          if (!annotationTokenText && lineSeriesTotal && this.isLineTotalVisible) {
+          if (rows.length === 0 && lineSeriesTotal && this.isLineTotalVisible) {
             const totalData = param.seriesData.get(lineSeriesTotal);
             if (totalData && (totalData as any).time) {
               const t = (totalData as any).time;
               const line = this.linesData[0]?.find((item) => item.time === t);
-              if (line?.trade === "LIVE_START") {
-                annotationTokenText += `LIVE TRADING START<br>`;
-                annotationPriceText += `Real execution begins<br>`;
-                color = "#FFD700";
-              } else if (line?.trade === "BUY" || line?.trade === "SELL") {
-                const state = getTradeStates(this.linesData[0]).get(line);
-                const action = state ? ` ${state.isOpen ? "OPEN" : "CLOSE"} ${state.side}` : "";
-                annotationTokenText += `${line.tokenName}${action}<br>`;
-                annotationPriceText += `${formatTradePrice(line.price)}<br>`;
-                for (const p of state?.held ?? []) {
-                  annotationTokenText += `${p.token} ${p.side}<br>`;
-                  annotationPriceText += `${formatTradePrice(p.price)}<br>`;
-                }
-                color = totalLineColor || "#3b82f6";
-              } else if (line?.trade === "HOLD") {
-                const state = getTradeStates(this.linesData[0]).get(line);
-                const pnl = Number(line.profitPercent) || 0;
-                const pnlSign = pnl >= 0 ? "+" : "";
-                const pnlStr = `${pnlSign}${pnl.toFixed(2)}%`;
-                annotationTokenText += `PORTFOLIO HOLD (Mark-to-Market)<br>`;
-                annotationPriceText += `${pnlStr}<br>`;
-                for (const p of state?.held ?? []) {
-                  annotationTokenText += `${p.token} ${p.side}<br>`;
-                  annotationPriceText += `${formatTradePrice(p.price)}<br>`;
-                }
-                color = totalLineColor || "#3b82f6";
+              if (line) {
+                pushTradeRows(line, this.linesData[0], "PORTFOLIO (Mark-to-Market)", totalLineColor || "#3b82f6");
               }
             }
           }
 
-          if (annotationTokenText) {
-            annotationToken.innerHTML = annotationTokenText;
-            annotationPrice.innerHTML = annotationPriceText;
+          if (rows.length > 0) {
+            const esc = (s: string) =>
+              String(s)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            annotationBody.innerHTML = rows
+              .map((r) => {
+                const sideClass =
+                  r.side === "LONG"
+                    ? "ann-side--long"
+                    : r.side === "SHORT"
+                    ? "ann-side--short"
+                    : "ann-side--meta";
+                return `<tr><td class="ann-side ${sideClass}">${esc(r.side)}</td><td class="ann-token" style="background:${color}">${esc(r.token)}</td><td class="ann-price" style="background:${color}">${esc(r.price)}</td></tr>`;
+              })
+              .join("");
 
             // Smart positioning: flip popup to opposite half so it NEVER covers cursor or gets overlapped by buttons
             const chartW = chartContainer?.clientWidth || window.innerWidth || 1200;
             const isCursorOnRight = pointX > chartW / 2;
             if (isCursorOnRight) {
-              // Cursor on right half: place popup on left, cleanly below the top buttons
               annotation.style.right = "auto";
               annotation.style.left = "12px";
               annotation.style.top = "50px";
-              annotation.style.textAlign = "left";
             } else {
-              // Cursor on left half: place popup on right, cleanly below the fullscreen button
               annotation.style.left = "auto";
               annotation.style.right = "60px";
               annotation.style.top = "50px";
-              annotation.style.textAlign = "right";
             }
 
             annotation.style.display = "block";
-            annotationToken.style.background = color;
-            annotationPrice.style.background = color;
           } else {
             annotation.style.display = "none";
           }
@@ -3108,7 +3105,6 @@ export default defineComponent({
   position: absolute;
   top: 76px;
   right: 60px;
-  text-align: right;
   color: white;
   // above the chart canvas (trade markers), safely below top button bar
   z-index: 1000;
@@ -3116,17 +3112,53 @@ export default defineComponent({
   border-radius: 0;
   box-shadow: none;
   border: 1px solid rgba(0, 0, 0, 0.25);
+  background: rgba(15, 23, 42, 0.92);
 
-  * {
-    padding: 5px 10px;
-    display: inline-block;
-    border-radius: 0;
-    box-shadow: none;
-    text-shadow: none;
+  .annotation-table {
+    border-collapse: separate;
+    border-spacing: 1px;
+    font-size: 12px;
+    line-height: 1.3;
   }
 
-  .annotation--price {
-    margin-left: 2px;
+  .ann-side,
+  .ann-token,
+  .ann-price {
+    padding: 3px 8px;
+    white-space: nowrap;
+    border-radius: 0;
+  }
+
+  .ann-side {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+    min-width: 46px;
+    color: #ffffff;
+  }
+
+  .ann-side--long {
+    background: #15803d;
+  }
+
+  .ann-side--short {
+    background: #b91c1c;
+  }
+
+  .ann-side--meta {
+    background: #334155;
+  }
+
+  .ann-token {
+    text-align: left;
+    font-weight: 500;
+  }
+
+  .ann-price {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
   }
 }
 
