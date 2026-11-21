@@ -3129,6 +3129,7 @@ export default defineComponent({
   box-shadow: none;
   border: none;
   background: transparent;
+  text-transform: uppercase;
 
   .annotation-table {
     border-collapse: separate;
