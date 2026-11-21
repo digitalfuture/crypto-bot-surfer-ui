@@ -3131,8 +3131,8 @@ export default defineComponent({
   background: transparent;
 
   .annotation-table {
-    border-collapse: collapse;
-    border-spacing: 0;
+    border-collapse: separate;
+    border-spacing: 1px;
     border: none;
     font-size: var(--ui-font-size);
     line-height: 1.3;
