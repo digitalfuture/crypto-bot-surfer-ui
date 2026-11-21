@@ -1,4 +1,17 @@
 <template>
+  <!-- Slim top progress bar for initial load, recalculation, and background refresh -->
+  <div v-if="isLoading || isBusy || isRefreshing" class="top-progress-bar" aria-hidden="true">
+    <div class="top-progress-bar__fill" />
+  </div>
+
+  <!-- Crisp flat recalculating overlay when switching leverage/reinvest/commission/coins/live -->
+  <div v-if="isBusy && !isLoading" class="busy-overlay" aria-live="polite">
+    <div class="busy-badge">
+      <span class="busy-spinner" />
+      <span class="busy-text">{{ busyLabel || 'LOADING...' }}</span>
+    </div>
+  </div>
+
   <!-- Chart container: ALWAYS in DOM so createChart never fails -->
   <div
     v-show="!isLoading && lines.length > 0 && !isMonitorView"
@@ -744,6 +757,8 @@ export default defineComponent({
       liveBadgeX: null as number | null,
       isMonitorView: false as boolean,
       isRefreshing: false as boolean,
+      isBusy: false as boolean,
+      busyLabel: "" as string,
       botStatusList: [] as IBotStatus[],
       systemStatus: {
         status: "HEALTHY",
@@ -1092,21 +1107,27 @@ export default defineComponent({
     },
 
     useCommission() {
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.initChart();
+      this.runWithBusy("RECALCULATING...", () => {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.initChart();
+      });
     },
 
     isAbsoluteMode() {
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.initChart();
+      this.runWithBusy("RECALCULATING...", () => {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.initChart();
+      });
     },
 
     leverage() {
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.initChart();
+      this.runWithBusy(`APPLYING ${this.leverage}x...`, () => {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.initChart();
+      });
     },
 
     isLiveServer(val: boolean) {
@@ -1115,16 +1136,20 @@ export default defineComponent({
         this.leverage = 1;
       }
       if (chart) {
-        this.linesData = [];
-        this.linesDataTotal = [];
-        this.initChart();
+        this.runWithBusy("UPDATING CHART...", () => {
+          this.linesData = [];
+          this.linesDataTotal = [];
+          this.initChart();
+        });
       }
     },
 
     tradeDirection() {
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.initChart();
+      this.runWithBusy("RECALCULATING...", () => {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.initChart();
+      });
     },
   },
 
@@ -1206,10 +1231,34 @@ export default defineComponent({
       }
     },
 
+    runWithBusy(label: string, fn: () => void | Promise<void>): void {
+      this.isBusy = true;
+      this.busyLabel = label;
+      if (typeof window === "undefined") {
+        Promise.resolve(fn()).finally(() => {
+          this.isBusy = false;
+          this.busyLabel = "";
+        });
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        window.setTimeout(async () => {
+          try {
+            await fn();
+          } finally {
+            this.isBusy = false;
+            this.busyLabel = "";
+          }
+        }, 16);
+      });
+    },
+
     onCoinFilterChanged(): void {
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.initChart();
+      this.runWithBusy("FILTERING COINS...", () => {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.initChart();
+      });
     },
 
     getBotMaxDrawdown(index: number): number {
@@ -2335,12 +2384,14 @@ export default defineComponent({
           this.isLineTotalVisible = true;
         }
       }
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.updateChart();
-      this.$nextTick(() => {
-        this.applyLongestScale();
-        this.updateLiveBadgePosition();
+      this.runWithBusy(this.isLiveOnly ? "LOADING LIVE..." : "LOADING FULL CHART...", () => {
+        this.linesData = [];
+        this.linesDataTotal = [];
+        this.updateChart();
+        this.$nextTick(() => {
+          this.applyLongestScale();
+          this.updateLiveBadgePosition();
+        });
       });
     },
 
@@ -3500,6 +3551,79 @@ export default defineComponent({
       height: 24px;
       padding: 3px;
     }
+  }
+}
+
+.top-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(30, 41, 59, 0.12);
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.top-progress-bar__fill {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: #15803d;
+  animation: top-progress-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes top-progress-slide {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.busy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.45);
+  pointer-events: all;
+}
+
+.busy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: #1e293b;
+  color: #ffffff;
+  border: 1px solid #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.busy-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #22c55e;
+  border-radius: 50%;
+  animation: busy-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
