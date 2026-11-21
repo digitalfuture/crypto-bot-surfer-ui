@@ -2634,7 +2634,12 @@ export default defineComponent({
 
         // Debounce: pop up only when user rests cursor on a bar for 320ms
         annotationTimer = setTimeout(() => {
-          type AnnRow = { side: "LONG" | "SHORT" | "HOLD" | "LIVE" | ""; token: string; price: string };
+          type AnnRow = {
+            side: "LONG" | "SHORT" | "HOLD" | "LIVE" | "";
+            label: string;
+            token: string;
+            price: string;
+          };
           const rows: AnnRow[] = [];
           let color = "#1e293b";
 
@@ -2646,31 +2651,40 @@ export default defineComponent({
           ) => {
             if (line.trade === "BUY" || line.trade === "SELL") {
               const state = getTradeStates(seriesList).get(line);
-              const side = (state?.side === "LONG" || state?.side === "SHORT")
+              const side: "LONG" | "SHORT" = (state?.side === "LONG" || state?.side === "SHORT")
                 ? state.side
                 : line.trade === "BUY" ? "LONG" : "SHORT";
               const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
-              rows.push({ side, token: `${line.tokenName || ""}${action}`, price: formatTradePrice(line.price) });
+              rows.push({
+                side,
+                label: `${side}${action}`,
+                token: line.tokenName || "",
+                price: formatTradePrice(line.price),
+              });
               for (const p of state?.held ?? []) {
+                const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
                 rows.push({
-                  side: p.side === "LONG" ? "LONG" : "SHORT",
+                  side: pSide,
+                  label: pSide,
                   token: p.token,
                   price: formatTradePrice(p.price),
                 });
               }
               color = lineColor;
             } else if (line.trade === "LIVE_START") {
-              rows.push({ side: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
+              rows.push({ side: "LIVE", label: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
               color = "#b45309";
             } else if (line.trade === "HOLD") {
               const state = getTradeStates(seriesList).get(line);
               const pnl = Number(line.profitPercent) || 0;
               const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
               const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
-              rows.push({ side: "HOLD", token: headerLabel, price: pnlStr });
+              rows.push({ side: "HOLD", label: "HOLD", token: headerLabel, price: pnlStr });
               for (const p of state?.held ?? []) {
+                const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
                 rows.push({
-                  side: p.side === "LONG" ? "LONG" : "SHORT",
+                  side: pSide,
+                  label: pSide,
                   token: p.token,
                   price: formatTradePrice(p.price),
                 });
@@ -2721,7 +2735,7 @@ export default defineComponent({
                     : r.side === "SHORT"
                     ? "ann-side--short"
                     : "ann-side--meta";
-                return `<tr><td class="ann-side ${sideClass}">${esc(r.side)}</td><td class="ann-token" style="background:${color}">${esc(r.token)}</td><td class="ann-price" style="background:${color}">${esc(r.price)}</td></tr>`;
+                return `<tr><td class="ann-side ${sideClass}">${esc(r.label)}</td><td class="ann-token" style="background:${color}">${esc(r.token)}</td><td class="ann-price" style="background:${color}">${esc(r.price)}</td></tr>`;
               })
               .join("");
 
@@ -3134,7 +3148,7 @@ export default defineComponent({
     font-weight: 700;
     letter-spacing: 0.5px;
     text-align: center;
-    min-width: 46px;
+    min-width: 82px;
     color: #ffffff;
   }
 
