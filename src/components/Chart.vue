@@ -220,13 +220,19 @@
         </span>
       </div>
 
-      <!-- Commission toggle (THIRD) -->
+      <!-- Commission toggle (frozen ON on live server) -->
       <div
-        class="use-commission-container cursor-pointer"
-        :class="{ 'use-commission--off': !useCommission }"
-        @click.stop.prevent="toggleCommission"
+        class="use-commission-container"
+        :class="{
+          'use-commission--off': !useCommission,
+          'cursor-pointer': !isLiveServer,
+          'control--locked': isLiveServer,
+        }"
+        @click.stop.prevent="!isLiveServer && toggleCommission()"
         :title="
-          useCommission
+          isLiveServer
+            ? 'Live account: real exchange commissions are always included (locked)'
+            : useCommission
             ? 'Commission: ON (Net PnL, -0.10% round-trip) - Click to disable'
             : 'Commission: OFF (Gross PnL, no fee) - Click to enable'
         "
@@ -234,7 +240,7 @@
         <img
           :src="useCommission ? '/icons/money.svg' : '/icons/money-off.svg'"
           alt="Commission Mode"
-          class="use-commission-button cursor-pointer"
+          class="use-commission-button"
           draggable="false"
         />
         <span class="use-commission-badge">
@@ -242,13 +248,19 @@
         </span>
       </div>
 
-      <!-- Mode toggle (% vs $ Wallet) (THIRD) -->
+      <!-- Mode toggle (% vs $ Wallet) (frozen ON on live server) -->
       <div
-        class="calc-mode-container cursor-pointer"
-        :class="{ 'calc-mode--off': !isAbsoluteMode }"
-        @click.stop.prevent="toggleCalcMode"
+        class="calc-mode-container"
+        :class="{
+          'calc-mode--off': !isAbsoluteMode,
+          'cursor-pointer': !isLiveServer,
+          'control--locked': isLiveServer,
+        }"
+        @click.stop.prevent="!isLiveServer && toggleCalcMode()"
         :title="
-          isAbsoluteMode
+          isLiveServer
+            ? 'Live account: real equity compounds automatically (locked)'
+            : isAbsoluteMode
             ? 'Reinvestment: ON (Compounding %) - Click to disable'
             : 'Reinvestment: OFF (Simple %) - Click to enable'
         "
@@ -256,7 +268,7 @@
         <img
           :src="isAbsoluteMode ? '/icons/wallet.svg' : '/icons/percent.svg'"
           alt="Mode"
-          class="calc-mode-button cursor-pointer"
+          class="calc-mode-button"
           draggable="false"
         />
         <span class="calc-mode-badge">
@@ -301,20 +313,22 @@
         </button>
       </div>
 
-      <!-- Coin Filter Toggle (TEST / DEMO ONLY) -->
+      <!-- Coin List / Filter Toggle (read-only view on live server, interactive filter on demo/test) -->
       <div
-        v-if="!isLiveServer && allCoins.length > 0"
+        v-if="allCoins.length > 0"
         class="coin-filter-container cursor-pointer"
-        :class="{ 'coin-filter--filtered': excludedCoins.size > 0 }"
+        :class="{ 'coin-filter--filtered': !isLiveServer && excludedCoins.size > 0 }"
         @click.stop.prevent="toggleCoinFilter"
         :title="
-          excludedCoins.size > 0
+          isLiveServer
+            ? 'Traded coins (' + allCoins.length + ') - Click to view list (read-only)'
+            : excludedCoins.size > 0
             ? 'Coins: ' + (allCoins.length - excludedCoins.size) + '/' + allCoins.length + ' active (' + excludedCoins.size + ' excluded) - Click to manage'
             : 'Coins: all ' + allCoins.length + ' active - Click to filter'
         "
       >
         <span class="coin-filter-badge">
-          {{ excludedCoins.size > 0 ? (allCoins.length - excludedCoins.size) + '/' + allCoins.length + ' COINS' : 'COINS (' + allCoins.length + ')' }}
+          {{ !isLiveServer && excludedCoins.size > 0 ? (allCoins.length - excludedCoins.size) + '/' + allCoins.length + ' COINS' : 'COINS (' + allCoins.length + ')' }}
         </span>
       </div>
     </div>
@@ -406,18 +420,18 @@
         </div>
       </template>
     </section>
-    <!-- Coin Filter Modal (TEST / DEMO ONLY) -->
+    <!-- Coin Filter / Viewer Modal (read-only on live server) -->
     <div
-      v-if="!isLiveServer && isCoinFilterOpen"
+      v-if="isCoinFilterOpen"
       class="coin-modal-overlay"
       @click.self="isCoinFilterOpen = false"
     >
       <div class="coin-modal">
         <div class="coin-modal-header">
           <div class="coin-modal-title">
-            <span>COIN FILTER</span>
+            <span>{{ isLiveServer ? 'TRADED COINS' : 'COIN FILTER' }}</span>
             <span class="coin-modal-subtitle">
-              ({{ allCoins.length - excludedCoins.size }}/{{ allCoins.length }} active)
+              {{ isLiveServer ? '(' + allCoins.length + ' — read-only)' : '(' + (allCoins.length - excludedCoins.size) + '/' + allCoins.length + ' active)' }}
             </span>
           </div>
           <button class="coin-modal-close" @click="isCoinFilterOpen = false">✕</button>
@@ -430,19 +444,25 @@
             class="coin-modal-search"
             placeholder="Search coin (e.g. BTC, ETH)..."
           />
-          <button class="coin-btn-action" @click="selectAllCoins">SELECT ALL</button>
-          <button class="coin-btn-action" @click="deselectAllCoins">DESELECT ALL</button>
+          <template v-if="!isLiveServer">
+            <button class="coin-btn-action" @click="selectAllCoins">SELECT ALL</button>
+            <button class="coin-btn-action" @click="deselectAllCoins">DESELECT ALL</button>
+          </template>
         </div>
 
         <div class="coin-modal-list">
           <div
             v-for="coin in filteredCoins"
             :key="coin.symbol"
-            class="coin-modal-item cursor-pointer"
-            :class="{ 'coin-modal-item--excluded': excludedCoins.has(coin.symbol) }"
-            @click="toggleCoin(coin.symbol)"
+            class="coin-modal-item"
+            :class="{
+              'cursor-pointer': !isLiveServer,
+              'coin-modal-item--excluded': !isLiveServer && excludedCoins.has(coin.symbol),
+            }"
+            @click="!isLiveServer && toggleCoin(coin.symbol)"
           >
             <input
+              v-if="!isLiveServer"
               type="checkbox"
               :checked="!excludedCoins.has(coin.symbol)"
               class="coin-checkbox"
@@ -463,7 +483,7 @@
         </div>
 
         <div class="coin-modal-footer">
-          <button class="coin-btn-done" @click="isCoinFilterOpen = false">DONE</button>
+          <button class="coin-btn-done" @click="isCoinFilterOpen = false">{{ isLiveServer ? 'CLOSE' : 'DONE' }}</button>
         </div>
       </div>
     </div>
@@ -1125,7 +1145,8 @@ export default defineComponent({
       if (val) {
         this.isLiveOnly = false;
         this.leverage = 1;
-        this.isCoinFilterOpen = false;
+        this.useCommission = true;
+        this.isAbsoluteMode = true;
         this.excludedCoins.clear();
       }
       if (chart) {
@@ -1188,6 +1209,7 @@ export default defineComponent({
     },
 
     toggleCoin(symbol: string): void {
+      if (this.isLiveServer) return;
       if (this.excludedCoins.has(symbol)) {
         this.excludedCoins.delete(symbol);
       } else {
@@ -1198,12 +1220,14 @@ export default defineComponent({
     },
 
     selectAllCoins(): void {
+      if (this.isLiveServer) return;
       this.excludedCoins.clear();
       this.saveExcludedCoins();
       this.onCoinFilterChanged();
     },
 
     deselectAllCoins(): void {
+      if (this.isLiveServer) return;
       for (const c of this.allCoins) {
         this.excludedCoins.add(c.symbol);
       }
@@ -1278,7 +1302,7 @@ export default defineComponent({
     },
 
     setCalcMode(isAbsolute: boolean): void {
-      if (this.isAbsoluteMode === isAbsolute) return;
+      if (this.isLiveServer || this.isAbsoluteMode === isAbsolute) return;
       this.isAbsoluteMode = isAbsolute;
       this.linesData = [];
       this.linesDataTotal = [];
@@ -2948,6 +2972,7 @@ export default defineComponent({
     },
 
     toggleCommission(): void {
+      if (this.isLiveServer) return;
       this.useCommission = !this.useCommission;
       try {
         if (typeof window !== "undefined" && window.localStorage) {
@@ -3301,6 +3326,11 @@ export default defineComponent({
         color: #b91c1c;
       }
     }
+  }
+
+  .control--locked {
+    cursor: default !important;
+    opacity: 0.78;
   }
 
   .leverage-selector {
