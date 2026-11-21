@@ -159,11 +159,13 @@ const { title } = Astro.props;
     --total-line-color: dimgray;
     --green-color: green;
     --red-color: red;
+    --ui-font-size: 12px;
   }
 
   html {
     color: dimgray;
     background-color: var(--background-color);
+    font-size: var(--ui-font-size);
     overflow-x: hidden;
     * {
       font-family: Arial;
@@ -176,7 +178,9 @@ const { title } = Astro.props;
     input,
     select,
     textarea {
+      border: none;
       border-radius: 0;
+      font-size: var(--ui-font-size);
     }
 
     .cursor-pointer {

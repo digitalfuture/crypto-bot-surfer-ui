@@ -104,7 +104,7 @@
               v-for="pos in bot.positions"
               :key="pos.symbol"
               class="pos-item-container"
-              style="margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.06);"
+              style="margin-bottom: 6px; padding-bottom: 4px;"
             >
               <div class="pos-row pos-row--main" style="display: flex; align-items: center; justify-content: space-between;">
                 <div>
@@ -113,7 +113,7 @@
                   </span>
                   <span class="pos-symbol">{{ pos.symbol }}</span>
                 </div>
-                <span class="pos-entry-price" style="font-size: 12px; font-weight: bold; color: #ccc;">
+                <span class="pos-entry-price" style="font-size: var(--ui-font-size); font-weight: bold; color: #4b5563;">
                   @{{ formatTarget(pos.entryPrice) }}
                 </span>
               </div>
@@ -924,6 +924,8 @@ export default defineComponent({
         },
         layout: {
           background: { color: "transparent" },
+          fontSize: 12,
+          fontFamily: "Arial",
         },
       };
     },
@@ -3125,13 +3127,13 @@ export default defineComponent({
   pointer-events: none;
   border-radius: 0;
   box-shadow: none;
-  border: 1px solid rgba(0, 0, 0, 0.25);
+  border: none;
   background: rgba(15, 23, 42, 0.92);
 
   .annotation-table {
     border-collapse: separate;
     border-spacing: 1px;
-    font-size: 12px;
+    font-size: var(--ui-font-size);
     line-height: 1.3;
   }
 
@@ -3141,14 +3143,14 @@ export default defineComponent({
     padding: 3px 8px;
     white-space: nowrap;
     border-radius: 0;
+    font-size: var(--ui-font-size);
   }
 
   .ann-side {
-    font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     text-align: center;
-    min-width: 82px;
+    min-width: 98px;
     color: #ffffff;
   }
 
@@ -3200,6 +3202,7 @@ export default defineComponent({
   gap: 8px;
   z-index: 9999;
   flex-wrap: nowrap;
+  font-size: var(--ui-font-size);
 
   @media (max-width: 768px) {
     left: 8px;
@@ -3209,7 +3212,7 @@ export default defineComponent({
 
     .system-status-btn {
       margin-left: 0;
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       padding: 0 6px;
       height: 24px;
 
@@ -3221,7 +3224,7 @@ export default defineComponent({
     .live-toggle-container {
       padding: 0 5px;
       .live-toggle-badge {
-        font-size: 9px;
+        font-size: var(--ui-font-size);
       }
     }
 
@@ -3253,7 +3256,7 @@ export default defineComponent({
     padding: 0 8px 0 6px;
     border-radius: 0;
     background: rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: none;
     box-shadow: none;
     flex-shrink: 0;
     cursor: pointer;
@@ -3273,9 +3276,9 @@ export default defineComponent({
     }
 
     .live-toggle-badge {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       user-select: none;
       line-height: 1;
       color: #374151;
@@ -3284,8 +3287,7 @@ export default defineComponent({
     }
 
     &.live-toggle--active {
-      background: rgba(21, 128, 61, 0.09);
-      border-color: rgba(21, 128, 61, 0.35);
+      background: rgba(21, 128, 61, 0.12);
 
       .live-toggle-badge {
         color: #15803d;
@@ -3302,7 +3304,7 @@ export default defineComponent({
     padding: 0 6px 0 4px;
     border-radius: 0;
     background: rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: none;
     flex-shrink: 0;
     cursor: pointer;
 
@@ -3314,9 +3316,9 @@ export default defineComponent({
     }
 
     .use-commission-badge {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       user-select: none;
       line-height: 1;
       color: #15803d;
@@ -3324,8 +3326,7 @@ export default defineComponent({
     }
 
     &.use-commission--off {
-      background: rgba(185, 28, 28, 0.08);
-      border-color: rgba(185, 28, 28, 0.25);
+      background: rgba(185, 28, 28, 0.1);
 
       .use-commission-badge {
         color: #b91c1c;
@@ -3341,8 +3342,8 @@ export default defineComponent({
     height: 25px;
     padding: 0 6px 0 4px;
     border-radius: 0;
-    background: rgba(21, 128, 61, 0.09);
-    border: 1px solid rgba(21, 128, 61, 0.3);
+    background: rgba(21, 128, 61, 0.12);
+    border: none;
     flex-shrink: 0;
     cursor: pointer;
 
@@ -3354,9 +3355,9 @@ export default defineComponent({
     }
 
     .calc-mode-badge {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       user-select: none;
       line-height: 1;
       color: #15803d;
@@ -3365,8 +3366,7 @@ export default defineComponent({
     }
 
     &.calc-mode--off {
-      background: rgba(185, 28, 28, 0.08);
-      border-color: rgba(185, 28, 28, 0.25);
+      background: rgba(185, 28, 28, 0.1);
 
       .calc-mode-badge {
         color: #b91c1c;
@@ -3383,15 +3383,15 @@ export default defineComponent({
     display: inline-flex;
     align-items: center;
     height: 25px;
-    border: 1px solid rgba(100, 116, 139, 0.35);
-    background: rgba(100, 116, 139, 0.08);
+    border: none;
+    background: rgba(100, 116, 139, 0.1);
     flex-shrink: 0;
     user-select: none;
 
     .leverage-label {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       color: #475569;
       padding: 0 6px;
       line-height: 1;
@@ -3401,12 +3401,11 @@ export default defineComponent({
       height: 100%;
       padding: 0 6px;
       border: none;
-      border-left: 1px solid rgba(100, 116, 139, 0.25);
       background: transparent;
       color: #334155;
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.3px;
       line-height: 1;
 
       &:hover {
@@ -3423,11 +3422,11 @@ export default defineComponent({
   .live-account-badge {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     height: 25px;
     padding: 0 8px;
-    border: 1px solid rgba(21, 128, 61, 0.35);
-    background: rgba(21, 128, 61, 0.09);
+    border: none;
+    background: rgba(21, 128, 61, 0.12);
     flex-shrink: 0;
     user-select: none;
     white-space: nowrap;
@@ -3440,27 +3439,23 @@ export default defineComponent({
     }
 
     .live-account-balance {
-      font-size: 11px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
       color: #15803d;
       letter-spacing: 0.3px;
     }
 
     .live-account-lev {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
       color: #1e293b;
-      padding-left: 6px;
-      border-left: 1px solid rgba(21, 128, 61, 0.25);
-      letter-spacing: 0.4px;
+      letter-spacing: 0.3px;
     }
 
     .live-account-gross {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 600;
       color: #475569;
-      padding-left: 6px;
-      border-left: 1px solid rgba(21, 128, 61, 0.25);
       letter-spacing: 0.3px;
     }
   }
@@ -3475,10 +3470,10 @@ export default defineComponent({
     color: white;
     text-transform: uppercase;
     padding: 0 8px;
-    font-size: 11px;
+    font-size: var(--ui-font-size);
     font-weight: 600;
     margin-left: 0;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     user-select: none;
     border: none;
     box-shadow: none;
@@ -3492,7 +3487,7 @@ export default defineComponent({
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      border: solid 1px var(--background-color);
+      border: none;
       display: inline-block;
       flex-shrink: 0;
 
@@ -3513,13 +3508,13 @@ export default defineComponent({
       background: var(--background-color);
       color: dimgray;
       padding: 1px 5px;
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: bold;
       white-space: nowrap;
     }
 
     .status-view-active {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       opacity: 0.85;
       white-space: nowrap;
     }
@@ -3538,8 +3533,8 @@ export default defineComponent({
     width: 25px;
     height: 25px;
     padding: 3px;
-    background: var(--background-color);
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
     border-radius: 0;
     box-shadow: none;
     box-sizing: border-box;
@@ -3610,10 +3605,10 @@ export default defineComponent({
   padding: 10px 18px;
   background: #1e293b;
   color: #ffffff;
-  border: 1px solid #0f172a;
-  font-size: 11px;
+  border: none;
+  font-size: var(--ui-font-size);
   font-weight: 700;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   user-select: none;
 }
@@ -3699,9 +3694,9 @@ export default defineComponent({
 
 .legend {
   position: relative;
-  font-size: 14px;
+  font-size: var(--ui-font-size);
   line-height: 18px;
-  font-weight: 300;
+  font-weight: 400;
   display: flex;
   flex-wrap: wrap;
   text-transform: uppercase;
@@ -3735,6 +3730,7 @@ export default defineComponent({
   padding-inline: 5px;
   flex-wrap: nowrap;
   flex-grow: 1;
+  font-size: var(--ui-font-size);
 
   .line__name,
   .line__last-value,
@@ -3743,6 +3739,7 @@ export default defineComponent({
     padding-inline: 7px;
     height: 20px;
     line-height: 20px;
+    font-size: var(--ui-font-size);
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
@@ -3750,7 +3747,7 @@ export default defineComponent({
   }
 
   .line__max-dd {
-    font-size: 11px;
+    font-size: var(--ui-font-size);
     font-weight: 600;
     margin-left: auto;
     margin-right: 12px;
@@ -3759,7 +3756,7 @@ export default defineComponent({
     white-space: nowrap;
 
     @media (max-width: 600px) {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       margin-right: 6px;
     }
 
@@ -3780,7 +3777,7 @@ export default defineComponent({
     width: 15px;
     height: 15px;
     border-radius: 50%;
-    border: solid 1px var(--background-color);
+    border: none;
     background-color: var(--background-color);
 
     &--red {
@@ -3843,6 +3840,7 @@ export default defineComponent({
   flex-direction: column;
   background: var(--background-color);
   font-family: Arial, sans-serif;
+  font-size: var(--ui-font-size);
   text-transform: uppercase;
   color: dimgray;
 
@@ -3857,9 +3855,9 @@ export default defineComponent({
     background: dimgray;
     color: white;
     padding: 6px 12px;
-    font-size: 11px;
+    font-size: var(--ui-font-size);
     font-weight: 600;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     margin-bottom: 8px;
     flex-shrink: 0;
 
@@ -3877,7 +3875,7 @@ export default defineComponent({
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-        font-size: 10px;
+        font-size: var(--ui-font-size);
 
         .summary-sep {
           display: none;
@@ -3918,13 +3916,11 @@ export default defineComponent({
     }
 
     .bot-card {
-      height: 164px;
-      min-height: 164px;
-      max-height: 164px;
+      min-height: 172px;
       box-sizing: border-box;
       overflow: hidden;
       background: #ffffff;
-      border: 1px solid #ede8e0;
+      border: none;
       box-shadow: none;
       display: flex;
       flex-direction: column;
@@ -3935,7 +3931,7 @@ export default defineComponent({
       -webkit-user-select: none;
 
       &--in-pos {
-        border: 1px solid #d1d5db;
+        border: none;
         box-shadow: none;
       }
 
@@ -3951,13 +3947,13 @@ export default defineComponent({
         align-items: center;
         padding: 6px 10px;
         background: #fbf9f5;
-        border-bottom: 1px solid #ede8e0;
+        border-bottom: none;
 
         .bot-card__name {
-          font-size: 11px;
+          font-size: var(--ui-font-size);
           font-weight: 700;
           color: #111827;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.4px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -3974,7 +3970,7 @@ export default defineComponent({
         }
 
         .bot-card__pnl {
-          font-size: 11px;
+          font-size: var(--ui-font-size);
           font-weight: 800;
           white-space: nowrap;
           flex-shrink: 0;
@@ -3985,7 +3981,7 @@ export default defineComponent({
 
       .bot-card__body {
         flex: 1;
-        padding: 5px 8px 6px;
+        padding: 6px 8px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -3998,7 +3994,7 @@ export default defineComponent({
           margin-bottom: 5px;
 
           .pos-side {
-            font-size: 10px;
+            font-size: var(--ui-font-size);
             font-weight: 800;
             padding: 2px 6px;
             color: white;
@@ -4013,7 +4009,7 @@ export default defineComponent({
           }
 
           .pos-symbol {
-            font-size: 11px;
+            font-size: var(--ui-font-size);
             font-weight: 800;
             color: #111827;
             background: #f0ebe1;
@@ -4025,7 +4021,7 @@ export default defineComponent({
           display: grid;
           grid-template-columns: 1fr;
           gap: 3px;
-          font-size: 10px;
+          font-size: var(--ui-font-size);
 
           .detail-row {
             display: flex;
@@ -4033,20 +4029,20 @@ export default defineComponent({
             align-items: center;
             background: #f7f5f0;
             padding: 3px 7px;
-            border-bottom: none;
+            border: none;
             border-radius: 0;
 
             .detail-label {
               color: #374151;
               font-weight: 700;
-              font-size: 10px;
-              letter-spacing: 0.4px;
+              font-size: var(--ui-font-size);
+              letter-spacing: 0.3px;
             }
 
             .detail-val {
               font-weight: 800;
               color: #000000;
-              font-size: 11px;
+              font-size: var(--ui-font-size);
             }
           }
         }
@@ -4056,11 +4052,11 @@ export default defineComponent({
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 10.5px;
+          font-size: var(--ui-font-size);
           color: #4b5563;
           text-align: center;
           font-weight: 700;
-          letter-spacing: 0.8px;
+          letter-spacing: 0.5px;
           padding: 14px 0;
         }
       }
@@ -4070,8 +4066,8 @@ export default defineComponent({
         justify-content: space-between;
         align-items: center;
         padding: 5px 8px;
-        border-top: 1px solid #ede8e0;
-        font-size: 9.5px;
+        border-top: none;
+        font-size: var(--ui-font-size);
         color: #4b5563;
         font-weight: 700;
         background: #faf8f5;
@@ -4094,14 +4090,14 @@ export default defineComponent({
     padding: 0 8px 0 6px;
     border-radius: 0;
     background: rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: none;
     flex-shrink: 0;
     cursor: pointer;
 
     .coin-filter-badge {
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       user-select: none;
       line-height: 1;
       color: #374151;
@@ -4109,8 +4105,7 @@ export default defineComponent({
     }
 
     &.coin-filter--filtered {
-      background: rgba(234, 88, 12, 0.12);
-      border-color: rgba(234, 88, 12, 0.4);
+      background: rgba(234, 88, 12, 0.14);
 
       .coin-filter-badge {
         color: #c2410c;
@@ -4142,18 +4137,19 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: none;
+  font-size: var(--ui-font-size);
 
   .coin-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: none;
     background: #f9fafb;
 
     .coin-modal-title {
-      font-size: 14px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
       color: #111827;
       display: flex;
@@ -4161,7 +4157,7 @@ export default defineComponent({
       gap: 8px;
 
       .coin-modal-subtitle {
-        font-size: 11px;
+        font-size: var(--ui-font-size);
         font-weight: 500;
         color: #6b7280;
       }
@@ -4170,7 +4166,7 @@ export default defineComponent({
     .coin-modal-close {
       background: transparent;
       border: none;
-      font-size: 16px;
+      font-size: var(--ui-font-size);
       color: #9ca3af;
       cursor: pointer;
       padding: 4px;
@@ -4187,27 +4183,28 @@ export default defineComponent({
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: none;
 
     .coin-modal-search {
       flex: 1;
       padding: 6px 10px;
-      font-size: 12px;
-      border: 1px solid #d1d5db;
+      font-size: var(--ui-font-size);
+      border: none;
+      background: #f3f4f6;
       border-radius: 0;
       outline: none;
 
       &:focus {
-        border-color: #3b82f6;
+        background: #e5e7eb;
       }
     }
 
     .coin-btn-action {
       background: #f3f4f6;
-      border: 1px solid #d1d5db;
+      border: none;
       border-radius: 0;
       padding: 6px 10px;
-      font-size: 10px;
+      font-size: var(--ui-font-size);
       font-weight: 600;
       color: #374151;
       cursor: pointer;
@@ -4248,20 +4245,20 @@ export default defineComponent({
       }
 
       .coin-name {
-        font-size: 13px;
+        font-size: var(--ui-font-size);
         font-weight: 700;
         color: #1f2937;
         flex: 1;
       }
 
       .coin-trades-count {
-        font-size: 11px;
+        font-size: var(--ui-font-size);
         color: #6b7280;
         font-weight: 500;
       }
 
       .coin-pnl-badge {
-        font-size: 11px;
+        font-size: var(--ui-font-size);
         font-weight: 700;
         min-width: 65px;
         text-align: right;
@@ -4279,7 +4276,7 @@ export default defineComponent({
     .coin-empty-search {
       padding: 24px;
       text-align: center;
-      font-size: 13px;
+      font-size: var(--ui-font-size);
       color: #9ca3af;
     }
   }
@@ -4288,7 +4285,7 @@ export default defineComponent({
     display: flex;
     justify-content: flex-end;
     padding: 10px 16px;
-    border-top: 1px solid #e5e7eb;
+    border-top: none;
     background: #f9fafb;
 
     .coin-btn-done {
@@ -4297,7 +4294,7 @@ export default defineComponent({
       border: none;
       border-radius: 0;
       padding: 6px 16px;
-      font-size: 11px;
+      font-size: var(--ui-font-size);
       font-weight: 700;
       cursor: pointer;
 
