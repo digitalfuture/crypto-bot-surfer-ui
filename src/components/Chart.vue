@@ -301,9 +301,9 @@
         </button>
       </div>
 
-      <!-- Coin Filter Toggle (FOURTH) -->
+      <!-- Coin Filter Toggle (TEST / DEMO ONLY) -->
       <div
-        v-if="allCoins.length > 0"
+        v-if="!isLiveServer && allCoins.length > 0"
         class="coin-filter-container cursor-pointer"
         :class="{ 'coin-filter--filtered': excludedCoins.size > 0 }"
         @click.stop.prevent="toggleCoinFilter"
@@ -335,15 +335,6 @@
 
     <!-- Legend toolbar (hidden when in monitor view or fullscreen) -->
     <div v-show="!isMonitorView && !isFullScreen" class="info-container">
-      <!-- Open files -->
-      <input
-        type="file"
-        multiple
-        ref="input"
-        class="input info clip-left cursor-pointer"
-        @change="convertFileDataToLines"
-      />
-
       <!-- Total / Average -->
       <div
         class="total info line clip-right cursor-pointer"
@@ -415,9 +406,9 @@
         </div>
       </template>
     </section>
-    <!-- Coin Filter Modal -->
+    <!-- Coin Filter Modal (TEST / DEMO ONLY) -->
     <div
-      v-if="isCoinFilterOpen"
+      v-if="!isLiveServer && isCoinFilterOpen"
       class="coin-modal-overlay"
       @click.self="isCoinFilterOpen = false"
     >
@@ -1134,6 +1125,8 @@ export default defineComponent({
       if (val) {
         this.isLiveOnly = false;
         this.leverage = 1;
+        this.isCoinFilterOpen = false;
+        this.excludedCoins.clear();
       }
       if (chart) {
         this.runWithBusy("UPDATING CHART...", () => {
@@ -1611,7 +1604,7 @@ export default defineComponent({
       }
 
       const hasHoldRows = workingData.some((r) => r[4]?.trim() === "HOLD");
-      const hasExcluded = this.excludedCoins && this.excludedCoins.size > 0;
+      const hasExcluded = !this.isLiveServer && this.excludedCoins && this.excludedCoins.size > 0;
 
       let cumExcludedPnl = 0;
       let runningCumulativeProfit = 0;
@@ -2160,63 +2153,6 @@ export default defineComponent({
         );
       } catch (err) {
         console.warn("Could not save lines to cache:", err);
-      }
-    },
-
-    async convertFileDataToLines(event: Event): Promise<void> {
-      const target = event.target as HTMLInputElement | null;
-      if (!target || !target.files) return;
-      const inputFiles = Array.from(target.files);
-
-      if (!inputFiles.length) return;
-
-      const lines = await Promise.all(
-        inputFiles.map(async (file: File, index: number): Promise<ILine> => {
-          const lineText = await file.text();
-          const lineName = file.name.split(".")[0].replace(/^trades[-_]/i, "");
-
-          const line: ILine = {
-            name: lineName,
-            fileName: file.name,
-            data: lineText
-              .trim()
-              .split(/\r?\n/)
-              .slice(1)
-              .filter((item: string) => item.trim().length > 0)
-              .map((item: string): string[] => item.split(",")),
-            color: this.getColor(index),
-            disabled: false,
-          };
-
-          return line;
-        })
-      );
-
-      chart = null;
-      lineSeries = [];
-      lineSeriesTotal = null;
-      this.isLineMarked = false;
-      this.linesData = [];
-      this.linesDataTotal = [];
-      this.isLineTotalVisible = true;
-      this.zoom = null;
-      this.zoomCondition = false;
-      this.lineSeriesMarked = null;
-
-      this.lines = lines;
-
-      const chartContainer = document.getElementById("chart-container");
-      if (chartContainer) {
-        chartContainer.innerHTML = "";
-        chart = createChart(chartContainer, this.chartOptions);
-
-        this.setupChartLines();
-        this.setupChartTotal();
-
-        this.applyLongestScale();
-        this.setupZoomListener();
-
-        this.refreshMarks();
       }
     },
 
@@ -3184,11 +3120,6 @@ export default defineComponent({
   clip-path: polygon(100% 0, 100% 30px, calc(100% - 21px) 100%, 0 100%, 0 0);
 }
 
-.clip-left,
-.clip-left:before {
-  clip-path: polygon(21px 0%, 100% 0, 100% 100%, 0 100%, 0% 12px);
-}
-
 .top-bar-menu {
   position: absolute;
   top: 7px;
@@ -3675,40 +3606,6 @@ export default defineComponent({
   user-select: none;
   -webkit-user-select: none;
 
-  .input {
-    background: var(--background-color);
-    position: relative;
-    padding: 5px;
-    height: 42px;
-    padding-left: 50px;
-    width: 100%;
-
-    &:before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 0;
-      z-index: 10;
-      width: 100%;
-      height: 100%;
-      background: burlywood;
-    }
-
-    &:after {
-      content: "OPEN FILES";
-      text-align: right;
-      font-weight: bolder;
-      white-space: initial;
-      color: var(--background-color);
-      font-size: 264%;
-      line-height: 58px;
-      bottom: -18px;
-      right: 12px;
-      position: absolute;
-      z-index: 20;
-    }
-  }
-
   .total {
     text-align: end;
     display: flex;
@@ -3793,30 +3690,6 @@ export default defineComponent({
     strong {
       color: #ef4444;
       font-weight: 700;
-    }
-  }
-
-  .micro-pos-tag {
-    background: var(--background-color);
-    font-size: 14px;
-    font-weight: 600;
-    padding-inline: 7px;
-    height: 20px;
-    line-height: 20px;
-    display: inline-flex;
-    align-items: center;
-    margin-left: 6px;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-    border: none;
-    box-sizing: border-box;
-
-    &--long {
-      color: var(--green-color);
-    }
-
-    &--short {
-      color: var(--red-color);
     }
   }
 
