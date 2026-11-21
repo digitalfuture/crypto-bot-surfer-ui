@@ -3128,11 +3128,12 @@ export default defineComponent({
   border-radius: 0;
   box-shadow: none;
   border: none;
-  background: rgba(15, 23, 42, 0.92);
+  background: transparent;
 
   .annotation-table {
-    border-collapse: separate;
-    border-spacing: 1px;
+    border-collapse: collapse;
+    border-spacing: 0;
+    border: none;
     font-size: var(--ui-font-size);
     line-height: 1.3;
   }
@@ -3142,14 +3143,15 @@ export default defineComponent({
   .ann-price {
     padding: 3px 8px;
     white-space: nowrap;
+    border: none;
     border-radius: 0;
     font-size: var(--ui-font-size);
+    text-align: left;
   }
 
   .ann-side {
     font-weight: 700;
     letter-spacing: 0.4px;
-    text-align: center;
     min-width: 98px;
     color: #ffffff;
   }
@@ -3167,12 +3169,10 @@ export default defineComponent({
   }
 
   .ann-token {
-    text-align: left;
     font-weight: 500;
   }
 
   .ann-price {
-    text-align: right;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
   }
