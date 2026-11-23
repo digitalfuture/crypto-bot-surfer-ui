@@ -1238,6 +1238,8 @@ export default defineComponent({
 
     setLeverage(lev: number): void {
       if (this.isLiveServer || this.leverage === lev) return;
+      this.isBusy = true;
+      this.busyLabel = `APPLYING ${lev}x...`;
       this.leverage = lev;
       try {
         if (typeof window !== "undefined" && window.localStorage) {
@@ -1303,22 +1305,34 @@ export default defineComponent({
     runWithBusy(label: string, fn: () => void | Promise<void>): void {
       this.isBusy = true;
       this.busyLabel = label;
+      const seq = ((this as any).__busySeq = ((this as any).__busySeq || 0) + 1);
       if (typeof window === "undefined") {
         Promise.resolve(fn()).finally(() => {
-          this.isBusy = false;
-          this.busyLabel = "";
-        });
-        return;
-      }
-      window.requestAnimationFrame(() => {
-        window.setTimeout(async () => {
-          try {
-            await fn();
-          } finally {
+          if ((this as any).__busySeq === seq) {
             this.isBusy = false;
             this.busyLabel = "";
           }
-        }, 16);
+        });
+        return;
+      }
+      // Wait for Vue DOM commit + 2 animation frames so the browser actually paints
+      // the loading overlay BEFORE synchronous chart recalculation blocks the main thread.
+      this.$nextTick(() => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            window.setTimeout(async () => {
+              if ((this as any).__busySeq !== seq) return;
+              try {
+                await fn();
+              } finally {
+                if ((this as any).__busySeq === seq) {
+                  this.isBusy = false;
+                  this.busyLabel = "";
+                }
+              }
+            }, 0);
+          });
+        });
       });
     },
 
@@ -1355,9 +1369,9 @@ export default defineComponent({
 
     setCalcMode(isAbsolute: boolean): void {
       if (this.isLiveServer || this.isAbsoluteMode === isAbsolute) return;
+      this.isBusy = true;
+      this.busyLabel = "RECALCULATING...";
       this.isAbsoluteMode = isAbsolute;
-      this.linesData = [];
-      this.linesDataTotal = [];
       try {
         if (typeof window !== "undefined" && window.localStorage) {
           window.localStorage.setItem(
@@ -3125,6 +3139,8 @@ export default defineComponent({
 
     toggleCommission(): void {
       if (this.isLiveServer) return;
+      this.isBusy = true;
+      this.busyLabel = "RECALCULATING...";
       this.useCommission = !this.useCommission;
       try {
         if (typeof window !== "undefined" && window.localStorage) {
