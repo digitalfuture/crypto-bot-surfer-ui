@@ -430,12 +430,13 @@
             {{ !isLiveServer && isLiveOnly ? 'LIVE ' : '' }}{{ isAbsoluteMode ? (useCommission ? 'PORTFOLIO COMPOUND PNL' : 'PORTFOLIO COMPOUND GROSS') : (useCommission ? 'PORTFOLIO PNL' : 'PORTFOLIO GROSS') }}
           </span>
           <span class="line__max-dd" :title="'Portfolio Max Drawdown: ' + formatDrawdown(portfolioMaxDrawdown)">
-            MAX DD: <strong class="text-red">{{ formatDrawdown(portfolioMaxDrawdown) }}</strong>
+            MAX DD: <strong ref="portfolioDdEl" class="text-red">{{ formatDrawdown(portfolioMaxDrawdown) }}</strong>
           </span>
-          <span class="line__last-value">
+          <span ref="portfolioValEl" class="line__last-value">
             {{ formatProfit(totalProfit) }}
           </span>
           <span
+            ref="portfolioDotEl"
             class="round"
             :class="{
               'round--green': parseFloat(totalProfit) > 0,
@@ -466,17 +467,16 @@
             <span class="line__name" :title="getBotDescription(line.name)" v-text="formatBotName(line.name)" />
 
             <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(botMaxDrawdowns[index] || 0)">
-              DD: <strong class="text-red">{{ formatDrawdown(botMaxDrawdowns[index] || 0) }}</strong>
+              DD: <strong :data-bot-dd="index" class="text-red">{{ formatDrawdown(botMaxDrawdowns[index] || 0) }}</strong>
             </span>
 
-            <span class="line__last-value" v-text="getLegendValue(index)" />
+            <span :data-bot-val="index" class="line__last-value" v-text="getLegendValue(index)" />
             <span
+              :data-bot-dot="index"
               class="round"
               :class="{
-                'round--green':
-                  linesData[index]?.[linesData[index]?.length - 1]?.value > 0,
-                'round--red':
-                  linesData[index]?.[linesData[index]?.length - 1]?.value < 0,
+                'round--green': (botWindowMetrics[index]?.pnl || 0) > 0,
+                'round--red': (botWindowMetrics[index]?.pnl || 0) < 0,
               }"
             />
           </div>
@@ -607,6 +607,83 @@ let uPendingRange: { from: number; to: number } | null = null;
 let uResizeHandler: (() => void) | null = null;
 
 const totalLineColor = "dimgray";
+
+function calcSeriesWindowMetrics(
+  s: ISeries[] | undefined,
+  from: number,
+  to: number,
+  isCompound: boolean,
+  fastStride = false
+): { pnl: number; dd: number } {
+  if (!s || s.length === 0) return { pnl: 0, dd: 0 };
+  const firstT = s[0].time;
+  const lastT = s[s.length - 1].time;
+  const isFullRange = from <= firstT + 1 && to >= lastT - 1;
+
+  if (isFullRange) {
+    const endVal = s[s.length - 1]?.value || 0;
+    const step = fastStride && s.length > 4000 ? Math.floor(s.length / 2000) : 1;
+    let peak = 100;
+    let maxDd = 0;
+    for (let i = 0; i < s.length; i += step) {
+      const bal = 100 + (s[i]?.value || 0);
+      if (bal > peak) peak = bal;
+      const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+      if (dd < maxDd) maxDd = dd;
+    }
+    if (step > 1) {
+      const lastBal = 100 + endVal;
+      const ddLast = peak > 0 ? ((lastBal - peak) / peak) * 100 : 0;
+      if (ddLast < maxDd) maxDd = ddLast;
+    }
+    return { pnl: Number(endVal.toFixed(2)), dd: Number(maxDd.toFixed(2)) };
+  }
+
+  // Binary search first point >= from, last point <= to
+  let lo = 0, hi = s.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (s[mid].time < from) lo = mid + 1;
+    else hi = mid;
+  }
+  const iStart = lo;
+
+  lo = iStart; hi = s.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (s[mid].time <= to) lo = mid;
+    else hi = mid - 1;
+  }
+  const iEnd = Math.max(iStart, lo);
+
+  const startVal = s[iStart]?.value || 0;
+  const endVal = s[iEnd]?.value || 0;
+  const startBal = 100 + startVal;
+  const endBal = 100 + endVal;
+
+  const pnl = isCompound
+    ? startBal > 0
+      ? ((endBal - startBal) / startBal) * 100
+      : 0
+    : endVal - startVal;
+
+  const spanPts = iEnd - iStart;
+  const step = fastStride && spanPts > 4000 ? Math.floor(spanPts / 2000) : 1;
+  let peak = startBal;
+  let maxDd = 0;
+  for (let i = iStart; i <= iEnd; i += step) {
+    const bal = 100 + (s[i]?.value || 0);
+    if (bal > peak) peak = bal;
+    const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+    if (dd < maxDd) maxDd = dd;
+  }
+  if (step > 1) {
+    const ddLast = peak > 0 ? ((endBal - peak) / peak) * 100 : 0;
+    if (ddLast < maxDd) maxDd = ddLast;
+  }
+
+  return { pnl: Number(pnl.toFixed(2)), dd: Number(maxDd.toFixed(2)) };
+}
 
 interface ITradeState {
   isOpen: boolean;
@@ -942,40 +1019,20 @@ export default defineComponent({
       };
     },
 
-    windowStats(): { rangeLabel: string; pnl: number; dd: number } | null {
-      const s = this.activePrimarySeries;
+    activeWindowRange(): { from: number; to: number } {
       const { min, max, span } = this.timelineBounds;
-      if (!s || s.length < 2 || span <= 0) return null;
+      if (span <= 0) return { from: 0, to: 0 };
       const from = this.winFrom > 0 ? Math.max(min, Math.min(max, this.winFrom)) : min;
       const to = this.winTo > 0 ? Math.max(from, Math.min(max, this.winTo)) : max;
+      return { from, to };
+    },
 
-      const findIdx = (target: number) => {
-        let lo = 0, hi = s.length - 1;
-        while (lo < hi) {
-          const mid = (lo + hi) >> 1;
-          if (s[mid].time < target) lo = mid + 1;
-          else hi = mid;
-        }
-        return lo;
-      };
-      const iStart = findIdx(from);
-      let iEnd = findIdx(to);
-      if (iEnd >= s.length) iEnd = s.length - 1;
-      if (iEnd < iStart) iEnd = iStart;
-
-      const startBal = 100 + (s[iStart]?.value || 0);
-      const endBal = 100 + (s[iEnd]?.value || 0);
-      const pnl = startBal > 0 ? ((endBal - startBal) / startBal) * 100 : 0;
-
-      let peak = startBal;
-      let maxDd = 0;
-      for (let i = iStart; i <= iEnd; i++) {
-        const bal = 100 + (s[i]?.value || 0);
-        if (bal > peak) peak = bal;
-        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
-        if (dd < maxDd) maxDd = dd;
-      }
-
+    windowStats(): { rangeLabel: string; pnl: number; dd: number } | null {
+      const s = this.activePrimarySeries;
+      const { span } = this.timelineBounds;
+      if (!s || s.length < 2 || span <= 0) return null;
+      const { from, to } = this.activeWindowRange;
+      const m = calcSeriesWindowMetrics(s, from, to, this.isAbsoluteMode, false);
       const fmtDate = (sec: number, showDay: boolean) => {
         const iso = new Date(sec * 1000).toISOString();
         return showDay ? iso.slice(0, 10) : iso.slice(0, 7);
@@ -983,84 +1040,36 @@ export default defineComponent({
       const showDay = (to - from) < 120 * 86400;
       return {
         rangeLabel: `${fmtDate(from, showDay)} → ${fmtDate(to, showDay)}`,
-        pnl: Number(pnl.toFixed(2)),
-        dd: Number(maxDd.toFixed(2)),
+        pnl: m.pnl,
+        dd: m.dd,
       };
     },
 
-    botMaxDrawdowns(): number[] {
+    botWindowMetrics(): Array<{ pnl: number; dd: number }> {
       const _isAbs = this.isAbsoluteMode;
       const _comm = this.useCommission;
-      return this.linesData.map((series) => {
-        if (!series || series.length === 0) return 0;
-        let peak = 100;
-        let maxDd = 0;
-        for (let i = 0; i < series.length; i++) {
-          const bal = 100 + (series[i]?.value || 0);
-          if (bal > peak) peak = bal;
-          const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
-          if (dd < maxDd) maxDd = dd;
-        }
-        return Number(maxDd.toFixed(2));
-      });
+      const { from, to } = this.activeWindowRange;
+      return this.linesData.map((series) =>
+        calcSeriesWindowMetrics(series, from, to, this.isAbsoluteMode, false)
+      );
+    },
+
+    botMaxDrawdowns(): number[] {
+      return this.botWindowMetrics.map((m) => m.dd);
     },
 
     portfolioMaxDrawdown(): number {
       const _isAbs = this.isAbsoluteMode;
       const _comm = this.useCommission;
-
-      let series: ISeries[] = [];
-      if (this.linesEnabled.length === 1) {
-        const single = this.linesEnabled[0];
-        const idx = this.lines.indexOf(single);
-        series = this.linesData[idx] || [];
-      } else {
-        series = this.linesDataTotal || [];
-      }
-
-      if (!series || series.length === 0) return 0;
-
-      let peak = 100;
-      let maxDd = 0;
-      for (let i = 0; i < series.length; i++) {
-        const bal = 100 + (series[i]?.value || 0);
-        if (bal > peak) {
-          peak = bal;
-        }
-        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
-        if (dd < maxDd) {
-          maxDd = dd;
-        }
-      }
-
-      return Number(maxDd.toFixed(2));
+      if (this.windowStats) return this.windowStats.dd;
+      return 0;
     },
 
     totalProfit(): string {
-      // Track reactivity on calc mode & commission
       const _isAbs = this.isAbsoluteMode;
       const _comm = this.useCommission;
-
-      // If a single bot is enabled (solo mode), show its profit from cached series
-      if (this.linesEnabled.length === 1) {
-        const single = this.linesEnabled[0];
-        const idx = this.lines.indexOf(single);
-        const sData = this.linesData[idx];
-        const lastVal =
-          sData && sData.length > 0
-            ? sData[sData.length - 1].value
-            : parseFloat(single.data?.[single.data.length - 1]?.[8]) || 0;
-        return lastVal != null && !isNaN(lastVal) ? lastVal.toFixed(2) : "0.00";
-      }
-
-      const totalSeries = this.linesDataTotal;
-      const lastValue =
-        totalSeries && totalSeries.length > 0
-          ? totalSeries[totalSeries.length - 1]?.value
-          : 0;
-      return lastValue != null && !isNaN(lastValue)
-        ? lastValue.toFixed(2)
-        : "0.00";
+      if (this.windowStats) return this.windowStats.pnl.toFixed(2);
+      return "0.00";
     },
 
     totalSumProfit(): string {
@@ -1427,7 +1436,8 @@ export default defineComponent({
     },
 
     getLegendValue(index: number): string {
-      const _ = this.isAbsoluteMode;
+      const m = this.botWindowMetrics[index];
+      if (m) return this.formatProfit(m.pnl);
       const lineData = this.linesData[index] || [];
       const lineValue = lineData[lineData.length - 1]?.value;
       return this.formatProfit(lineValue);
@@ -2945,34 +2955,7 @@ export default defineComponent({
     computeWindowStatsFast(from: number, to: number): { rangeLabel: string; pnl: number; dd: number } | null {
       const s = this.activePrimarySeries;
       if (!s || s.length < 2) return null;
-      const findIdx = (target: number) => {
-        let lo = 0, hi = s.length - 1;
-        while (lo < hi) {
-          const mid = (lo + hi) >> 1;
-          if (s[mid].time < target) lo = mid + 1;
-          else hi = mid;
-        }
-        return lo;
-      };
-      const iStart = findIdx(from);
-      let iEnd = findIdx(to);
-      if (iEnd >= s.length) iEnd = s.length - 1;
-      if (iEnd < iStart) iEnd = iStart;
-
-      const startBal = 100 + (s[iStart]?.value || 0);
-      const endBal = 100 + (s[iEnd]?.value || 0);
-      const pnl = startBal > 0 ? ((endBal - startBal) / startBal) * 100 : 0;
-
-      // Fast stride when window has >4000 points so scrubbing stays <0.1ms
-      const step = iEnd - iStart > 4000 ? Math.floor((iEnd - iStart) / 2000) : 1;
-      let peak = startBal;
-      let maxDd = 0;
-      for (let i = iStart; i <= iEnd; i += step) {
-        const bal = 100 + (s[i]?.value || 0);
-        if (bal > peak) peak = bal;
-        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
-        if (dd < maxDd) maxDd = dd;
-      }
+      const m = calcSeriesWindowMetrics(s, from, to, this.isAbsoluteMode, true);
       const fmtDate = (sec: number, showDay: boolean) => {
         const iso = new Date(sec * 1000).toISOString();
         return showDay ? iso.slice(0, 10) : iso.slice(0, 7);
@@ -2980,8 +2963,8 @@ export default defineComponent({
       const showDay = (to - from) < 120 * 86400;
       return {
         rangeLabel: `${fmtDate(from, showDay)} → ${fmtDate(to, showDay)}`,
-        pnl: Number(pnl.toFixed(2)),
-        dd: Number(maxDd.toFixed(2)),
+        pnl: m.pnl,
+        dd: m.dd,
       };
     },
 
@@ -3006,6 +2989,32 @@ export default defineComponent({
           pEl.className = `timeline-pnl ${st.pnl >= 0 ? "text-green" : "text-red"}`;
         }
         if (ddEl) ddEl.textContent = this.formatDrawdown(st.dd);
+
+        // Live-update Portfolio summary bar inside the selected window (zero Vue re-render!)
+        const portValEl = this.$refs.portfolioValEl as HTMLElement | undefined;
+        const portDdEl = this.$refs.portfolioDdEl as HTMLElement | undefined;
+        const portDotEl = this.$refs.portfolioDotEl as HTMLElement | undefined;
+        if (portValEl) portValEl.textContent = this.formatProfit(st.pnl);
+        if (portDdEl) portDdEl.textContent = this.formatDrawdown(st.dd);
+        if (portDotEl) {
+          portDotEl.className = `round ${st.pnl > 0 ? "round--green" : st.pnl < 0 ? "round--red" : ""}`;
+        }
+      }
+
+      // Live-update each strategy row in the legend inside the selected window
+      const legendEl = this.$refs.legend as HTMLElement | undefined;
+      if (legendEl && this.linesData.length > 0) {
+        for (let i = 0; i < this.linesData.length; i++) {
+          const m = calcSeriesWindowMetrics(this.linesData[i], from, to, this.isAbsoluteMode, true);
+          const vEl = legendEl.querySelector(`[data-bot-val="${i}"]`) as HTMLElement | null;
+          const dEl = legendEl.querySelector(`[data-bot-dd="${i}"]`) as HTMLElement | null;
+          const dotEl = legendEl.querySelector(`[data-bot-dot="${i}"]`) as HTMLElement | null;
+          if (vEl) vEl.textContent = this.formatProfit(m.pnl);
+          if (dEl) dEl.textContent = this.formatDrawdown(m.dd);
+          if (dotEl) {
+            dotEl.className = `round ${m.pnl > 0 ? "round--green" : m.pnl < 0 ? "round--red" : ""}`;
+          }
+        }
       }
     },
 
