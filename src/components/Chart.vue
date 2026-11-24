@@ -2181,28 +2181,57 @@ export default defineComponent({
       return hasChanges;
     },
 
-    loadCachedLines(): boolean {
+    openLinesCacheDB(): Promise<IDBDatabase | null> {
+      return new Promise((resolve) => {
+        if (typeof window === "undefined" || !window.indexedDB) {
+          resolve(null);
+          return;
+        }
+        try {
+          const req = window.indexedDB.open("dnatrade_chart_cache", 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains("cache")) {
+              db.createObjectStore("cache");
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        } catch {
+          resolve(null);
+        }
+      });
+    },
+
+    async loadCachedLines(): Promise<boolean> {
       try {
-        if (typeof window === "undefined" || !window.localStorage) return false;
-        // Purge legacy caches from previous sessions and trade resets
-        window.localStorage.removeItem("crypto_bot_chart_lines_v1");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v2");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v3");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v4");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v5");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v6");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v7");
-        window.localStorage.removeItem("crypto_bot_chart_lines_v8");
-        const raw = window.localStorage.getItem("crypto_bot_chart_lines_v9");
-        if (!raw) return false;
-        const parsed = JSON.parse(raw);
+        if (typeof window === "undefined") return false;
+        // Purge legacy 5MB-limited localStorage caches
+        if (window.localStorage) {
+          for (let v = 1; v <= 9; v++) {
+            window.localStorage.removeItem(`crypto_bot_chart_lines_v${v}`);
+          }
+        }
+        const db = await this.openLinesCacheDB();
+        if (!db) return false;
+        const parsed = await new Promise<any>((resolve) => {
+          try {
+            const tx = db.transaction("cache", "readonly");
+            const store = tx.objectStore("cache");
+            const req = store.get("chart_lines_v10");
+            req.onsuccess = () => resolve(req.result ?? null);
+            req.onerror = () => resolve(null);
+          } catch {
+            resolve(null);
+          }
+        });
+        db.close();
         if (
           Array.isArray(parsed) &&
           parsed.length > 0 &&
           parsed[0].name &&
           Array.isArray(parsed[0].data)
         ) {
-          // Deduplicate cached lines on load
           const seen = new Set<string>();
           const validLines: ILine[] = [];
           for (const l of parsed) {
@@ -2220,29 +2249,42 @@ export default defineComponent({
           return validLines.length > 0;
         }
       } catch (err) {
-        console.warn("Could not load lines from cache:", err);
+        console.warn("Could not load lines from IndexedDB cache:", err);
       }
       return false;
     },
 
-    saveLinesToCache() {
+    async saveLinesToCache(): Promise<void> {
       try {
-        if (typeof window === "undefined" || !window.localStorage) return;
+        if (typeof window === "undefined") return;
         if (!this.lines || !this.lines.length) return;
+        const db = await this.openLinesCacheDB();
+        if (!db) return;
+        // Unwrap Vue reactive Proxies into plain arrays/objects for IndexedDB structured clone
         const toSave = this.lines.map((l: ILine) => ({
           name: this.normalizeBotName(l.name),
-          fileName: l.fileName,
-          mtime: l.mtime,
-          data: l.data,
-          color: l.color,
-          disabled: l.disabled,
+          fileName: l.fileName ? String(l.fileName) : undefined,
+          mtime: typeof l.mtime === "number" ? l.mtime : undefined,
+          data: Array.isArray(l.data)
+            ? l.data.map((row: any) => (Array.isArray(row) ? row.slice() : row))
+            : [],
+          color: l.color ? String(l.color) : undefined,
+          disabled: Boolean(l.disabled),
         }));
-        window.localStorage.setItem(
-          "crypto_bot_chart_lines_v9",
-          JSON.stringify(toSave)
-        );
+        await new Promise<void>((resolve) => {
+          try {
+            const tx = db.transaction("cache", "readwrite");
+            tx.objectStore("cache").put(toSave, "chart_lines_v10");
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+            tx.onabort = () => resolve();
+          } catch {
+            resolve();
+          }
+        });
+        db.close();
       } catch (err) {
-        console.warn("Could not save lines to cache:", err);
+        console.warn("Could not save lines to IndexedDB cache:", err);
       }
     },
 
@@ -3277,7 +3319,7 @@ export default defineComponent({
     }
 
     try {
-      const hasCache = this.loadCachedLines();
+      const hasCache = await this.loadCachedLines();
       if (hasCache) {
         this.isLoading = false;
         await this.$nextTick();
