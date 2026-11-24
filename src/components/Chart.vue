@@ -18,7 +18,6 @@
     class="chart cursor-pointer"
     id="chart-container"
     @dblclick="applyLongestScale"
-    title="Double-click to auto-scale full time range"
   />
 
   <!-- Flat System & Bots Monitor View (replaces chart when active) -->
@@ -369,7 +368,6 @@
         ref="timelineTrack"
         class="timeline-track"
         @pointerdown="onTimelineTrackDown"
-        title="Click or drag to slide time window across history; drag edges to resize"
       >
         <span
           v-for="tick in timelineYearTicks"
