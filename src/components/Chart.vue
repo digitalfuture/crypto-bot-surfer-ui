@@ -379,6 +379,7 @@
         >{{ tick.label }}</span>
 
         <div
+          ref="timelineWindow"
           class="timeline-window"
           :class="{ 'timeline-window--dragging': timelineDragMode !== null }"
           :style="timelineWindowStyle"
@@ -396,14 +397,15 @@
       </div>
 
       <div v-if="windowStats" class="timeline-readout">
-        <span class="timeline-dates">{{ windowStats.rangeLabel }}</span>
+        <span ref="timelineDatesEl" class="timeline-dates">{{ windowStats.rangeLabel }}</span>
         <span
+          ref="timelinePnlEl"
           class="timeline-pnl"
           :class="windowStats.pnl >= 0 ? 'text-green' : 'text-red'"
           title="Return inside selected time window"
         >{{ formatProfit(windowStats.pnl) }}</span>
         <span class="timeline-dd" title="Max Drawdown inside selected time window">
-          DD <strong class="text-red">{{ formatDrawdown(windowStats.dd) }}</strong>
+          DD <strong ref="timelineDdEl" class="text-red">{{ formatDrawdown(windowStats.dd) }}</strong>
         </span>
       </div>
     </div>
@@ -463,8 +465,8 @@
           <div class="line__details">
             <span class="line__name" :title="getBotDescription(line.name)" v-text="formatBotName(line.name)" />
 
-            <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(getBotMaxDrawdown(index))">
-              DD: <strong class="text-red">{{ formatDrawdown(getBotMaxDrawdown(index)) }}</strong>
+            <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(botMaxDrawdowns[index] || 0)">
+              DD: <strong class="text-red">{{ formatDrawdown(botMaxDrawdowns[index] || 0) }}</strong>
             </span>
 
             <span class="line__last-value" v-text="getLegendValue(index)" />
@@ -552,7 +554,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, markRaw } from "vue";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { IAccountInfo, IBotPosition, IBotStatus, IStatusResponse } from "../pages/status";
@@ -984,6 +986,23 @@ export default defineComponent({
         pnl: Number(pnl.toFixed(2)),
         dd: Number(maxDd.toFixed(2)),
       };
+    },
+
+    botMaxDrawdowns(): number[] {
+      const _isAbs = this.isAbsoluteMode;
+      const _comm = this.useCommission;
+      return this.linesData.map((series) => {
+        if (!series || series.length === 0) return 0;
+        let peak = 100;
+        let maxDd = 0;
+        for (let i = 0; i < series.length; i++) {
+          const bal = 100 + (series[i]?.value || 0);
+          if (bal > peak) peak = bal;
+          const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+          if (dd < maxDd) maxDd = dd;
+        }
+        return Number(maxDd.toFixed(2));
+      });
     },
 
     portfolioMaxDrawdown(): number {
@@ -1506,13 +1525,13 @@ export default defineComponent({
       this.markedLineIndex = -1;
       this.isLineMarked = false;
 
-      // Prepare per-bot and portfolio total series
+      // Prepare per-bot and portfolio total series (markRaw avoids Vue Proxy overhead on ~100k points!)
       const nextLinesData: ISeries[][] = [];
       for (const line of this.lines) {
-        nextLinesData.push(this.prepareSeriesData(line.data));
+        nextLinesData.push(markRaw(this.prepareSeriesData(line.data)));
       }
       this.linesData = nextLinesData;
-      this.linesDataTotal = this.isTotalLineShown() ? this.prepareSeriesDataTotal() : [];
+      this.linesDataTotal = markRaw(this.isTotalLineShown() ? this.prepareSeriesDataTotal() : []);
 
       uDividerTime = !this.isLiveServer && this.liveStartTime ? this.liveStartTime : null;
       uAlignedData = this.buildUPlotAlignedData();
@@ -1672,12 +1691,14 @@ export default defineComponent({
                 let nMax = panInitMax + dt;
                 if (nMin < fullMin) { nMin = fullMin; nMax = Math.min(fullMax, fullMin + dur); }
                 if (nMax > fullMax) { nMax = fullMax; nMin = Math.max(fullMin, fullMax - dur); }
-                u.setScale("x", { min: nMin, max: nMax });
+                self.applyTimelineRange(nMin, nMax, true);
               };
 
               const onPanUp = () => {
                 if (!panActive) return;
                 panActive = false;
+                self.isScrubbingTimeline = false;
+                self.commitPendingTimelineToVue();
                 window.removeEventListener("pointermove", onPanMove);
                 window.removeEventListener("pointerup", onPanUp);
                 window.removeEventListener("pointercancel", onPanUp);
@@ -1689,6 +1710,7 @@ export default defineComponent({
                 const scMax = u.scales.x.max;
                 if (scMin == null || scMax == null) return;
                 panActive = true;
+                self.isScrubbingTimeline = true;
                 panStartX = e.clientX;
                 panInitMin = scMin;
                 panInitMax = scMax;
@@ -2919,7 +2941,84 @@ export default defineComponent({
       this.activeWindowPreset = "ALL";
     },
 
-    applyTimelineRange(fromSec: number, toSec: number): void {
+    computeWindowStatsFast(from: number, to: number): { rangeLabel: string; pnl: number; dd: number } | null {
+      const s = this.activePrimarySeries;
+      if (!s || s.length < 2) return null;
+      const findIdx = (target: number) => {
+        let lo = 0, hi = s.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (s[mid].time < target) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      };
+      const iStart = findIdx(from);
+      let iEnd = findIdx(to);
+      if (iEnd >= s.length) iEnd = s.length - 1;
+      if (iEnd < iStart) iEnd = iStart;
+
+      const startBal = 100 + (s[iStart]?.value || 0);
+      const endBal = 100 + (s[iEnd]?.value || 0);
+      const pnl = startBal > 0 ? ((endBal - startBal) / startBal) * 100 : 0;
+
+      // Fast stride when window has >4000 points so scrubbing stays <0.1ms
+      const step = iEnd - iStart > 4000 ? Math.floor((iEnd - iStart) / 2000) : 1;
+      let peak = startBal;
+      let maxDd = 0;
+      for (let i = iStart; i <= iEnd; i += step) {
+        const bal = 100 + (s[i]?.value || 0);
+        if (bal > peak) peak = bal;
+        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+        if (dd < maxDd) maxDd = dd;
+      }
+      const fmtDate = (sec: number, showDay: boolean) => {
+        const iso = new Date(sec * 1000).toISOString();
+        return showDay ? iso.slice(0, 10) : iso.slice(0, 7);
+      };
+      const showDay = (to - from) < 120 * 86400;
+      return {
+        rangeLabel: `${fmtDate(from, showDay)} → ${fmtDate(to, showDay)}`,
+        pnl: Number(pnl.toFixed(2)),
+        dd: Number(maxDd.toFixed(2)),
+      };
+    },
+
+    updateScrubberDomDirect(from: number, to: number): void {
+      const { min, span } = this.timelineBounds;
+      if (span <= 0) return;
+      const winEl = this.$refs.timelineWindow as HTMLElement | undefined;
+      if (winEl) {
+        const leftPct = ((from - min) / span) * 100;
+        const widthPct = Math.max(1.2, ((to - from) / span) * 100);
+        winEl.style.left = `${Math.min(100 - widthPct, Math.max(0, leftPct)).toFixed(3)}%`;
+        winEl.style.width = `${Math.min(100, widthPct).toFixed(3)}%`;
+      }
+      const st = this.computeWindowStatsFast(from, to);
+      if (st) {
+        const dEl = this.$refs.timelineDatesEl as HTMLElement | undefined;
+        const pEl = this.$refs.timelinePnlEl as HTMLElement | undefined;
+        const ddEl = this.$refs.timelineDdEl as HTMLElement | undefined;
+        if (dEl) dEl.textContent = st.rangeLabel;
+        if (pEl) {
+          pEl.textContent = this.formatProfit(st.pnl);
+          pEl.className = `timeline-pnl ${st.pnl >= 0 ? "text-green" : "text-red"}`;
+        }
+        if (ddEl) ddEl.textContent = this.formatDrawdown(st.dd);
+      }
+    },
+
+    commitPendingTimelineToVue(): void {
+      if (uPendingRange) {
+        this.winFrom = uPendingRange.from;
+        this.winTo = uPendingRange.to;
+      } else if (uChart && uChart.scales.x.min != null && uChart.scales.x.max != null) {
+        this.winFrom = uChart.scales.x.min;
+        this.winTo = uChart.scales.x.max;
+      }
+    },
+
+    applyTimelineRange(fromSec: number, toSec: number, directOnly = false): void {
       const { min, max, span } = this.timelineBounds;
       if (!uChart || span <= 0) return;
       const minDur = Math.min(span, 3 * 86400);
@@ -2927,14 +3026,17 @@ export default defineComponent({
       let t = Math.max(f + minDur, Math.min(max, toSec));
       if (t - f < minDur) f = Math.max(min, t - minDur);
       uPendingRange = { from: f, to: t };
+      if (!directOnly) {
+        this.winFrom = f;
+        this.winTo = t;
+      }
       if (uScrubRaf !== null) return;
       uScrubRaf = requestAnimationFrame(() => {
         uScrubRaf = null;
         if (!uChart || !uPendingRange) return;
         const { from, to } = uPendingRange;
-        uPendingRange = null;
-        this.winFrom = from;
-        this.winTo = to;
+        // Zero Vue re-renders during drag: direct DOM + 1ms uPlot canvas setScale!
+        this.updateScrubberDomDirect(from, to);
         uChart.setScale("x", { min: from, max: to });
       });
     },
@@ -3026,15 +3128,15 @@ export default defineComponent({
         let to = from + dur;
         if (from < min) { from = min; to = min + dur; }
         if (to > max) { to = max; from = max - dur; }
-        this.applyTimelineRange(from, to);
+        this.applyTimelineRange(from, to, true);
       } else if (this.timelineDragMode === "left") {
         const from = Math.max(min, Math.min(this.timelineDragInitTo - minDur, this.timelineDragInitFrom + dt));
         this.activeWindowPreset = "";
-        this.applyTimelineRange(from, this.timelineDragInitTo);
+        this.applyTimelineRange(from, this.timelineDragInitTo, true);
       } else if (this.timelineDragMode === "right") {
         const to = Math.min(max, Math.max(this.timelineDragInitFrom + minDur, this.timelineDragInitTo + dt));
         this.activeWindowPreset = "";
-        this.applyTimelineRange(this.timelineDragInitFrom, to);
+        this.applyTimelineRange(this.timelineDragInitFrom, to, true);
       }
     },
 
@@ -3043,6 +3145,7 @@ export default defineComponent({
       window.removeEventListener("pointerup", this.onTimelinePointerUp);
       window.removeEventListener("pointercancel", this.onTimelinePointerUp);
       this.timelineDragMode = null;
+      this.commitPendingTimelineToVue();
       const { span } = this.timelineBounds;
       if (span > 0 && this.winTo - this.winFrom >= span * 0.99) {
         this.activeWindowPreset = "ALL";
@@ -3133,10 +3236,10 @@ export default defineComponent({
     updateLines(): void {
       const linesData: ISeries[][] = [];
       for (const line of this.lines) {
-        linesData.push(this.prepareSeriesData(line.data));
+        linesData.push(markRaw(this.prepareSeriesData(line.data)));
       }
       this.linesData = linesData;
-      this.linesDataTotal = this.isTotalLineShown() ? this.prepareSeriesDataTotal() : [];
+      this.linesDataTotal = markRaw(this.isTotalLineShown() ? this.prepareSeriesDataTotal() : []);
       if (uChart) {
         const curMin = uChart.scales.x.min;
         const curMax = uChart.scales.x.max;
@@ -3153,7 +3256,7 @@ export default defineComponent({
 
     updateLineTotal(): void {
       const isVisible = this.isTotalLineShown();
-      this.linesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
+      this.linesDataTotal = markRaw(isVisible ? this.prepareSeriesDataTotal() : []);
       if (uChart) {
         const curMin = uChart.scales.x.min;
         const curMax = uChart.scales.x.max;
