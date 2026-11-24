@@ -3128,6 +3128,18 @@ export default defineComponent({
       }
     },
 
+    hideInitialLoader(): void {
+      if (typeof document === "undefined") return;
+      const el = document.getElementById("initial-dna-loader");
+      if (!el || el.classList.contains("is-hidden")) return;
+      requestAnimationFrame(() => {
+        el.classList.add("is-hidden");
+        setTimeout(() => {
+          el.remove();
+        }, 180);
+      });
+    },
+
     formatBotName(name: string): string {
       if (!name) return "";
       const key = name
@@ -3264,24 +3276,31 @@ export default defineComponent({
       console.warn("Could not load settings from localStorage:", e);
     }
 
-    const hasCache = this.loadCachedLines();
-    if (hasCache) {
-      this.isLoading = false;
-      await this.$nextTick();
-      await this.initChart();
-    }
-
-    await Promise.all([this.fetchData(!hasCache), this.fetchBotStatus()]);
-
-    if (!hasCache) {
-      await this.initChart();
-      this.saveLinesToCache();
-    } else {
-      const hasUpdates = this.convertServerDataToLines({ isUpdate: true });
-      if (hasUpdates) {
-        this.updateChart();
-        this.saveLinesToCache();
+    try {
+      const hasCache = this.loadCachedLines();
+      if (hasCache) {
+        this.isLoading = false;
+        await this.$nextTick();
+        await this.initChart();
+        this.hideInitialLoader();
       }
+
+      await Promise.all([this.fetchData(!hasCache), this.fetchBotStatus()]);
+
+      if (!hasCache) {
+        await this.$nextTick();
+        await this.initChart();
+        this.saveLinesToCache();
+        this.hideInitialLoader();
+      } else {
+        const hasUpdates = this.convertServerDataToLines({ isUpdate: true });
+        if (hasUpdates) {
+          this.updateChart();
+          this.saveLinesToCache();
+        }
+      }
+    } finally {
+      this.hideInitialLoader();
     }
 
     this.setupResizeListener();
