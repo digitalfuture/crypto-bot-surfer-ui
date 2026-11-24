@@ -2031,7 +2031,7 @@ export default defineComponent({
           x: true,
           y: true,
         },
-        padding: [16, 4, 0, 8],
+        padding: [16, 4, 4, 8],
         scales: {
           x: { time: true },
           y: {
@@ -2057,7 +2057,8 @@ export default defineComponent({
         axes: [
           {
             side: 2,
-            size: 28,
+            size: 44,
+            gap: 4,
             font: "12px Arial",
             stroke: "dimgray",
             grid: { stroke: "rgba(105, 105, 105, 0.12)", width: 1 },
@@ -4265,7 +4266,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px 6px 10px;
+  padding: 6px 10px 6px 10px;
   background: var(--background-color);
   font-size: var(--ui-font-size);
   user-select: none;
