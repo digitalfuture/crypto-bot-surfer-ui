@@ -553,23 +553,8 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  createChart,
-  type IChartApi,
-  type ISeriesApi,
-  type MouseEventParams,
-  type TimeRange,
-  type AutoscaleInfo,
-  type SeriesMarker,
-  type SeriesMarkerPosition,
-  type SeriesMarkerShape,
-  type Time,
-  type UTCTimestamp,
-  type DeepPartial,
-  type ChartOptions,
-  type ISeriesPrimitive,
-  type SeriesAttachedParameter,
-} from "lightweight-charts";
+import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css";
 import type { IAccountInfo, IBotPosition, IBotStatus, IStatusResponse } from "../pages/status";
 
 export interface IServerLine {
@@ -603,159 +588,23 @@ export interface ISeries {
   price?: number;
 }
 
-let chart: IChartApi | null = null;
-let lineSeries: (ISeriesApi<"Line"> | null)[] = [];
-let lineSeriesTotal: ISeriesApi<"Line"> | null = null;
-
-const totalLineColor = "dimgray";
-
-interface IOutlineArrow {
-  time: Time;
+interface ITradeArrow {
+  time: number;
   value: number;
   up: boolean;
   color: string;
+  filled: boolean;
 }
 
-// Built-in markers are always filled, so position opens are drawn as outline-only arrows by a series primitive
-class OutlineArrowsPrimitive implements ISeriesPrimitive<Time> {
-  private arrows: IOutlineArrow[] = [];
-  private param: SeriesAttachedParameter<Time> | null = null;
+let uChart: uPlot | null = null;
+let uAlignedData: uPlot.AlignedData = [[]];
+let uArrows: ITradeArrow[] = [];
+let uDividerTime: number | null = null;
+let uScrubRaf: number | null = null;
+let uPendingRange: { from: number; to: number } | null = null;
+let uResizeHandler: (() => void) | null = null;
 
-  attached(param: SeriesAttachedParameter<Time>): void {
-    this.param = param;
-  }
-
-  detached(): void {
-    this.param = null;
-  }
-
-  setArrows(arrows: IOutlineArrow[]): void {
-    this.arrows = arrows;
-    this.param?.requestUpdate();
-  }
-
-  paneViews() {
-    return [
-      {
-        renderer: () => ({
-          draw: (target: any) => {
-            const param = this.param;
-            if (!param) return;
-            const timeScale = param.chart.timeScale();
-            const barSpacing = timeScale.options().barSpacing;
-            // roughly the size of built-in markers with size: 2
-            const w = Math.min(Math.max(barSpacing, 12), 30) * 0.9;
-            const h = w * 1.3;
-            const gap = w * 0.6;
-            target.useMediaCoordinateSpace(({ context: ctx }: { context: CanvasRenderingContext2D }) => {
-              ctx.lineWidth = 1.5;
-              for (const a of this.arrows) {
-                const x = timeScale.timeToCoordinate(a.time);
-                const y = param.series.priceToCoordinate(a.value);
-                if (x === null || y === null) continue;
-                // up arrow sits below the line with its tip up, down arrow above the line with its tip down
-                const tip = a.up ? y + gap : y - gap;
-                const dir = a.up ? 1 : -1;
-                const head = tip + dir * h * 0.5;
-                const base = tip + dir * h;
-                ctx.beginPath();
-                ctx.moveTo(x, tip);
-                ctx.lineTo(x + w / 2, head);
-                ctx.lineTo(x + w * 0.18, head);
-                ctx.lineTo(x + w * 0.18, base);
-                ctx.lineTo(x - w * 0.18, base);
-                ctx.lineTo(x - w * 0.18, head);
-                ctx.lineTo(x - w / 2, head);
-                ctx.closePath();
-                ctx.strokeStyle = a.color;
-                ctx.stroke();
-              }
-            });
-          },
-        }),
-      },
-    ];
-  }
-}
-
-const closeArrows = new OutlineArrowsPrimitive();
-let closeArrowsSeries: ISeriesApi<"Line"> | null = null;
-
-// Vertical divider line separating historical backtest from live trading
-class VerticalDividerPrimitive implements ISeriesPrimitive<Time> {
-  private dividerTime: number | null = null;
-  private dividerLabel: string = "LIVE TRADING";
-  private isHidden: boolean = false;
-  private param: SeriesAttachedParameter<Time> | null = null;
-  private knownTimes: number[] = [];
-
-  attached(param: SeriesAttachedParameter<Time>): void {
-    this.param = param;
-  }
-
-  detached(): void {
-    this.param = null;
-  }
-
-  setDivider(time: number | null, label = "LIVE TRADING", isHidden = false, times: number[] = []): void {
-    this.dividerTime = time;
-    this.dividerLabel = label;
-    this.isHidden = isHidden;
-    if (times && times.length > 0) {
-      this.knownTimes = times;
-    }
-    this.param?.requestUpdate();
-  }
-
-  paneViews() {
-    if (this.isHidden) return [];
-    return [
-      {
-        renderer: () => ({
-          draw: (target: any) => {
-            const param = this.param;
-            if (!param || !this.dividerTime || this.isHidden) return;
-            const timeScale = param.chart.timeScale();
-            let x = timeScale.timeToCoordinate(this.dividerTime as any);
-            if ((x === null || isNaN(x)) && this.knownTimes.length > 0) {
-              let closestTime = this.knownTimes[0];
-              let minDiff = Math.abs(closestTime - this.dividerTime);
-              for (let i = 1; i < this.knownTimes.length; i++) {
-                const diff = Math.abs(this.knownTimes[i] - this.dividerTime);
-                if (diff < minDiff) {
-                  minDiff = diff;
-                  closestTime = this.knownTimes[i];
-                }
-              }
-              x = timeScale.timeToCoordinate(closestTime as any);
-            }
-            if (x === null || isNaN(x)) return;
-
-            target.useMediaCoordinateSpace(({ context: ctx, mediaSize }: any) => {
-              const w = mediaSize?.width ?? 2000;
-              const h = mediaSize?.height ?? 1000;
-              if (x < -100 || x > w + 100) return;
-
-              ctx.save();
-              // Bright golden dashed divider line
-              ctx.strokeStyle = "rgba(234, 179, 8, 0.95)";
-              ctx.lineWidth = 2;
-              ctx.setLineDash([6, 4]);
-              ctx.beginPath();
-              ctx.moveTo(x, 0);
-              ctx.lineTo(x, h);
-              ctx.stroke();
-              ctx.restore();
-            });
-          },
-        }),
-      },
-    ];
-  }
-}
-
-const verticalDivider = new VerticalDividerPrimitive();
-let verticalDividerSeries: ISeriesApi<"Line"> | null = null;
+const totalLineColor = "dimgray";
 
 interface ITradeState {
   isOpen: boolean;
@@ -912,9 +761,8 @@ export default defineComponent({
 
       isLineTotalVisible: true as boolean,
 
-      lineSeriesMarked: null as ISeriesApi<"Line"> | null,
+      markedLineIndex: -1 as number,
 
-      zoom: null as TimeRange | null,
       zoomCondition: false as boolean,
 
       tradeDirection: "long" as string,
@@ -1004,55 +852,8 @@ export default defineComponent({
   },
 
   computed: {
-    chartOptions(): DeepPartial<ChartOptions> {
-      return {
-        height: this.isFullScreen ? window.innerHeight : 335,
-        width: window.innerWidth,
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: true,
-          fixLeftEdge: true,
-          fixRightEdge: true,
-          rightOffset: 0,
-        },
-        rightPriceScale: {
-          visible: true,
-          autoScale: true,
-          scaleMargins: {
-            top: 0.12,
-            bottom: 0.08,
-          },
-        },
-        leftPriceScale: {
-          visible: false,
-        },
-        handleScale: {
-          axisPressedMouseMove: {
-            time: true,
-            price: false, // Prevents accidental drag of price scale from locking vertical autoscale
-          },
-          axisDoubleClickReset: {
-            time: true,
-            price: true,
-          },
-          mouseWheel: true,
-          pinch: true,
-        },
-        handleScroll: {
-          mouseWheel: true,
-          pressedMouseMove: true,
-          horzTouchDrag: true,
-          vertTouchDrag: false,
-        },
-        localization: {
-          priceFormatter: (price: number) => this.formatProfit(price),
-        },
-        layout: {
-          background: { color: "transparent" },
-          fontSize: 12,
-          fontFamily: "Arial",
-        },
-      };
+    chartHeight(): number {
+      return this.isFullScreen ? window.innerHeight : 335;
     },
 
     portfolioEquity(): string {
@@ -1348,14 +1149,14 @@ export default defineComponent({
 
   watch: {
     isFullScreen(isFullscreen: boolean) {
-      if (!chart) return;
+      if (!uChart) return;
       if (isFullscreen) {
         document.body.style.overflow = "hidden";
-        chart.applyOptions({ height: window.innerHeight, width: window.innerWidth });
+        uChart.setSize({ width: window.innerWidth, height: window.innerHeight });
         this.applyLongestScale();
       } else {
         document.body.style.overflow = "";
-        chart.applyOptions({ height: this.chartOptions.height, width: window.innerWidth });
+        uChart.setSize({ width: window.innerWidth, height: this.chartHeight });
         this.applyLongestScale();
       }
     },
@@ -1392,7 +1193,7 @@ export default defineComponent({
         this.isAbsoluteMode = true;
         this.excludedCoins.clear();
       }
-      if (chart) {
+      if (uChart) {
         this.runWithBusy("UPDATING CHART...", () => {
           this.linesData = [];
           this.linesDataTotal = [];
@@ -1613,7 +1414,59 @@ export default defineComponent({
       return this.formatProfit(lineValue);
     },
 
-    //// Init chart
+    //// Init chart (uPlot high-performance Canvas engine)
+    buildUPlotAlignedData(): uPlot.AlignedData {
+      const timeSet = new Set<number>();
+      if (this.linesDataTotal && this.linesDataTotal.length) {
+        for (const p of this.linesDataTotal) timeSet.add(p.time);
+      }
+      for (const s of this.linesData) {
+        if (!s || !s.length) continue;
+        for (const p of s) timeSet.add(p.time);
+      }
+      const xArr = Array.from(timeSet).sort((a, b) => a - b);
+      if (xArr.length === 0) {
+        const now = Math.floor(Date.now() / 1000);
+        const empty: (number | null)[][] = [[now - 60, now], [0, 0]];
+        for (let i = 0; i < this.lines.length; i++) empty.push([null, null]);
+        return empty as uPlot.AlignedData;
+      }
+
+      const alignSeries = (series: ISeries[] | undefined): (number | null)[] => {
+        const out: (number | null)[] = new Array(xArr.length).fill(null);
+        if (!series || series.length === 0) return out;
+        let p = 0;
+        const n = series.length;
+        for (let i = 0; i < xArr.length; i++) {
+          const t = xArr[i];
+          while (p < n && series[p].time < t) p++;
+          if (p < n && series[p].time === t) {
+            // If multiple consecutive entries share the same timestamp, take the latest value
+            while (p + 1 < n && series[p + 1].time === t) p++;
+            out[i] = series[p].value;
+          }
+        }
+        return out;
+      };
+
+      const aligned: (number | null)[][] = [xArr, alignSeries(this.linesDataTotal)];
+      for (let i = 0; i < this.lines.length; i++) {
+        aligned.push(alignSeries(this.linesData[i]));
+      }
+      return aligned as uPlot.AlignedData;
+    },
+
+    isBotLineVisible(index: number): boolean {
+      const line = this.lines[index];
+      if (!line) return false;
+      const isLiveBot = this.isLineLive(line);
+      return (!this.isLiveOnly || isLiveBot) && !this.hasLineTotalOnly && !line.disabled;
+    },
+
+    isTotalLineShown(): boolean {
+      return this.isLineTotalVisible && this.linesEnabled.length !== 1;
+    },
+
     async initChart(): Promise<void> {
       if (!this.lines.length && this.serverLines?.length) {
         this.convertServerDataToLines({ isUpdate: false });
@@ -1643,152 +1496,574 @@ export default defineComponent({
         console.error("chartContainer element not found");
         return;
       }
-      if (chart) {
-        chart.remove();
-        chart = null;
+
+      if (uChart) {
+        uChart.destroy();
+        uChart = null;
       }
-      lineSeries = [];
-      lineSeriesTotal = null;
-      this.linesData = [];
-      this.linesDataTotal = [];
-      chart = createChart(chartContainer, this.chartOptions);
+      chartContainer.innerHTML = "";
+      uArrows = [];
+      this.markedLineIndex = -1;
+      this.isLineMarked = false;
 
-      this.setupChartLines();
-      this.setupChartTotal();
-
-      this.applyLongestScale();
-
-      this.setupZoomListener();
-      this.setupAnnotations();
-
-      // The new chart reports its default (narrow) visible range until the scale is applied,
-      // which would briefly show every marker; decide only after the range has settled.
-      this.clearMarks();
-      setTimeout(() => this.refreshMarks(), 200);
-    },
-
-    /// Setup lines
-    setupChartLines(): void {
-      if (!chart) return;
-      const linesData: ISeries[][] = [];
-
+      // Prepare per-bot and portfolio total series
+      const nextLinesData: ISeries[][] = [];
       for (const line of this.lines) {
-        const isLiveBot = this.isLineLive(line);
-        const isVisible =
-          (!this.isLiveOnly || isLiveBot) &&
-          !this.hasLineTotalOnly &&
-          !line.disabled;
-
-        const newLineSeries = chart.addLineSeries({
-          color: line.color,
-          priceScaleId: "right",
-          lineWidth: this.lineWidth,
-          visible: isVisible,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          priceFormat: {
-            type: "custom",
-            minMove: 0.01,
-            formatter: (val: number) => this.formatProfit(val),
-          },
-          autoscaleInfoProvider: (original) =>
-            this.getSeriesAutoscaleInfo(original),
-        });
-
-        const seriesData = this.prepareSeriesData(line.data);
-
-        // attachVerticalDivider will attach to active/total series
-        lineSeries.push(newLineSeries);
-        newLineSeries.setData(seriesData);
-
-        linesData.push(seriesData);
+        nextLinesData.push(this.prepareSeriesData(line.data));
       }
+      this.linesData = nextLinesData;
+      this.linesDataTotal = this.isTotalLineShown() ? this.prepareSeriesDataTotal() : [];
 
-      this.linesData = linesData;
-      this.attachVerticalDivider();
-    },
+      uDividerTime = !this.isLiveServer && this.liveStartTime ? this.liveStartTime : null;
+      uAlignedData = this.buildUPlotAlignedData();
 
-    setupChartTotal(): void {
-      if (!chart) return;
-      const isVisible =
-        this.isLineTotalVisible && this.linesEnabled.length !== 1;
+      const self = this;
+      let zoomDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+      let annotationTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastRenderedKey = "";
 
-      lineSeriesTotal = chart.addLineSeries({
-        color: totalLineColor,
-        priceScaleId: "right",
-        lineWidth: this.lineWidth,
-        visible: isVisible,
-        priceLineVisible: false,
-        lastValueVisible: true,
-        priceFormat: {
-          type: "custom",
-          minMove: 0.01,
-          formatter: (val: number) => this.formatProfit(val),
+      const hideAnnotation = () => {
+        if (annotationTimer) {
+          clearTimeout(annotationTimer);
+          annotationTimer = null;
+        }
+        lastRenderedKey = "";
+        const annotation = document.querySelector(".annotation") as HTMLElement | null;
+        if (annotation) annotation.style.display = "none";
+      };
+
+      // Plugin 1: LIVE dashed divider + trade BUY/SELL arrows + right-axis last-value pills
+      const drawOverlaysPlugin = (): uPlot.Plugin => ({
+        hooks: {
+          draw: [
+            (u: uPlot) => {
+              const ctx = u.ctx;
+              const dpr = window.devicePixelRatio || 1;
+              const { left, top, width, height } = u.bbox;
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(left, top, width, height);
+              ctx.clip();
+
+              // 1. Golden dashed LIVE TRADING vertical divider
+              if (uDividerTime !== null && !self.isLiveServer) {
+                const xCss = u.valToPos(uDividerTime, "x", false);
+                if (Number.isFinite(xCss)) {
+                  const xPx = left + xCss * dpr;
+                  if (xPx >= left - 4 && xPx <= left + width + 4) {
+                    ctx.save();
+                    ctx.strokeStyle = "rgba(234, 179, 8, 0.95)";
+                    ctx.lineWidth = 2 * dpr;
+                    ctx.setLineDash([6 * dpr, 4 * dpr]);
+                    ctx.beginPath();
+                    ctx.moveTo(xPx, top);
+                    ctx.lineTo(xPx, top + height);
+                    ctx.stroke();
+                    ctx.restore();
+                  }
+                }
+              }
+
+              // 2. Trade open (outline) & close (filled) arrows when zoomed in
+              if (uArrows.length > 0) {
+                const xMin = u.scales.x.min ?? -Infinity;
+                const xMax = u.scales.x.max ?? Infinity;
+                const w = 11 * dpr;
+                const h = 14 * dpr;
+                const gap = 7 * dpr;
+                ctx.lineWidth = 1.5 * dpr;
+                for (let i = 0; i < uArrows.length; i++) {
+                  const a = uArrows[i];
+                  if (a.time < xMin || a.time > xMax) continue;
+                  const xCss = u.valToPos(a.time, "x", false);
+                  const yCss = u.valToPos(a.value, "y", false);
+                  if (!Number.isFinite(xCss) || !Number.isFinite(yCss)) continue;
+                  const x = left + xCss * dpr;
+                  const y = top + yCss * dpr;
+                  const tip = a.up ? y + gap : y - gap;
+                  const dir = a.up ? 1 : -1;
+                  const head = tip + dir * h * 0.5;
+                  const base = tip + dir * h;
+                  ctx.beginPath();
+                  ctx.moveTo(x, tip);
+                  ctx.lineTo(x + w / 2, head);
+                  ctx.lineTo(x + w * 0.18, head);
+                  ctx.lineTo(x + w * 0.18, base);
+                  ctx.lineTo(x - w * 0.18, base);
+                  ctx.lineTo(x - w * 0.18, head);
+                  ctx.lineTo(x - w / 2, head);
+                  ctx.closePath();
+                  if (a.filled) {
+                    ctx.fillStyle = a.color;
+                    ctx.fill();
+                  } else {
+                    ctx.strokeStyle = a.color;
+                    ctx.stroke();
+                  }
+                }
+              }
+
+              ctx.restore();
+
+              // 3. Clean colored last-value pill on the right axis for visible series
+              ctx.save();
+              ctx.font = `bold ${11 * dpr}px Arial`;
+              ctx.textBaseline = "middle";
+              ctx.textAlign = "left";
+              for (let sIdx = 1; sIdx < u.series.length; sIdx++) {
+                const ser = u.series[sIdx];
+                if (!ser.show) continue;
+                const arr = u.data[sIdx];
+                if (!arr || !arr.length) continue;
+                let lastVal: number | null = null;
+                for (let k = arr.length - 1; k >= 0; k--) {
+                  if (arr[k] != null) {
+                    lastVal = arr[k] as number;
+                    break;
+                  }
+                }
+                if (lastVal === null) continue;
+                const yCss = u.valToPos(lastVal, "y", false);
+                if (!Number.isFinite(yCss)) continue;
+                const yPx = top + yCss * dpr;
+                if (yPx < top || yPx > top + height) continue;
+                const text = self.formatProfit(lastVal);
+                const bg = typeof ser.stroke === "string" ? ser.stroke : "dimgray";
+                const padX = 5 * dpr;
+                const pillH = 16 * dpr;
+                const pillW = Math.min(72 * dpr, ctx.measureText(text).width + padX * 2);
+                const xPill = left + width + 2 * dpr;
+                ctx.fillStyle = bg;
+                ctx.fillRect(xPill, yPx - pillH / 2, pillW, pillH);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(text, xPill + padX, yPx);
+              }
+              ctx.restore();
+            },
+          ],
         },
-        autoscaleInfoProvider: (original) =>
-          this.getSeriesAutoscaleInfo(original),
       });
 
-      const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
+      // Plugin 2: TradingView-style smooth drag-pan + wheel zoom + 2-way scrubber sync
+      const panWheelZoomPlugin = (): uPlot.Plugin => ({
+        hooks: {
+          ready: [
+            (u: uPlot) => {
+              const over = u.over;
+              if (!over) return;
 
-      lineSeriesTotal.setData(seriesDataTotal);
-      this.attachVerticalDivider();
+              // Left-button mouse/touch horizontal drag pan
+              let panActive = false;
+              let panStartX = 0;
+              let panInitMin = 0;
+              let panInitMax = 0;
+
+              const onPanMove = (e: PointerEvent) => {
+                if (!panActive) return;
+                const { min: fullMin, max: fullMax, span } = self.timelineBounds;
+                if (span <= 0) return;
+                const rect = over.getBoundingClientRect();
+                if (rect.width <= 0) return;
+                const dx = e.clientX - panStartX;
+                const dur = panInitMax - panInitMin;
+                const dt = -(dx / rect.width) * dur;
+                let nMin = panInitMin + dt;
+                let nMax = panInitMax + dt;
+                if (nMin < fullMin) { nMin = fullMin; nMax = Math.min(fullMax, fullMin + dur); }
+                if (nMax > fullMax) { nMax = fullMax; nMin = Math.max(fullMin, fullMax - dur); }
+                u.setScale("x", { min: nMin, max: nMax });
+              };
+
+              const onPanUp = () => {
+                if (!panActive) return;
+                panActive = false;
+                window.removeEventListener("pointermove", onPanMove);
+                window.removeEventListener("pointerup", onPanUp);
+                window.removeEventListener("pointercancel", onPanUp);
+              };
+
+              over.addEventListener("pointerdown", (e: PointerEvent) => {
+                if (e.button !== 0) return;
+                const scMin = u.scales.x.min;
+                const scMax = u.scales.x.max;
+                if (scMin == null || scMax == null) return;
+                panActive = true;
+                panStartX = e.clientX;
+                panInitMin = scMin;
+                panInitMax = scMax;
+                hideAnnotation();
+                window.addEventListener("pointermove", onPanMove);
+                window.addEventListener("pointerup", onPanUp);
+                window.addEventListener("pointercancel", onPanUp);
+              });
+
+              // Wheel zoom anchored at cursor X (auto-scales Y in ~1ms)
+              over.addEventListener(
+                "wheel",
+                (e: WheelEvent) => {
+                  e.preventDefault();
+                  const { min: fullMin, max: fullMax, span } = self.timelineBounds;
+                  if (span <= 0) return;
+                  const scMin = u.scales.x.min ?? fullMin;
+                  const scMax = u.scales.x.max ?? fullMax;
+                  const curSpan = scMax - scMin;
+                  const rect = over.getBoundingClientRect();
+                  const leftPct = rect.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) : 0.5;
+                  const xAnchor = scMin + leftPct * curSpan;
+                  const factor = e.deltaY < 0 ? 0.8 : 1.25;
+                  const minSpan = Math.min(span, 3 * 86400);
+                  const newSpan = Math.max(minSpan, Math.min(span, curSpan * factor));
+                  let nMin = xAnchor - leftPct * newSpan;
+                  let nMax = nMin + newSpan;
+                  if (nMin < fullMin) { nMin = fullMin; nMax = Math.min(fullMax, fullMin + newSpan); }
+                  if (nMax > fullMax) { nMax = fullMax; nMin = Math.max(fullMin, fullMax - newSpan); }
+                  hideAnnotation();
+                  u.setScale("x", { min: nMin, max: nMax });
+                },
+                { passive: false }
+              );
+
+              over.addEventListener("mouseleave", hideAnnotation);
+            },
+          ],
+          setScale: [
+            (u: uPlot, scaleKey: string) => {
+              if (scaleKey !== "x" || self.isMonitorView) return;
+              const fromSec = u.scales.x.min;
+              const toSec = u.scales.x.max;
+              if (fromSec == null || toSec == null) return;
+              if (!self.isScrubbingTimeline) {
+                const { min, max, span } = self.timelineBounds;
+                if (span > 0) {
+                  self.winFrom = Math.max(min, Math.min(max, fromSec));
+                  self.winTo = Math.max(self.winFrom, Math.min(max, toSec));
+                  if (self.winTo - self.winFrom >= span * 0.985) {
+                    self.activeWindowPreset = "ALL";
+                  } else {
+                    const matched = self.windowPresets.find(
+                      (p) => p.days > 0 && Math.abs((self.winTo - self.winFrom) - p.days * 86400) < 4 * 86400
+                    );
+                    self.activeWindowPreset = matched ? matched.key : "";
+                  }
+                }
+              }
+              if (zoomDebounceTimer) clearTimeout(zoomDebounceTimer);
+              zoomDebounceTimer = setTimeout(() => {
+                self.refreshMarks();
+              }, 90);
+            },
+          ],
+        },
+      });
+
+      // Plugin 3: Hover trade annotation tooltip (320ms delay + ±14px magnetic snap to real trades)
+      const hoverAnnotationPlugin = (): uPlot.Plugin => ({
+        hooks: {
+          setCursor: [
+            (u: uPlot) => {
+              const annotation = document.querySelector(".annotation") as HTMLElement | null;
+              const annotationBody = document.querySelector(".annotation--body") as HTMLElement | null;
+              if (!annotation || !annotationBody) return;
+
+              if (annotationTimer) {
+                clearTimeout(annotationTimer);
+                annotationTimer = null;
+              }
+              annotation.style.display = "none";
+
+              const left = u.cursor.left;
+              const top = u.cursor.top;
+              const plotW = u.over?.clientWidth || u.width;
+              const plotH = u.over?.clientHeight || u.height;
+              if (
+                left == null ||
+                top == null ||
+                left < 0 ||
+                top < 0 ||
+                left > plotW ||
+                top > plotH ||
+                self.isScrubbingTimeline
+              ) {
+                lastRenderedKey = "";
+                return;
+              }
+
+              const cursorTime = u.posToVal(left, "x");
+              if (!Number.isFinite(cursorTime)) return;
+
+              const pointX = left;
+              const pointY = top;
+              const chartW = chartContainer.clientWidth || window.innerWidth || 1200;
+
+              annotationTimer = setTimeout(() => {
+                if (!uChart) return;
+
+                const snapToAnchor = (seriesList: ISeries[], targetTime: number): ISeries | null => {
+                  if (!seriesList || seriesList.length === 0) return null;
+                  const { all, trades } = getAnchorLists(seriesList);
+                  if (all.length === 0) return null;
+                  const nearestTrade = findNearestByTime(trades, targetTime);
+                  if (nearestTrade) {
+                    const tradeX = uChart.valToPos(nearestTrade.time, "x", false);
+                    if (Number.isFinite(tradeX) && Math.abs(tradeX - pointX) <= 14) {
+                      return nearestTrade;
+                    }
+                  }
+                  return findNearestByTime(all, targetTime);
+                };
+
+                type AnnRow = {
+                  side: "LONG" | "SHORT" | "HOLD" | "LIVE" | "";
+                  label: string;
+                  token: string;
+                  price: string;
+                };
+                const rows: AnnRow[] = [];
+                let color = "#1e293b";
+                let snappedKey = "";
+
+                const pushTradeRows = (
+                  line: ISeries,
+                  seriesList: ISeries[],
+                  defaultHeader: string,
+                  lineColor: string
+                ) => {
+                  if (line.trade === "BUY" || line.trade === "SELL") {
+                    const state = getTradeStates(seriesList).get(line);
+                    const side: "LONG" | "SHORT" =
+                      state?.side === "LONG" || state?.side === "SHORT"
+                        ? state.side
+                        : line.trade === "BUY"
+                        ? "LONG"
+                        : "SHORT";
+                    const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
+                    rows.push({
+                      side,
+                      label: `${side}${action}`,
+                      token: line.tokenName || "",
+                      price: formatTradePrice(line.price),
+                    });
+                    for (const p of state?.held ?? []) {
+                      const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
+                      rows.push({
+                        side: pSide,
+                        label: pSide,
+                        token: p.token,
+                        price: formatTradePrice(p.price),
+                      });
+                    }
+                    color = lineColor;
+                  } else if (line.trade === "LIVE_START") {
+                    rows.push({ side: "LIVE", label: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
+                    color = "#b45309";
+                  } else if (line.trade === "HOLD") {
+                    const state = getTradeStates(seriesList).get(line);
+                    const pnl = Number(line.profitPercent) || 0;
+                    const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
+                    const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
+                    rows.push({ side: "HOLD", label: "HOLD", token: headerLabel, price: pnlStr });
+                    for (const p of state?.held ?? []) {
+                      const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
+                      rows.push({
+                        side: pSide,
+                        label: pSide,
+                        token: p.token,
+                        price: formatTradePrice(p.price),
+                      });
+                    }
+                    color = lineColor;
+                  }
+                };
+
+                let bestCandidate: {
+                  idx: number;
+                  item: ISeries;
+                  seriesList: ISeries[];
+                  lineColor: string;
+                  distSq: number;
+                } | null = null;
+
+                if (!self.hasLineTotalOnly) {
+                  self.lines.forEach((lineObj, index) => {
+                    if (!lineObj || lineObj.disabled) return;
+                    if (self.isLiveOnly && !self.isLineLive(lineObj)) return;
+                    const seriesList = self.linesData[index];
+                    if (!seriesList || seriesList.length === 0) return;
+                    const snapped = snapToAnchor(seriesList, cursorTime);
+                    if (!snapped) return;
+                    const sx = uChart!.valToPos(snapped.time, "x", false);
+                    const sy = uChart!.valToPos(snapped.value, "y", false);
+                    const dx = Number.isFinite(sx) ? sx - pointX : 0;
+                    const dy = Number.isFinite(sy) ? sy - pointY : 0;
+                    const distSq = dx * dx + dy * dy;
+                    if (!bestCandidate || distSq < bestCandidate.distSq) {
+                      bestCandidate = {
+                        idx: index,
+                        item: snapped,
+                        seriesList,
+                        lineColor: lineObj.color || "#1e293b",
+                        distSq,
+                      };
+                    }
+                  });
+                }
+
+                if (bestCandidate) {
+                  const c = bestCandidate as {
+                    idx: number;
+                    item: ISeries;
+                    seriesList: ISeries[];
+                    lineColor: string;
+                  };
+                  snappedKey = `line:${c.idx}:${c.item.time}:${c.item.trade}:${c.item.count}`;
+                  pushTradeRows(c.item, c.seriesList, "HOLD (Mark-to-Market)", c.lineColor);
+                } else if (self.isTotalLineShown()) {
+                  const activeIdx = self.lines.findIndex(
+                    (l) => !l.disabled && (!self.isLiveOnly || self.isLineLive(l))
+                  );
+                  const primaryList = self.linesData[activeIdx >= 0 ? activeIdx : 0];
+                  const snapped = primaryList ? snapToAnchor(primaryList, cursorTime) : null;
+                  if (snapped) {
+                    snappedKey = `total:${snapped.time}:${snapped.trade}:${snapped.count}`;
+                    pushTradeRows(
+                      snapped,
+                      primaryList,
+                      "PORTFOLIO (Mark-to-Market)",
+                      totalLineColor || "#3b82f6"
+                    );
+                  }
+                }
+
+                if (rows.length > 0) {
+                  if (snappedKey !== lastRenderedKey) {
+                    lastRenderedKey = snappedKey;
+                    const esc = (s: string) =>
+                      String(s)
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;");
+                    annotationBody.innerHTML = rows
+                      .map((r) => {
+                        const sideClass =
+                          r.side === "LONG"
+                            ? "ann-side--long"
+                            : r.side === "SHORT"
+                            ? "ann-side--short"
+                            : "ann-side--meta";
+                        return `<tr><td class="ann-side ${sideClass}">${esc(r.label)}</td><td class="ann-token" style="background:${color}">${esc(r.token)}</td><td class="ann-price" style="background:${color}">${esc(r.price)}</td></tr>`;
+                      })
+                      .join("");
+                  }
+
+                  const isCursorOnRight = pointX > chartW / 2;
+                  if (isCursorOnRight) {
+                    annotation.style.right = "auto";
+                    annotation.style.left = "12px";
+                    annotation.style.top = "50px";
+                  } else {
+                    annotation.style.left = "auto";
+                    annotation.style.right = "84px";
+                    annotation.style.top = "50px";
+                  }
+                  annotation.style.display = "block";
+                } else {
+                  annotation.style.display = "none";
+                }
+              }, 320);
+            },
+          ],
+        },
+      });
+
+      const uSeries: uPlot.Series[] = [
+        {},
+        {
+          label: "PORTFOLIO",
+          stroke: totalLineColor,
+          width: this.lineWidth,
+          show: this.isTotalLineShown(),
+          spanGaps: true,
+          points: { show: false },
+        },
+      ];
+      for (let i = 0; i < this.lines.length; i++) {
+        uSeries.push({
+          label: this.lines[i].name,
+          stroke: this.lines[i].color,
+          width: this.lineWidth,
+          show: this.isBotLineVisible(i),
+          spanGaps: true,
+          points: { show: false },
+        });
+      }
+
+      const opts: uPlot.Options = {
+        width: chartContainer.clientWidth || window.innerWidth,
+        height: this.chartHeight,
+        legend: { show: false },
+        select: { show: false, left: 0, top: 0, width: 0, height: 0 },
+        cursor: {
+          drag: { x: false, y: false },
+          points: { show: false },
+          x: true,
+          y: true,
+        },
+        padding: [16, 4, 0, 8],
+        scales: {
+          x: { time: true },
+          y: {
+            auto: true,
+            range: (_u, dataMin, dataMax) => {
+              if (
+                dataMin == null ||
+                dataMax == null ||
+                !Number.isFinite(dataMin) ||
+                !Number.isFinite(dataMax)
+              ) {
+                return [-0.5, 0.5];
+              }
+              if (Math.abs(dataMax - dataMin) < 0.0001) {
+                const d = Math.abs(dataMin) > 0.01 ? Math.abs(dataMin) * 0.15 : 0.25;
+                return [dataMin - d, dataMax + d];
+              }
+              const spanY = dataMax - dataMin;
+              return [dataMin - spanY * 0.08, dataMax + spanY * 0.18];
+            },
+          },
+        },
+        axes: [
+          {
+            side: 2,
+            size: 28,
+            font: "12px Arial",
+            stroke: "dimgray",
+            grid: { stroke: "rgba(105, 105, 105, 0.12)", width: 1 },
+            ticks: { show: false },
+          },
+          {
+            side: 1,
+            size: 78,
+            font: "12px Arial",
+            stroke: "dimgray",
+            grid: { stroke: "rgba(105, 105, 105, 0.12)", width: 1 },
+            ticks: { show: false },
+            values: (_u, vals) => vals.map((v) => (v == null ? "" : self.formatProfit(v))),
+          },
+        ],
+        series: uSeries,
+        plugins: [drawOverlaysPlugin(), panWheelZoomPlugin(), hoverAnnotationPlugin()],
+      };
+
+      uChart = new uPlot(opts, uAlignedData, chartContainer);
+      this.applyLongestScale();
+      this.clearMarks();
+      setTimeout(() => this.refreshMarks(), 120);
     },
 
     attachVerticalDivider(): void {
-      if (this.isLiveServer || !this.liveStartTime) return;
-
-      const allTimes: number[] = [];
-      if (this.linesDataTotal && this.linesDataTotal.length) {
-        for (const item of this.linesDataTotal) allTimes.push(item.time);
-      }
-      for (const series of this.linesData) {
-        if (series && series.length) {
-          for (const item of series) allTimes.push(item.time);
-        }
-      }
-
-      verticalDivider.setDivider(this.liveStartTime, "LIVE TRADING", false, allTimes);
-
-      let targetSeries: ISeriesApi<"Line"> | null = null;
-      if (this.isLineTotalVisible && this.linesEnabled.length !== 1 && lineSeriesTotal) {
-        targetSeries = lineSeriesTotal;
-      } else {
-        for (let i = 0; i < this.lines.length; i++) {
-          if ((!this.isLiveOnly || this.isLineLive(this.lines[i])) && !this.lines[i].disabled && lineSeries[i]) {
-            targetSeries = lineSeries[i];
-            break;
-          }
-        }
-        if (!targetSeries && lineSeriesTotal) {
-          targetSeries = lineSeriesTotal;
-        } else if (!targetSeries) {
-          const liveIdx = this.lines.findIndex((l) => !this.isLiveOnly || this.isLineLive(l));
-          if (liveIdx !== -1 && lineSeries[liveIdx]) {
-            targetSeries = lineSeries[liveIdx];
-          } else if (lineSeries[0]) {
-            targetSeries = lineSeries[0];
-          }
-        }
-      }
-
-      if (targetSeries) {
-        if (verticalDividerSeries && verticalDividerSeries !== targetSeries) {
-          try {
-            verticalDividerSeries.detachPrimitive(verticalDivider);
-          } catch (e) {
-            // ignore
-          }
-        }
-        if (verticalDividerSeries !== targetSeries) {
-          verticalDividerSeries = targetSeries;
-          try {
-            targetSeries.attachPrimitive(verticalDivider);
-          } catch (e) {
-            // ignore
-          }
-        }
-      }
+      uDividerTime = !this.isLiveServer && this.liveStartTime ? this.liveStartTime : null;
+      uChart?.redraw(false);
     },
 
     getGlobalTimeInfo(): { step: number; startTime: number } {
@@ -2480,8 +2755,18 @@ export default defineComponent({
     },
 
     //// Updates
+    syncUPlotSeriesVisibility(): void {
+      if (!uChart) return;
+      uChart.batch(() => {
+        uChart!.setSeries(1, { show: this.isTotalLineShown() });
+        for (let i = 0; i < this.lines.length; i++) {
+          uChart!.setSeries(2 + i, { show: this.isBotLineVisible(i) });
+        }
+      });
+    },
+
     updateChart(): void {
-      if (lineSeries.length !== this.lines.length) {
+      if (!uChart || uChart.series.length !== this.lines.length + 2) {
         this.initChart();
         return;
       }
@@ -2497,9 +2782,7 @@ export default defineComponent({
           l.disabled = true;
         });
         this.isLineTotalVisible = true;
-        for (let i = 0; i < this.lines.length; i++) {
-          lineSeries[i]?.applyOptions({ visible: false });
-        }
+        this.syncUPlotSeriesVisibility();
         this.updateLineTotal();
         this.applyLongestScale();
         this.refreshMarks();
@@ -2507,73 +2790,30 @@ export default defineComponent({
       }
 
       this.isLineTotalVisible = !this.isLineTotalVisible;
+      this.syncUPlotSeriesVisibility();
       this.updateLineTotal();
       this.applyLongestScale();
       this.refreshMarks();
     },
 
     computeZoomCondition(): boolean {
-      if (!chart || this.linesEnabled.length !== 1) return false;
-      try {
-        const range = chart.timeScale().getVisibleRange();
-        if (!range || range.from == null || range.to == null) return false;
-        const fromSec = typeof range.from === "number" ? range.from : Number(range.from);
-        const toSec = typeof range.to === "number" ? range.to : Number(range.to);
-        const durationSec = toSec - fromSec;
-        // ~90 days (7,776,000s): optimal threshold for displaying trade markers without clutter
-        const MAX_ZOOM_SECONDS = 90 * 86400;
-        return durationSec > 0 && durationSec <= MAX_ZOOM_SECONDS;
-      } catch (e) {
-        return false;
-      }
+      if (!uChart || this.linesEnabled.length !== 1) return false;
+      const fromSec = uChart.scales.x.min;
+      const toSec = uChart.scales.x.max;
+      if (fromSec == null || toSec == null) return false;
+      const durationSec = toSec - fromSec;
+      // ~90 days (7,776,000s): optimal threshold for displaying trade markers without clutter
+      const MAX_ZOOM_SECONDS = 90 * 86400;
+      return durationSec > 0 && durationSec <= MAX_ZOOM_SECONDS;
     },
 
     refreshMarks(): void {
-      if (!chart || this.isMonitorView) return;
+      if (!uChart || this.isMonitorView) return;
       if (this.computeZoomCondition()) {
         this.setMarks();
       } else {
         this.clearMarks();
       }
-    },
-
-    getSeriesAutoscaleInfo(
-      original?: (() => AutoscaleInfo | null) | null
-    ): AutoscaleInfo {
-      const res = original?.();
-      if (!res || !res.priceRange) {
-        return {
-          priceRange: { minValue: -0.5, maxValue: 0.5 },
-          margins: { above: 48, below: 24 },
-        };
-      }
-      const { minValue, maxValue } = res.priceRange;
-      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
-        return {
-          priceRange: { minValue: -0.5, maxValue: 0.5 },
-          margins: { above: 48, below: 24 },
-        };
-      }
-      // If flat line (e.g. 0% or min === max), expand symmetrically around value
-      if (Math.abs(maxValue - minValue) < 0.0001) {
-        const delta =
-          Math.abs(minValue) > 0.01 ? Math.abs(minValue) * 0.15 : 0.25;
-        return {
-          priceRange: {
-            minValue: minValue - delta,
-            maxValue: maxValue + delta,
-          },
-          margins: { above: 48, below: 24 },
-        };
-      }
-      // Clean headroom: 48px above (prevents collision with top buttons), 24px below
-      return {
-        priceRange: {
-          minValue,
-          maxValue,
-        },
-        margins: { above: 48, below: 24 },
-      };
     },
 
     getLongestTimeRange(): { from: number; to: number } {
@@ -2659,21 +2899,13 @@ export default defineComponent({
     },
 
     applyLongestScale(): void {
-      if (!chart || this.isMonitorView) return;
-      const container = document.getElementById("chart-container");
-      if (!container || container.offsetWidth === 0) return;
-
-      try {
-        chart.timeScale().fitContent();
-      } catch (e) {
-        const range = this.getLongestTimeRange();
-        if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
-          chart.timeScale().setVisibleRange(range);
-        }
+      if (!uChart || this.isMonitorView) return;
+      const range = this.getLongestTimeRange();
+      if (range && Number.isFinite(range.from) && Number.isFinite(range.to) && range.to > range.from) {
+        this.isScrubbingTimeline = true;
+        uChart.setScale("x", { min: range.from, max: range.to });
+        this.isScrubbingTimeline = false;
       }
-
-      // Automatically recalibrate and scale vertical height for currently visible lines
-      chart.priceScale("right").applyOptions({ autoScale: true });
       this.syncTimelineToFull();
       this.refreshMarks();
       this.updateLiveBadgePosition();
@@ -2689,20 +2921,22 @@ export default defineComponent({
 
     applyTimelineRange(fromSec: number, toSec: number): void {
       const { min, max, span } = this.timelineBounds;
-      if (!chart || span <= 0) return;
+      if (!uChart || span <= 0) return;
       const minDur = Math.min(span, 3 * 86400);
       let f = Math.max(min, Math.min(max - minDur, fromSec));
       let t = Math.max(f + minDur, Math.min(max, toSec));
       if (t - f < minDur) f = Math.max(min, t - minDur);
-      this.winFrom = f;
-      this.winTo = t;
-      try {
-        chart.timeScale().setVisibleRange({ from: f as any, to: t as any });
-        chart.priceScale("right").applyOptions({ autoScale: true });
-      } catch {
-        // ignore transient out-of-range calls while chart updates
-      }
-      this.updateLiveBadgePosition();
+      uPendingRange = { from: f, to: t };
+      if (uScrubRaf !== null) return;
+      uScrubRaf = requestAnimationFrame(() => {
+        uScrubRaf = null;
+        if (!uChart || !uPendingRange) return;
+        const { from, to } = uPendingRange;
+        uPendingRange = null;
+        this.winFrom = from;
+        this.winTo = to;
+        uChart.setScale("x", { min: from, max: to });
+      });
     },
 
     selectWindowPreset(key: string): void {
@@ -2827,18 +3061,11 @@ export default defineComponent({
       const line = this.lines[index];
       if (!line) return;
 
-      // Fast toggle without destroying chart or re-parsing datasets
+      // Fast toggle in-place (< 1ms in uPlot)
       line.disabled = !line.disabled;
-
-      if (lineSeries[index]) {
-        const isLiveBot = this.isLineLive(line);
-        const isVisible = (!this.isLiveOnly || isLiveBot) && !this.hasLineTotalOnly && !line.disabled;
-        lineSeries[index]?.applyOptions({ visible: isVisible });
-      }
-
+      this.syncUPlotSeriesVisibility();
       this.updateLineTotal();
       this.refreshMarks();
-      chart?.priceScale("right").applyOptions({ autoScale: true });
     },
 
     soloLine(index: number): void {
@@ -2849,24 +3076,16 @@ export default defineComponent({
         this.linesEnabled.length === 1 && this.linesEnabled[0] === line;
 
       if (isAlreadySolo) {
-        // Re-enable lines
         this.lines.forEach((l) => {
           l.disabled = this.isLiveOnly ? !this.isLineLive(l) : false;
         });
       } else {
-        // Solo this line
         this.lines.forEach((l, i) => {
           l.disabled = i !== index;
         });
       }
 
-      // Fast path: update all line series visibility in-place
-      for (let i = 0; i < this.lines.length; i++) {
-        const isLiveBot = this.isLineLive(this.lines[i]);
-        const isVisible = (!this.isLiveOnly || isLiveBot) && !this.hasLineTotalOnly && !this.lines[i].disabled;
-        lineSeries[i]?.applyOptions({ visible: isVisible });
-      }
-
+      this.syncUPlotSeriesVisibility();
       this.updateLineTotal();
       this.refreshMarks();
       this.applyLongestScale();
@@ -2901,12 +3120,10 @@ export default defineComponent({
       // 3. Ensure chart container is rendered in DOM and has positive dimensions
       await this.$nextTick();
 
-      if (!chart || lineSeries.length !== this.lines.length) {
+      if (!uChart || uChart.series.length !== this.lines.length + 2) {
         await this.initChart();
       } else {
-        for (let i = 0; i < this.lines.length; i++) {
-          lineSeries[i]?.applyOptions({ visible: i === targetIndex });
-        }
+        this.syncUPlotSeriesVisibility();
         this.updateLineTotal();
         this.refreshMarks();
         this.applyLongestScale();
@@ -2915,67 +3132,39 @@ export default defineComponent({
 
     updateLines(): void {
       const linesData: ISeries[][] = [];
-
-      for (const [index, line] of this.lines.entries()) {
-        const seriesData = this.prepareSeriesData(line.data);
-        const isLiveBot = this.isLineLive(line);
-        const isVisible =
-          (!this.isLiveOnly || isLiveBot) &&
-          !this.hasLineTotalOnly &&
-          !line.disabled;
-
-        // attachVerticalDivider handles dynamic series selection
-        if (lineSeries[index]) {
-          lineSeries[index]?.applyOptions({
-            visible: isVisible,
-            priceFormat: {
-              type: "custom",
-              minMove: 0.01,
-              formatter: (val: number) => this.formatProfit(val),
-            },
-          });
-          lineSeries[index]?.setData(seriesData);
-        } else if (chart) {
-          const newLineSeries = chart.addLineSeries({
-            color: line.color,
-            priceScaleId: "right",
-            lineWidth: this.lineWidth,
-            visible: isVisible,
-            priceLineVisible: false,
-            lastValueVisible: true,
-            priceFormat: {
-              type: "custom",
-              minMove: 0.01,
-              formatter: (val: number) => this.formatProfit(val),
-            },
-            autoscaleInfoProvider: (original) =>
-              this.getSeriesAutoscaleInfo(original),
-          });
-          newLineSeries.setData(seriesData);
-          lineSeries.push(newLineSeries);
-        }
-        linesData.push(seriesData);
+      for (const line of this.lines) {
+        linesData.push(this.prepareSeriesData(line.data));
       }
-
       this.linesData = linesData;
+      this.linesDataTotal = this.isTotalLineShown() ? this.prepareSeriesDataTotal() : [];
+      if (uChart) {
+        const curMin = uChart.scales.x.min;
+        const curMax = uChart.scales.x.max;
+        const wasAll = this.activeWindowPreset === "ALL";
+        uAlignedData = this.buildUPlotAlignedData();
+        uChart.setData(uAlignedData, wasAll);
+        this.syncUPlotSeriesVisibility();
+        if (!wasAll && curMin != null && curMax != null) {
+          uChart.setScale("x", { min: curMin, max: curMax });
+        }
+      }
       this.attachVerticalDivider();
     },
 
     updateLineTotal(): void {
-      const isVisible =
-        this.isLineTotalVisible && this.linesEnabled.length !== 1;
-
-      lineSeriesTotal?.applyOptions({
-        visible: isVisible,
-        priceFormat: {
-          type: "custom",
-          minMove: 0.01,
-          formatter: (val: number) => this.formatProfit(val),
-        },
-      });
-
-      const seriesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
-      lineSeriesTotal?.setData(seriesDataTotal);
+      const isVisible = this.isTotalLineShown();
+      this.linesDataTotal = isVisible ? this.prepareSeriesDataTotal() : [];
+      if (uChart) {
+        const curMin = uChart.scales.x.min;
+        const curMax = uChart.scales.x.max;
+        const wasAll = this.activeWindowPreset === "ALL";
+        uAlignedData = this.buildUPlotAlignedData();
+        uChart.setData(uAlignedData, wasAll);
+        uChart.setSeries(1, { show: isVisible });
+        if (!wasAll && curMin != null && curMax != null) {
+          uChart.setScale("x", { min: curMin, max: curMax });
+        }
+      }
       this.attachVerticalDivider();
     },
 
@@ -3001,374 +3190,68 @@ export default defineComponent({
 
     //// Listeners
     setupResizeListener(): void {
-      const handler = () => {
-        if (!chart || this.isMonitorView) return;
-        chart.resize(window.innerWidth, this.chartOptions.height, true);
-        this.applyLongestScale();
-        this.updateLiveBadgePosition();
-      };
-
-      window.addEventListener("resize", handler);
-    },
-
-    async setupZoomListener(): Promise<void> {
-      if (!chart) return;
-      let zoomDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-      const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange: TimeRange | null) => {
-        if (!newVisibleTimeRange || this.isMonitorView) return;
-        if (!this.isScrubbingTimeline) {
-          const fromSec = Number(newVisibleTimeRange.from);
-          const toSec = Number(newVisibleTimeRange.to);
-          const { min, max, span } = this.timelineBounds;
-          if (Number.isFinite(fromSec) && Number.isFinite(toSec) && span > 0) {
-            this.winFrom = Math.max(min, Math.min(max, fromSec));
-            this.winTo = Math.max(this.winFrom, Math.min(max, toSec));
-            if (this.winTo - this.winFrom >= span * 0.985) {
-              this.activeWindowPreset = "ALL";
-            } else {
-              const matched = this.windowPresets.find(
-                (p) => p.days > 0 && Math.abs((this.winTo - this.winFrom) - p.days * 86400) < 4 * 86400
-              );
-              this.activeWindowPreset = matched ? matched.key : "";
-            }
-          }
-        }
-        this.updateLiveBadgePosition();
-        if (zoomDebounceTimer) clearTimeout(zoomDebounceTimer);
-        zoomDebounceTimer = setTimeout(() => {
-          this.refreshMarks();
-        }, 120);
-      };
-
-      await chart
-        .timeScale()
-        .subscribeVisibleTimeRangeChange(myVisibleTimeRangeChangeHandler);
-    },
-
-    setupAnnotations(): void {
-      if (!chart) return;
-      let annotationTimer: ReturnType<typeof setTimeout> | null = null;
-      let lastRenderedKey = "";
-
-      const hideAnnotation = () => {
-        if (annotationTimer) {
-          clearTimeout(annotationTimer);
-          annotationTimer = null;
-        }
-        lastRenderedKey = "";
-        const annotation = document.querySelector(".annotation") as HTMLElement | null;
-        if (annotation) {
-          annotation.style.display = "none";
-        }
-      };
-
-      const chartContainer = document.getElementById("chart-container");
-      if (chartContainer) {
-        const prevHandler = (chartContainer as any).__annLeaveHandler;
-        if (prevHandler) {
-          chartContainer.removeEventListener("mouseleave", prevHandler);
-        }
-        (chartContainer as any).__annLeaveHandler = hideAnnotation;
-        chartContainer.addEventListener("mouseleave", hideAnnotation);
+      if (uResizeHandler) {
+        window.removeEventListener("resize", uResizeHandler);
       }
-
-      const snapToAnchor = (
-        seriesList: ISeries[],
-        targetTime: number,
-        pointX: number
-      ): ISeries | null => {
-        if (!chart || !seriesList || seriesList.length === 0) return null;
-        const { all, trades } = getAnchorLists(seriesList);
-        if (all.length === 0) return null;
-
-        const nearestTrade = findNearestByTime(trades, targetTime);
-        if (nearestTrade) {
-          const tradeX = chart.timeScale().timeToCoordinate(nearestTrade.time as any);
-          if (tradeX !== null && Math.abs(tradeX - pointX) <= 14) {
-            return nearestTrade;
-          }
-        }
-        return findNearestByTime(all, targetTime);
+      uResizeHandler = () => {
+        if (!uChart || this.isMonitorView) return;
+        const container = document.getElementById("chart-container");
+        const w = container?.clientWidth || window.innerWidth;
+        uChart.setSize({ width: w, height: this.chartHeight });
       };
-
-      chart.subscribeCrosshairMove((param: MouseEventParams) => {
-        const annotation: HTMLElement | null = document.querySelector(".annotation");
-        const annotationBody: HTMLElement | null =
-          document.querySelector(".annotation--body");
-
-        if (!annotation || !annotationBody || !chart) {
-          return;
-        }
-
-        // Hide while moving and reset 320ms hover delay
-        if (annotationTimer) {
-          clearTimeout(annotationTimer);
-          annotationTimer = null;
-        }
-        annotation.style.display = "none";
-
-        const chartW = chartContainer?.clientWidth || window.innerWidth || 1200;
-        const chartH = chartContainer?.clientHeight || 335;
-
-        if (
-          !param ||
-          !param.point ||
-          param.point.x < 0 ||
-          param.point.y < 0 ||
-          param.point.x > chartW ||
-          param.point.y > chartH
-        ) {
-          lastRenderedKey = "";
-          return;
-        }
-
-        const pointX = param.point.x;
-        const pointY = param.point.y;
-        const paramTime = typeof param.time === "number" ? param.time : null;
-
-        annotationTimer = setTimeout(() => {
-          if (!chart) return;
-          let cursorTime: number | null = paramTime;
-          if (cursorTime === null) {
-            const coordTime = chart.timeScale().coordinateToTime(pointX);
-            if (typeof coordTime === "number") {
-              cursorTime = coordTime;
-            } else {
-              cursorTime = pointX > chartW / 2 ? Infinity : -Infinity;
-            }
-          }
-
-          type AnnRow = {
-            side: "LONG" | "SHORT" | "HOLD" | "LIVE" | "";
-            label: string;
-            token: string;
-            price: string;
-          };
-          const rows: AnnRow[] = [];
-          let color = "#1e293b";
-          let snappedKey = "";
-
-          const pushTradeRows = (
-            line: ISeries,
-            seriesList: ISeries[],
-            defaultHeader: string,
-            lineColor: string
-          ) => {
-            if (line.trade === "BUY" || line.trade === "SELL") {
-              const state = getTradeStates(seriesList).get(line);
-              const side: "LONG" | "SHORT" = (state?.side === "LONG" || state?.side === "SHORT")
-                ? state.side
-                : line.trade === "BUY" ? "LONG" : "SHORT";
-              const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
-              rows.push({
-                side,
-                label: `${side}${action}`,
-                token: line.tokenName || "",
-                price: formatTradePrice(line.price),
-              });
-              for (const p of state?.held ?? []) {
-                const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
-                rows.push({
-                  side: pSide,
-                  label: pSide,
-                  token: p.token,
-                  price: formatTradePrice(p.price),
-                });
-              }
-              color = lineColor;
-            } else if (line.trade === "LIVE_START") {
-              rows.push({ side: "LIVE", label: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
-              color = "#b45309";
-            } else if (line.trade === "HOLD") {
-              const state = getTradeStates(seriesList).get(line);
-              const pnl = Number(line.profitPercent) || 0;
-              const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
-              const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
-              rows.push({ side: "HOLD", label: "HOLD", token: headerLabel, price: pnlStr });
-              for (const p of state?.held ?? []) {
-                const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
-                rows.push({
-                  side: pSide,
-                  label: pSide,
-                  token: p.token,
-                  price: formatTradePrice(p.price),
-                });
-              }
-              color = lineColor;
-            }
-          };
-
-          // 1. Find nearest anchor among active visible bot lines
-          let bestCandidate: {
-            idx: number;
-            item: ISeries;
-            seriesList: ISeries[];
-            lineColor: string;
-            distSq: number;
-          } | null = null;
-
-          if (!this.hasLineTotalOnly) {
-            lineSeries.forEach((series, index) => {
-              const lineObj = this.lines[index];
-              if (!series || !lineObj || lineObj.disabled) return;
-              if (this.isLiveOnly && !this.isLineLive(lineObj)) return;
-              const seriesList = this.linesData[index];
-              if (!seriesList || seriesList.length === 0) return;
-
-              const snapped = snapToAnchor(seriesList, cursorTime!, pointX);
-              if (!snapped) return;
-
-              const sx = chart!.timeScale().timeToCoordinate(snapped.time as any);
-              const sy = series.priceToCoordinate(snapped.value);
-              const dx = sx !== null ? sx - pointX : 0;
-              const dy = sy !== null ? sy - pointY : 0;
-              const distSq = dx * dx + dy * dy;
-
-              if (!bestCandidate || distSq < bestCandidate.distSq) {
-                bestCandidate = {
-                  idx: index,
-                  item: snapped,
-                  seriesList,
-                  lineColor: lineObj.color || "#1e293b",
-                  distSq,
-                };
-              }
-            });
-          }
-
-          if (bestCandidate) {
-            const c = bestCandidate as {
-              idx: number;
-              item: ISeries;
-              seriesList: ISeries[];
-              lineColor: string;
-            };
-            snappedKey = `line:${c.idx}:${c.item.time}:${c.item.trade}:${c.item.count}`;
-            pushTradeRows(c.item, c.seriesList, "HOLD (Mark-to-Market)", c.lineColor);
-          } else if (lineSeriesTotal && this.isLineTotalVisible) {
-            // 2. Total Line mode: snap to nearest anchor on the primary active line
-            const activeIdx = this.lines.findIndex(
-              (l) => !l.disabled && (!this.isLiveOnly || this.isLineLive(l))
-            );
-            const primaryList = this.linesData[activeIdx >= 0 ? activeIdx : 0];
-            const snapped = primaryList
-              ? snapToAnchor(primaryList, cursorTime, pointX)
-              : null;
-            if (snapped) {
-              snappedKey = `total:${snapped.time}:${snapped.trade}:${snapped.count}`;
-              pushTradeRows(
-                snapped,
-                primaryList,
-                "PORTFOLIO (Mark-to-Market)",
-                totalLineColor || "#3b82f6"
-              );
-            }
-          }
-
-          if (rows.length > 0) {
-            if (snappedKey !== lastRenderedKey) {
-              lastRenderedKey = snappedKey;
-              const esc = (s: string) =>
-                String(s)
-                  .replace(/&/g, "&amp;")
-                  .replace(/</g, "&lt;")
-                  .replace(/>/g, "&gt;");
-              annotationBody.innerHTML = rows
-                .map((r) => {
-                  const sideClass =
-                    r.side === "LONG"
-                      ? "ann-side--long"
-                      : r.side === "SHORT"
-                      ? "ann-side--short"
-                      : "ann-side--meta";
-                  return `<tr><td class="ann-side ${sideClass}">${esc(r.label)}</td><td class="ann-token" style="background:${color}">${esc(r.token)}</td><td class="ann-price" style="background:${color}">${esc(r.price)}</td></tr>`;
-                })
-                .join("");
-            }
-
-            // Smart positioning: flip popup to opposite half so it NEVER covers cursor or gets overlapped by buttons
-            const isCursorOnRight = pointX > chartW / 2;
-            if (isCursorOnRight) {
-              annotation.style.right = "auto";
-              annotation.style.left = "12px";
-              annotation.style.top = "50px";
-            } else {
-              annotation.style.left = "auto";
-              annotation.style.right = "60px";
-              annotation.style.top = "50px";
-            }
-
-            annotation.style.display = "block";
-          } else {
-            annotation.style.display = "none";
-          }
-        }, 320);
-      });
+      window.addEventListener("resize", uResizeHandler);
     },
 
-    // Line marks
+    // Line marks (drawn directly on uPlot canvas via drawOverlaysPlugin)
     setMarks(): void {
       if (this.linesEnabled.length !== 1) return;
       const line = this.linesEnabled[0];
       const index = this.lines.indexOf(line);
-      if (index === -1 || !lineSeries[index]) return;
+      if (index === -1 || !uChart) return;
 
-      if (this.isLineMarked && this.lineSeriesMarked === lineSeries[index]) {
+      if (this.isLineMarked && this.markedLineIndex === index) {
         return;
       }
 
-      lineSeries.forEach((s) => s?.setMarkers([]));
       const lineData = this.linesData[index] || this.prepareSeriesData(line.data);
-      // BUY/SELL alone is ambiguous in multi-coin long/short portfolios (closing a short is a BUY),
-      // so open/close is inferred per token: legs of one token always alternate open -> close.
       const openByToken = new Map<string, boolean>();
-      const markers: SeriesMarker<Time>[] = [];
-      const outlines: IOutlineArrow[] = [];
-      for (const { trade, time, count, tokenName, profitPercent, tradeResult, value } of lineData) {
+      const arrows: ITradeArrow[] = [];
+      for (const { trade, time, tokenName, profitPercent, tradeResult, value } of lineData) {
         if (trade !== "BUY" && trade !== "SELL") continue;
         const token = tokenName || "";
         const isOpen = !openByToken.get(token);
         openByToken.set(token, isOpen);
         if (isOpen) {
-          // Open: outline arrow, green for long, red for short
-          outlines.push({
-            time: time as UTCTimestamp,
+          arrows.push({
+            time,
             value,
             up: trade === "BUY",
             color: trade === "BUY" ? "green" : "red",
+            filled: false,
           });
         } else {
-          // Close: filled arrow in the direction of the closing order, colored by result
-          markers.push({
-            time: time as UTCTimestamp,
-            position: (trade === "BUY" ? "belowBar" : "aboveBar") as SeriesMarkerPosition,
+          arrows.push({
+            time,
+            value,
+            up: trade === "BUY",
             color: (tradeResult || Number(profitPercent) || 0) >= 0 ? "green" : "red",
-            shape: (trade === "BUY" ? "arrowUp" : "arrowDown") as SeriesMarkerShape,
-            size: 2,
-            id: `${time}-${trade}-${count || 0}`,
+            filled: true,
           });
         }
       }
 
-      this.lineSeriesMarked = lineSeries[index];
-      this.lineSeriesMarked?.setMarkers(markers);
-      if (closeArrowsSeries !== lineSeries[index]) {
-        closeArrowsSeries?.detachPrimitive(closeArrows);
-        closeArrowsSeries = lineSeries[index];
-        closeArrowsSeries?.attachPrimitive(closeArrows);
-      }
-      closeArrows.setArrows(outlines);
+      uArrows = arrows;
+      this.markedLineIndex = index;
       this.isLineMarked = true;
+      uChart.redraw(false);
     },
 
     clearMarks(): void {
-      if (!this.isLineMarked && !this.lineSeriesMarked) return;
-      lineSeries.forEach((s) => s?.setMarkers([]));
-      closeArrows.setArrows([]);
-      closeArrowsSeries?.detachPrimitive(closeArrows);
-      closeArrowsSeries = null;
-      this.lineSeriesMarked = null;
+      if (!this.isLineMarked && uArrows.length === 0) return;
+      uArrows = [];
+      this.markedLineIndex = -1;
       this.isLineMarked = false;
+      uChart?.redraw(false);
     },
 
     //// Colors
@@ -3702,8 +3585,16 @@ export default defineComponent({
     window.removeEventListener("pointermove", this.onTimelinePointerMove);
     window.removeEventListener("pointerup", this.onTimelinePointerUp);
     window.removeEventListener("pointercancel", this.onTimelinePointerUp);
-    chart?.remove();
-    chart = null;
+    if (uResizeHandler) {
+      window.removeEventListener("resize", uResizeHandler);
+      uResizeHandler = null;
+    }
+    if (uScrubRaf !== null) {
+      cancelAnimationFrame(uScrubRaf);
+      uScrubRaf = null;
+    }
+    uChart?.destroy();
+    uChart = null;
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
@@ -4554,9 +4445,28 @@ export default defineComponent({
   color: red;
 }
 
-// hide Lightweight Chart logo
-#tv-attr-logo {
-  display: none !important;
+// uPlot flat DNA TRADE styling overrides
+.uplot {
+  font-family: Arial, sans-serif !important;
+  font-size: var(--ui-font-size) !important;
+  background: transparent !important;
+}
+
+.uplot .u-wrap {
+  background: transparent !important;
+}
+
+.uplot .u-cursor-x,
+.uplot .u-cursor-y {
+  border-color: rgba(105, 105, 105, 0.45) !important;
+}
+
+.uplot .u-over {
+  cursor: grab;
+}
+
+.uplot .u-over:active {
+  cursor: grabbing;
 }
 
 // ==========================================
