@@ -297,6 +297,7 @@ export const GET: APIRoute = async () => {
     const order = [
       "trend-mtf-v2",
       "lsma-mtf",
+      "vrev-mtf",
       "trend-mtf",
       "trend-mtf-smartlab",
       "btc-5m",

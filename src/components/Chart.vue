@@ -90,7 +90,7 @@
         <div class="bot-card__color-bar" :style="{ backgroundColor: getBotColor(bot.name) }" />
 
         <div class="bot-card__header">
-          <span class="bot-card__name" :title="bot.name">{{ formatBotName(bot.name) }}</span>
+          <span class="bot-card__name" :title="getBotDescription(bot.name)">{{ formatBotName(bot.name) }}</span>
           <div class="bot-card__header-right">
             <span class="bot-card__pnl" :class="getBotPnl(bot) >= 0 ? 'text-green' : 'text-red'">
               {{ formatProfit(getBotPnl(bot)) }}
@@ -401,7 +401,7 @@
           :title="'Click to toggle, double-click to view only this chart and trades'"
         >
           <div class="line__details">
-            <span class="line__name" v-text="formatBotName(line.name)" />
+            <span class="line__name" :title="getBotDescription(line.name)" v-text="formatBotName(line.name)" />
 
             <span class="line__max-dd" :title="'Bot Max Drawdown: ' + formatDrawdown(getBotMaxDrawdown(index))">
               DD: <strong class="text-red">{{ formatDrawdown(getBotMaxDrawdown(index)) }}</strong>
@@ -3130,11 +3130,38 @@ export default defineComponent({
 
     formatBotName(name: string): string {
       if (!name) return "";
-      return name
+      const key = name
         .replace(/\.csv$/i, "")
         .replace(/^trades[-_]/i, "")
         .replace(/^(ORDERBOOK|OB|MM|VOL)[-_]/i, "")
-        .toUpperCase();
+        .toLowerCase();
+      const labels: Record<string, string> = {
+        "trend-mtf-v2": "SUPERTREND + MOMENTUM",
+        "trend-mtf": "SUPERTREND + MOMENTUM",
+        "trend-mtf-live": "SUPERTREND + MOMENTUM",
+        "lsma-mtf": "LINEAR REGRESSION",
+        "vrev-mtf": "RANGE REVERSAL",
+        "trend-mtf-smartlab": "SMARTLAB TREND",
+      };
+      return labels[key] || key.replace(/[-_]+/g, " ").toUpperCase();
+    },
+
+    getBotDescription(name: string): string {
+      if (!name) return "";
+      const key = name
+        .replace(/\.csv$/i, "")
+        .replace(/^trades[-_]/i, "")
+        .replace(/^(ORDERBOOK|OB|MM|VOL)[-_]/i, "")
+        .toLowerCase();
+      const desc: Record<string, string> = {
+        "trend-mtf-v2": "SuperTrend (4h/8h/12h/1d) + Cross-Sectional Momentum + Contrarian 14d Sizer",
+        "trend-mtf": "SuperTrend (4h/8h/12h/1d) + Cross-Sectional Momentum + Contrarian 14d Sizer",
+        "trend-mtf-live": "SuperTrend (4h/8h/12h/1d) + Cross-Sectional Momentum + Contrarian 14d Sizer",
+        "lsma-mtf": "Dual Linear Regression 14/50 Crossover (4h/8h/12h/1d)",
+        "vrev-mtf": "2-Line Sequential Regression V-Reversal in Range, ADX <= 22 (4h/8h/12h/1d)",
+        "trend-mtf-smartlab": "SmartLab Multi-Timeframe Trend",
+      };
+      return desc[key] || this.formatBotName(name);
     },
 
     toggleCommission(): void {
