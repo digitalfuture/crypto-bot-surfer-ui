@@ -599,6 +599,7 @@ interface ITradeArrow {
 let uChart: uPlot | null = null;
 let uAlignedData: uPlot.AlignedData = [[]];
 let uArrows: ITradeArrow[] = [];
+let uAnchorPoint: { time: number; value: number; color: string } | null = null;
 let uDividerTime: number | null = null;
 let uScrubRaf: number | null = null;
 let uPendingRange: { from: number; to: number } | null = null;
@@ -686,9 +687,6 @@ function calcSeriesWindowMetrics(
 interface ITradeState {
   isOpen: boolean;
   side: "LONG" | "SHORT";
-  isHold?: boolean;
-  // other positions held right after this trade (or positions held during this hold)
-  held: Array<{ token: string; side: "LONG" | "SHORT"; price: number }>;
 }
 
 // Per-token open/close replay of a line's trades (legs of one token alternate open -> close)
@@ -697,32 +695,22 @@ function getTradeStates(items: ISeries[]): Map<object, ITradeState> {
   const cached = tradeStatesCache.get(items);
   if (cached) return cached;
   const states = new Map<object, ITradeState>();
-  const held = new Map<string, { side: "LONG" | "SHORT"; price: number }>();
+  const held = new Map<string, "LONG" | "SHORT">();
   for (const item of items) {
-    if (item.trade === "HOLD") {
-      states.set(item, {
-        isOpen: false,
-        side: "LONG",
-        isHold: true,
-        held: [...held].map(([t, p]) => ({ token: t, ...p })),
-      });
-      continue;
-    }
     if (item.trade !== "BUY" && item.trade !== "SELL") continue;
     const token = item.tokenName || "";
-    const pos = held.get(token);
+    const existingSide = held.get(token);
     let side: "LONG" | "SHORT";
-    if (pos) {
-      side = pos.side;
+    if (existingSide) {
+      side = existingSide;
       held.delete(token);
     } else {
       side = item.trade === "BUY" ? "LONG" : "SHORT";
-      held.set(token, { side, price: item.price ?? 0 });
+      held.set(token, side);
     }
     states.set(item, {
-      isOpen: !pos,
+      isOpen: !existingSide,
       side,
-      held: [...held].filter(([t]) => t !== token).map(([t, p]) => ({ token: t, ...p })),
     });
   }
   tradeStatesCache.set(items, states);
@@ -1179,11 +1167,11 @@ export default defineComponent({
       if (isFullscreen) {
         document.body.style.overflow = "hidden";
         uChart.setSize({ width: window.innerWidth, height: window.innerHeight });
-        this.applyLongestScale();
+        this.applyPreservedOrFullScale();
       } else {
         document.body.style.overflow = "";
         uChart.setSize({ width: window.innerWidth, height: this.chartHeight });
-        this.applyLongestScale();
+        this.applyPreservedOrFullScale();
       }
     },
 
@@ -1191,7 +1179,7 @@ export default defineComponent({
       this.runWithBusy("RECALCULATING...", () => {
         this.linesData = [];
         this.linesDataTotal = [];
-        this.initChart();
+        this.initChart(true);
       });
     },
 
@@ -1199,7 +1187,7 @@ export default defineComponent({
       this.runWithBusy("RECALCULATING...", () => {
         this.linesData = [];
         this.linesDataTotal = [];
-        this.initChart();
+        this.initChart(true);
       });
     },
 
@@ -1207,7 +1195,7 @@ export default defineComponent({
       this.runWithBusy(`APPLYING ${this.leverage}x...`, () => {
         this.linesData = [];
         this.linesDataTotal = [];
-        this.initChart();
+        this.initChart(true);
       });
     },
 
@@ -1232,7 +1220,7 @@ export default defineComponent({
       this.runWithBusy("RECALCULATING...", () => {
         this.linesData = [];
         this.linesDataTotal = [];
-        this.initChart();
+        this.initChart(true);
       });
     },
   },
@@ -1358,7 +1346,7 @@ export default defineComponent({
       this.runWithBusy("FILTERING COINS...", () => {
         this.linesData = [];
         this.linesDataTotal = [];
-        this.initChart();
+        this.initChart(true);
       });
     },
 
@@ -1494,7 +1482,21 @@ export default defineComponent({
       return this.isLineTotalVisible && this.linesEnabled.length !== 1;
     },
 
-    async initChart(): Promise<void> {
+    async initChart(preserveWindow = false): Promise<void> {
+      const prevPreset = this.activeWindowPreset;
+      const prevFrom =
+        preserveWindow && this.winFrom > 0
+          ? this.winFrom
+          : preserveWindow && uChart?.scales?.x?.min != null
+          ? uChart.scales.x.min
+          : 0;
+      const prevTo =
+        preserveWindow && this.winTo > 0
+          ? this.winTo
+          : preserveWindow && uChart?.scales?.x?.max != null
+          ? uChart.scales.x.max
+          : 0;
+
       if (!this.lines.length && this.serverLines?.length) {
         this.convertServerDataToLines({ isUpdate: false });
       }
@@ -1530,6 +1532,7 @@ export default defineComponent({
       }
       chartContainer.innerHTML = "";
       uArrows = [];
+      uAnchorPoint = null;
       this.markedLineIndex = -1;
       this.isLineMarked = false;
 
@@ -1557,6 +1560,10 @@ export default defineComponent({
         lastRenderedKey = "";
         const annotation = document.querySelector(".annotation") as HTMLElement | null;
         if (annotation) annotation.style.display = "none";
+        if (uAnchorPoint !== null) {
+          uAnchorPoint = null;
+          uChart?.redraw(false);
+        }
       };
 
       // Plugin 1: LIVE dashed divider + trade BUY/SELL arrows + right-axis last-value pills
@@ -1627,6 +1634,52 @@ export default defineComponent({
                   } else {
                     ctx.strokeStyle = a.color;
                     ctx.stroke();
+                  }
+                }
+              }
+
+              // 2b. Anchor dot on the exact line point for the displayed tooltip
+              if (uAnchorPoint) {
+                const xCss = u.valToPos(uAnchorPoint.time, "x", false);
+                const yCss = u.valToPos(uAnchorPoint.value, "y", false);
+                if (Number.isFinite(xCss) && Number.isFinite(yCss)) {
+                  const x = left + xCss * dpr;
+                  const y = top + yCss * dpr;
+                  if (
+                    x >= left - 12 * dpr &&
+                    x <= left + width + 12 * dpr &&
+                    y >= top - 12 * dpr &&
+                    y <= top + height + 12 * dpr
+                  ) {
+                    ctx.save();
+                    // Subtle vertical dashed line through the exact snapped timestamp
+                    ctx.strokeStyle = uAnchorPoint.color;
+                    ctx.globalAlpha = 0.35;
+                    ctx.lineWidth = 1 * dpr;
+                    ctx.setLineDash([3 * dpr, 3 * dpr]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, top);
+                    ctx.lineTo(x, top + height);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Outer translucent halo ring
+                    ctx.beginPath();
+                    ctx.arc(x, y, 9 * dpr, 0, Math.PI * 2);
+                    ctx.fillStyle = uAnchorPoint.color;
+                    ctx.globalAlpha = 0.24;
+                    ctx.fill();
+
+                    // Solid colored core dot with crisp white contrast ring
+                    ctx.globalAlpha = 1;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4.5 * dpr, 0, Math.PI * 2);
+                    ctx.fillStyle = uAnchorPoint.color;
+                    ctx.fill();
+                    ctx.lineWidth = 2 * dpr;
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.stroke();
+                    ctx.restore();
                   }
                 }
               }
@@ -1801,6 +1854,10 @@ export default defineComponent({
                 annotationTimer = null;
               }
               annotation.style.display = "none";
+              if (uAnchorPoint !== null) {
+                uAnchorPoint = null;
+                u.redraw(false);
+              }
 
               const left = u.cursor.left;
               const top = u.cursor.top;
@@ -1860,27 +1917,37 @@ export default defineComponent({
                   lineColor: string
                 ) => {
                   if (line.trade === "BUY" || line.trade === "SELL") {
-                    const state = getTradeStates(seriesList).get(line);
-                    const side: "LONG" | "SHORT" =
-                      state?.side === "LONG" || state?.side === "SHORT"
-                        ? state.side
-                        : line.trade === "BUY"
-                        ? "LONG"
-                        : "SHORT";
-                    const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
-                    rows.push({
-                      side,
-                      label: `${side}${action}`,
-                      token: line.tokenName || "",
-                      price: formatTradePrice(line.price),
-                    });
-                    for (const p of state?.held ?? []) {
-                      const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
+                    const tradeStates = getTradeStates(seriesList);
+                    const { trades } = getAnchorLists(seriesList);
+                    const atPoint: ISeries[] = [];
+                    const idx = trades.indexOf(line);
+                    if (idx >= 0) {
+                      let s = idx;
+                      while (s > 0 && trades[s - 1].time === line.time) s--;
+                      let e = idx;
+                      while (e + 1 < trades.length && trades[e + 1].time === line.time) e++;
+                      for (let k = s; k <= e; k++) {
+                        if (trades[k].trade === "BUY" || trades[k].trade === "SELL") {
+                          atPoint.push(trades[k]);
+                        }
+                      }
+                    } else {
+                      atPoint.push(line);
+                    }
+                    for (const tr of atPoint) {
+                      const state = tradeStates.get(tr);
+                      const side: "LONG" | "SHORT" =
+                        state?.side === "LONG" || state?.side === "SHORT"
+                          ? state.side
+                          : tr.trade === "BUY"
+                          ? "LONG"
+                          : "SHORT";
+                      const action = state ? (state.isOpen ? " OPEN" : " CLOSE") : "";
                       rows.push({
-                        side: pSide,
-                        label: pSide,
-                        token: p.token,
-                        price: formatTradePrice(p.price),
+                        side,
+                        label: `${side}${action}`,
+                        token: tr.tokenName || "",
+                        price: formatTradePrice(tr.price),
                       });
                     }
                     color = lineColor;
@@ -1888,20 +1955,10 @@ export default defineComponent({
                     rows.push({ side: "LIVE", label: "LIVE", token: "LIVE TRADING START", price: "Real execution" });
                     color = "#b45309";
                   } else if (line.trade === "HOLD") {
-                    const state = getTradeStates(seriesList).get(line);
                     const pnl = Number(line.profitPercent) || 0;
                     const pnlStr = `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`;
                     const headerLabel = line.tokenName ? `${line.tokenName} (Mark-to-Market)` : defaultHeader;
                     rows.push({ side: "HOLD", label: "HOLD", token: headerLabel, price: pnlStr });
-                    for (const p of state?.held ?? []) {
-                      const pSide: "LONG" | "SHORT" = p.side === "LONG" ? "LONG" : "SHORT";
-                      rows.push({
-                        side: pSide,
-                        label: pSide,
-                        token: p.token,
-                        price: formatTradePrice(p.price),
-                      });
-                    }
                     color = lineColor;
                   }
                 };
@@ -1939,6 +1996,8 @@ export default defineComponent({
                   });
                 }
 
+                let nextAnchor: { time: number; value: number; color: string } | null = null;
+
                 if (bestCandidate) {
                   const c = bestCandidate as {
                     idx: number;
@@ -1948,6 +2007,11 @@ export default defineComponent({
                   };
                   snappedKey = `line:${c.idx}:${c.item.time}:${c.item.trade}:${c.item.count}`;
                   pushTradeRows(c.item, c.seriesList, "HOLD (Mark-to-Market)", c.lineColor);
+                  nextAnchor = {
+                    time: c.item.time,
+                    value: c.item.value,
+                    color,
+                  };
                 } else if (self.isTotalLineShown()) {
                   const activeIdx = self.lines.findIndex(
                     (l) => !l.disabled && (!self.isLiveOnly || self.isLineLive(l))
@@ -1962,6 +2026,12 @@ export default defineComponent({
                       "PORTFOLIO (Mark-to-Market)",
                       totalLineColor || "#3b82f6"
                     );
+                    const totalPt = findNearestByTime(self.linesDataTotal, snapped.time);
+                    nextAnchor = {
+                      time: totalPt ? totalPt.time : snapped.time,
+                      value: totalPt ? totalPt.value : snapped.value,
+                      color,
+                    };
                   }
                 }
 
@@ -1997,8 +2067,14 @@ export default defineComponent({
                     annotation.style.top = "50px";
                   }
                   annotation.style.display = "block";
+                  uAnchorPoint = nextAnchor;
+                  uChart.redraw(false);
                 } else {
                   annotation.style.display = "none";
+                  if (uAnchorPoint !== null) {
+                    uAnchorPoint = null;
+                    uChart.redraw(false);
+                  }
                 }
               }, 320);
             },
@@ -2087,7 +2163,11 @@ export default defineComponent({
       };
 
       uChart = new uPlot(opts, uAlignedData, chartContainer);
-      this.applyLongestScale();
+      if (preserveWindow) {
+        this.applyPreservedOrFullScale(prevFrom, prevTo, prevPreset);
+      } else {
+        this.applyLongestScale();
+      }
       this.clearMarks();
       setTimeout(() => this.refreshMarks(), 120);
     },
@@ -2815,7 +2895,7 @@ export default defineComponent({
         this.isLineTotalVisible = true;
         this.syncUPlotSeriesVisibility();
         this.updateLineTotal();
-        this.applyLongestScale();
+        this.applyPreservedOrFullScale();
         this.refreshMarks();
         return;
       }
@@ -2823,7 +2903,7 @@ export default defineComponent({
       this.isLineTotalVisible = !this.isLineTotalVisible;
       this.syncUPlotSeriesVisibility();
       this.updateLineTotal();
-      this.applyLongestScale();
+      this.applyPreservedOrFullScale();
       this.refreshMarks();
     },
 
@@ -2940,6 +3020,35 @@ export default defineComponent({
       this.syncTimelineToFull();
       this.refreshMarks();
       this.updateLiveBadgePosition();
+    },
+
+    applyPreservedOrFullScale(
+      prevFrom?: number,
+      prevTo?: number,
+      prevPreset?: string
+    ): void {
+      if (!uChart || this.isMonitorView) return;
+      const preset = prevPreset !== undefined ? prevPreset : this.activeWindowPreset;
+      const from = prevFrom !== undefined ? prevFrom : this.winFrom;
+      const to = prevTo !== undefined ? prevTo : this.winTo;
+      const { min, max, span } = this.timelineBounds;
+      if (preset !== "ALL" && span > 0 && from > 0 && to > from) {
+        const minDur = Math.min(span, 3 * 86400);
+        const f = Math.max(min, Math.min(max - minDur, from));
+        const t = Math.max(f + minDur, Math.min(max, to));
+        if (t - f < span * 0.995) {
+          this.winFrom = f;
+          this.winTo = t;
+          this.activeWindowPreset = preset;
+          this.isScrubbingTimeline = true;
+          uChart.setScale("x", { min: f, max: t });
+          this.isScrubbingTimeline = false;
+          this.refreshMarks();
+          this.updateLiveBadgePosition();
+          return;
+        }
+      }
+      this.applyLongestScale();
     },
 
     syncTimelineToFull(): void {
@@ -3198,8 +3307,8 @@ export default defineComponent({
 
       this.syncUPlotSeriesVisibility();
       this.updateLineTotal();
+      this.applyPreservedOrFullScale();
       this.refreshMarks();
-      this.applyLongestScale();
     },
 
     async selectBotChart(botName: string): Promise<void> {
@@ -3722,6 +3831,8 @@ export default defineComponent({
   // above the chart canvas (trade markers), safely below top button bar
   z-index: 1000;
   pointer-events: none;
+  max-height: 260px;
+  overflow: hidden;
   border-radius: 0;
   box-shadow: none;
   border: none;
