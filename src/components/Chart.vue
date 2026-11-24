@@ -348,6 +348,66 @@
       />
     </div>
 
+    <!-- Floating Draggable Time-Window Scrubber -->
+    <div
+      v-show="!isMonitorView && !isFullScreen && timelineBounds.span > 0"
+      class="timeline-scrubber"
+    >
+      <div class="timeline-presets">
+        <button
+          v-for="p in windowPresets"
+          :key="p.key"
+          type="button"
+          class="timeline-preset-btn cursor-pointer"
+          :class="{ 'timeline-preset-btn--active': activeWindowPreset === p.key }"
+          @click="selectWindowPreset(p.key)"
+          :title="p.key === 'ALL' ? 'Show full history' : `Select ${p.label} floating window (drag to slide)`"
+        >{{ p.label }}</button>
+      </div>
+
+      <div
+        ref="timelineTrack"
+        class="timeline-track"
+        @pointerdown="onTimelineTrackDown"
+        title="Click or drag to slide time window across history; drag edges to resize"
+      >
+        <span
+          v-for="tick in timelineYearTicks"
+          :key="tick.label + '-' + tick.pct"
+          class="timeline-year-tick"
+          :style="{ left: tick.pct + '%' }"
+        >{{ tick.label }}</span>
+
+        <div
+          class="timeline-window"
+          :class="{ 'timeline-window--dragging': timelineDragMode !== null }"
+          :style="timelineWindowStyle"
+          @pointerdown.stop="startTimelineDrag($event, 'move')"
+        >
+          <span
+            class="timeline-handle timeline-handle--left"
+            @pointerdown.stop="startTimelineDrag($event, 'left')"
+          />
+          <span
+            class="timeline-handle timeline-handle--right"
+            @pointerdown.stop="startTimelineDrag($event, 'right')"
+          />
+        </div>
+      </div>
+
+      <div v-if="windowStats" class="timeline-readout">
+        <span class="timeline-dates">{{ windowStats.rangeLabel }}</span>
+        <span
+          class="timeline-pnl"
+          :class="windowStats.pnl >= 0 ? 'text-green' : 'text-red'"
+          title="Return inside selected time window"
+        >{{ formatProfit(windowStats.pnl) }}</span>
+        <span class="timeline-dd" title="Max Drawdown inside selected time window">
+          DD <strong class="text-red">{{ formatDrawdown(windowStats.dd) }}</strong>
+        </span>
+      </div>
+    </div>
+
     <!-- Legend toolbar (hidden when in monitor view or fullscreen) -->
     <div v-show="!isMonitorView && !isFullScreen" class="info-container">
       <!-- Total / Average -->
@@ -813,6 +873,22 @@ export default defineComponent({
       isLiveOnly: false as boolean,
       isLiveServer: false as boolean,
       leverage: 1 as number,
+      windowPresets: [
+        { key: "1M", label: "1M", days: 30 },
+        { key: "3M", label: "3M", days: 91 },
+        { key: "6M", label: "6M", days: 182 },
+        { key: "1Y", label: "1Y", days: 365 },
+        { key: "2Y", label: "2Y", days: 730 },
+        { key: "ALL", label: "ALL", days: 0 },
+      ],
+      activeWindowPreset: "ALL" as string,
+      winFrom: 0 as number,
+      winTo: 0 as number,
+      timelineDragMode: null as "move" | "left" | "right" | null,
+      timelineDragStartX: 0 as number,
+      timelineDragInitFrom: 0 as number,
+      timelineDragInitTo: 0 as number,
+      isScrubbingTimeline: false as boolean,
       leverageOptions: [1, 2, 3, 5] as number[],
       accountInfo: null as IAccountInfo | null,
       liveBadgeX: null as number | null,
@@ -992,6 +1068,121 @@ export default defineComponent({
       const baseCapital = count * this.initialBotCapital;
       const profit = parseFloat(this.totalSumProfit) || 0;
       return (baseCapital + profit).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    activePrimarySeries(): ISeries[] {
+      const _isAbs = this.isAbsoluteMode;
+      const _comm = this.useCommission;
+      if (this.linesEnabled.length === 1) {
+        const idx = this.lines.indexOf(this.linesEnabled[0]);
+        if (idx >= 0 && this.linesData[idx]?.length) return this.linesData[idx];
+      }
+      if (this.linesDataTotal && this.linesDataTotal.length > 0) {
+        return this.linesDataTotal;
+      }
+      let best: ISeries[] = [];
+      for (const s of this.linesData) {
+        if (s && s.length > best.length) best = s;
+      }
+      return best;
+    },
+
+    timelineBounds(): { min: number; max: number; span: number } {
+      const s = this.activePrimarySeries;
+      if (!s || s.length < 2) return { min: 0, max: 0, span: 0 };
+      const min = Number(s[0].time) || 0;
+      const max = Number(s[s.length - 1].time) || 0;
+      return { min, max, span: Math.max(0, max - min) };
+    },
+
+    timelineYearTicks(): Array<{ label: string; pct: number }> {
+      const { min, max, span } = this.timelineBounds;
+      if (span <= 0) return [];
+      const ticks: Array<{ label: string; pct: number }> = [];
+      const dMin = new Date(min * 1000);
+      const dMax = new Date(max * 1000);
+      if (span >= 380 * 86400) {
+        for (let yr = dMin.getUTCFullYear(); yr <= dMax.getUTCFullYear(); yr++) {
+          const ts = Date.UTC(yr, 0, 1) / 1000;
+          if (ts >= min && ts <= max) {
+            const pct = ((ts - min) / span) * 100;
+            if (pct <= 96) ticks.push({ label: String(yr), pct });
+          }
+        }
+      } else {
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        let yr = dMin.getUTCFullYear();
+        let mo = dMin.getUTCMonth();
+        while (yr < dMax.getUTCFullYear() || (yr === dMax.getUTCFullYear() && mo <= dMax.getUTCMonth())) {
+          const ts = Date.UTC(yr, mo, 1) / 1000;
+          if (ts >= min && ts <= max) {
+            const pct = ((ts - min) / span) * 100;
+            if (pct <= 94) ticks.push({ label: `${months[mo]} ${String(yr).slice(-2)}`, pct });
+          }
+          mo++;
+          if (mo > 11) { mo = 0; yr++; }
+        }
+      }
+      return ticks;
+    },
+
+    timelineWindowStyle(): Record<string, string> {
+      const { min, max, span } = this.timelineBounds;
+      if (span <= 0) return { left: "0%", width: "100%" };
+      const from = this.winFrom > 0 ? Math.max(min, Math.min(max, this.winFrom)) : min;
+      const to = this.winTo > 0 ? Math.max(from, Math.min(max, this.winTo)) : max;
+      const leftPct = ((from - min) / span) * 100;
+      const widthPct = Math.max(1.2, ((to - from) / span) * 100);
+      return {
+        left: `${Math.min(100 - widthPct, Math.max(0, leftPct)).toFixed(3)}%`,
+        width: `${Math.min(100, widthPct).toFixed(3)}%`,
+      };
+    },
+
+    windowStats(): { rangeLabel: string; pnl: number; dd: number } | null {
+      const s = this.activePrimarySeries;
+      const { min, max, span } = this.timelineBounds;
+      if (!s || s.length < 2 || span <= 0) return null;
+      const from = this.winFrom > 0 ? Math.max(min, Math.min(max, this.winFrom)) : min;
+      const to = this.winTo > 0 ? Math.max(from, Math.min(max, this.winTo)) : max;
+
+      const findIdx = (target: number) => {
+        let lo = 0, hi = s.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (s[mid].time < target) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      };
+      const iStart = findIdx(from);
+      let iEnd = findIdx(to);
+      if (iEnd >= s.length) iEnd = s.length - 1;
+      if (iEnd < iStart) iEnd = iStart;
+
+      const startBal = 100 + (s[iStart]?.value || 0);
+      const endBal = 100 + (s[iEnd]?.value || 0);
+      const pnl = startBal > 0 ? ((endBal - startBal) / startBal) * 100 : 0;
+
+      let peak = startBal;
+      let maxDd = 0;
+      for (let i = iStart; i <= iEnd; i++) {
+        const bal = 100 + (s[i]?.value || 0);
+        if (bal > peak) peak = bal;
+        const dd = peak > 0 ? ((bal - peak) / peak) * 100 : 0;
+        if (dd < maxDd) maxDd = dd;
+      }
+
+      const fmtDate = (sec: number, showDay: boolean) => {
+        const iso = new Date(sec * 1000).toISOString();
+        return showDay ? iso.slice(0, 10) : iso.slice(0, 7);
+      };
+      const showDay = (to - from) < 120 * 86400;
+      return {
+        rangeLabel: `${fmtDate(from, showDay)} → ${fmtDate(to, showDay)}`,
+        pnl: Number(pnl.toFixed(2)),
+        dd: Number(maxDd.toFixed(2)),
+      };
     },
 
     portfolioMaxDrawdown(): number {
@@ -2483,8 +2674,149 @@ export default defineComponent({
 
       // Automatically recalibrate and scale vertical height for currently visible lines
       chart.priceScale("right").applyOptions({ autoScale: true });
+      this.syncTimelineToFull();
       this.refreshMarks();
       this.updateLiveBadgePosition();
+    },
+
+    syncTimelineToFull(): void {
+      const { min, max, span } = this.timelineBounds;
+      if (span <= 0) return;
+      this.winFrom = min;
+      this.winTo = max;
+      this.activeWindowPreset = "ALL";
+    },
+
+    applyTimelineRange(fromSec: number, toSec: number): void {
+      const { min, max, span } = this.timelineBounds;
+      if (!chart || span <= 0) return;
+      const minDur = Math.min(span, 3 * 86400);
+      let f = Math.max(min, Math.min(max - minDur, fromSec));
+      let t = Math.max(f + minDur, Math.min(max, toSec));
+      if (t - f < minDur) f = Math.max(min, t - minDur);
+      this.winFrom = f;
+      this.winTo = t;
+      try {
+        chart.timeScale().setVisibleRange({ from: f as any, to: t as any });
+        chart.priceScale("right").applyOptions({ autoScale: true });
+      } catch {
+        // ignore transient out-of-range calls while chart updates
+      }
+      this.updateLiveBadgePosition();
+    },
+
+    selectWindowPreset(key: string): void {
+      const { min, max, span } = this.timelineBounds;
+      if (span <= 0) return;
+      if (key === "ALL") {
+        this.applyLongestScale();
+        return;
+      }
+      const preset = this.windowPresets.find((p) => p.key === key);
+      if (!preset || !preset.days) return;
+      const dur = preset.days * 86400;
+      if (dur >= span) {
+        this.applyLongestScale();
+        return;
+      }
+      // Keep right edge where user currently is (or latest bar if currently viewing ALL)
+      const anchorRight =
+        this.activeWindowPreset === "ALL" || this.winTo <= 0
+          ? max
+          : Math.max(min + dur, Math.min(max, this.winTo));
+      const from = Math.max(min, anchorRight - dur);
+      const to = Math.min(max, from + dur);
+      this.activeWindowPreset = key;
+      this.isScrubbingTimeline = true;
+      this.applyTimelineRange(from, to);
+      setTimeout(() => {
+        this.isScrubbingTimeline = false;
+        this.refreshMarks();
+      }, 60);
+    },
+
+    onTimelineTrackDown(e: PointerEvent): void {
+      const track = this.$refs.timelineTrack as HTMLElement | undefined;
+      const { min, max, span } = this.timelineBounds;
+      if (!track || span <= 0) return;
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const clickT = min + ratio * span;
+      // If currently showing ALL, open a 1Y (or 30% of span) window centered on click
+      const curDur =
+        this.winTo > this.winFrom && this.winTo - this.winFrom < span * 0.98
+          ? this.winTo - this.winFrom
+          : Math.min(365 * 86400, span * 0.35);
+      let from = clickT - curDur / 2;
+      let to = clickT + curDur / 2;
+      if (from < min) { from = min; to = Math.min(max, min + curDur); }
+      if (to > max) { to = max; from = Math.max(min, max - curDur); }
+      if (this.activeWindowPreset === "ALL") {
+        this.activeWindowPreset = Math.abs(curDur - 365 * 86400) < 86400 ? "1Y" : "";
+      }
+      this.isScrubbingTimeline = true;
+      this.applyTimelineRange(from, to);
+      this.startTimelineDrag(e, "move");
+    },
+
+    startTimelineDrag(e: PointerEvent, mode: "move" | "left" | "right"): void {
+      const { min, max, span } = this.timelineBounds;
+      if (span <= 0) return;
+      e.preventDefault();
+      this.timelineDragMode = mode;
+      this.isScrubbingTimeline = true;
+      this.timelineDragStartX = e.clientX;
+      this.timelineDragInitFrom = this.winFrom > 0 ? this.winFrom : min;
+      this.timelineDragInitTo = this.winTo > 0 ? this.winTo : max;
+      window.addEventListener("pointermove", this.onTimelinePointerMove);
+      window.addEventListener("pointerup", this.onTimelinePointerUp);
+      window.addEventListener("pointercancel", this.onTimelinePointerUp);
+    },
+
+    onTimelinePointerMove(e: PointerEvent): void {
+      if (!this.timelineDragMode) return;
+      const track = this.$refs.timelineTrack as HTMLElement | undefined;
+      const { min, max, span } = this.timelineBounds;
+      if (!track || span <= 0) return;
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      const dx = e.clientX - this.timelineDragStartX;
+      const dt = (dx / rect.width) * span;
+      const minDur = Math.min(span, 3 * 86400);
+
+      if (this.timelineDragMode === "move") {
+        const dur = this.timelineDragInitTo - this.timelineDragInitFrom;
+        let from = this.timelineDragInitFrom + dt;
+        let to = from + dur;
+        if (from < min) { from = min; to = min + dur; }
+        if (to > max) { to = max; from = max - dur; }
+        this.applyTimelineRange(from, to);
+      } else if (this.timelineDragMode === "left") {
+        const from = Math.max(min, Math.min(this.timelineDragInitTo - minDur, this.timelineDragInitFrom + dt));
+        this.activeWindowPreset = "";
+        this.applyTimelineRange(from, this.timelineDragInitTo);
+      } else if (this.timelineDragMode === "right") {
+        const to = Math.min(max, Math.max(this.timelineDragInitFrom + minDur, this.timelineDragInitTo + dt));
+        this.activeWindowPreset = "";
+        this.applyTimelineRange(this.timelineDragInitFrom, to);
+      }
+    },
+
+    onTimelinePointerUp(): void {
+      window.removeEventListener("pointermove", this.onTimelinePointerMove);
+      window.removeEventListener("pointerup", this.onTimelinePointerUp);
+      window.removeEventListener("pointercancel", this.onTimelinePointerUp);
+      this.timelineDragMode = null;
+      const { span } = this.timelineBounds;
+      if (span > 0 && this.winTo - this.winFrom >= span * 0.99) {
+        this.activeWindowPreset = "ALL";
+      }
+      setTimeout(() => {
+        this.isScrubbingTimeline = false;
+        this.refreshMarks();
+      }, 40);
     },
 
     zoomToLine(_line?: ILine): void {
@@ -2684,6 +3016,23 @@ export default defineComponent({
       let zoomDebounceTimer: ReturnType<typeof setTimeout> | null = null;
       const myVisibleTimeRangeChangeHandler = (newVisibleTimeRange: TimeRange | null) => {
         if (!newVisibleTimeRange || this.isMonitorView) return;
+        if (!this.isScrubbingTimeline) {
+          const fromSec = Number(newVisibleTimeRange.from);
+          const toSec = Number(newVisibleTimeRange.to);
+          const { min, max, span } = this.timelineBounds;
+          if (Number.isFinite(fromSec) && Number.isFinite(toSec) && span > 0) {
+            this.winFrom = Math.max(min, Math.min(max, fromSec));
+            this.winTo = Math.max(this.winFrom, Math.min(max, toSec));
+            if (this.winTo - this.winFrom >= span * 0.985) {
+              this.activeWindowPreset = "ALL";
+            } else {
+              const matched = this.windowPresets.find(
+                (p) => p.days > 0 && Math.abs((this.winTo - this.winFrom) - p.days * 86400) < 4 * 86400
+              );
+              this.activeWindowPreset = matched ? matched.key : "";
+            }
+          }
+        }
         this.updateLiveBadgePosition();
         if (zoomDebounceTimer) clearTimeout(zoomDebounceTimer);
         zoomDebounceTimer = setTimeout(() => {
@@ -3350,6 +3699,9 @@ export default defineComponent({
   },
 
   unmounted(): void {
+    window.removeEventListener("pointermove", this.onTimelinePointerMove);
+    window.removeEventListener("pointerup", this.onTimelinePointerUp);
+    window.removeEventListener("pointercancel", this.onTimelinePointerUp);
     chart?.remove();
     chart = null;
     if (this.refreshInterval) {
@@ -3912,6 +4264,140 @@ export default defineComponent({
       filter: grayscale(1);
     }
   }
+}
+
+/* Floating Draggable Time-Window Scrubber */
+.timeline-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 6px 10px;
+  background: var(--background-color);
+  font-size: var(--ui-font-size);
+  user-select: none;
+  -webkit-user-select: none;
+  flex-wrap: wrap;
+}
+
+.timeline-presets {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.timeline-preset-btn {
+  height: 22px;
+  padding: 0 7px;
+  background: rgba(105, 105, 105, 0.12);
+  color: dimgray;
+  font-size: var(--ui-font-size);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border: none;
+  border-radius: 0;
+  transition: background-color 0.12s ease, color 0.12s ease;
+
+  &:hover {
+    background: rgba(105, 105, 105, 0.24);
+    color: #1f2937;
+  }
+
+  &--active {
+    background: dimgray;
+    color: antiquewhite;
+
+    &:hover {
+      background: #4b5563;
+      color: antiquewhite;
+    }
+  }
+}
+
+.timeline-track {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 140px;
+  height: 22px;
+  background: rgba(105, 105, 105, 0.1);
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.timeline-year-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 4px;
+  font-size: var(--ui-font-size);
+  color: rgba(105, 105, 105, 0.72);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.timeline-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(105, 105, 105, 0.28);
+  cursor: grab;
+  touch-action: none;
+
+  &:hover {
+    background: rgba(105, 105, 105, 0.36);
+  }
+
+  &--dragging {
+    cursor: grabbing;
+    background: rgba(105, 105, 105, 0.42);
+  }
+}
+
+.timeline-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  background: rgba(75, 85, 99, 0.65);
+  cursor: ew-resize;
+
+  &:hover {
+    background: #1f2937;
+  }
+
+  &--left {
+    left: 0;
+  }
+
+  &--right {
+    right: 0;
+  }
+}
+
+.timeline-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: var(--ui-font-size);
+  color: dimgray;
+  white-space: nowrap;
+}
+
+.timeline-dates {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.timeline-pnl {
+  font-weight: 700;
+}
+
+.timeline-dd {
+  color: dimgray;
 }
 
 .info-container {
