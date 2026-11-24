@@ -3136,9 +3136,9 @@ export default defineComponent({
         .replace(/^(ORDERBOOK|OB|MM|VOL)[-_]/i, "")
         .toLowerCase();
       const labels: Record<string, string> = {
-        "trend-mtf-v2": "SUPERTREND + MOMENTUM",
-        "trend-mtf": "SUPERTREND + MOMENTUM",
-        "trend-mtf-live": "SUPERTREND + MOMENTUM",
+        "trend-mtf-v2": "SUPERTREND + MOMENTUM - LIVE",
+        "trend-mtf": "SUPERTREND + MOMENTUM - LIVE",
+        "trend-mtf-live": "SUPERTREND + MOMENTUM - LIVE",
         "lsma-mtf": "LINEAR REGRESSION",
         "vrev-mtf": "RANGE REVERSAL",
         "trend-mtf-smartlab": "SMARTLAB TREND",
