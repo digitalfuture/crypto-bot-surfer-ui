@@ -357,10 +357,21 @@
           v-for="p in windowPresets"
           :key="p.key"
           type="button"
-          class="timeline-preset-btn cursor-pointer"
-          :class="{ 'timeline-preset-btn--active': activeWindowPreset === p.key }"
+          class="timeline-preset-btn"
+          :disabled="!isWindowPresetApplicable(p)"
+          :class="{
+            'cursor-pointer': isWindowPresetApplicable(p),
+            'timeline-preset-btn--active': activeWindowPreset === p.key,
+            'timeline-preset-btn--disabled': !isWindowPresetApplicable(p),
+          }"
           @click="selectWindowPreset(p.key)"
-          :title="p.key === 'ALL' ? 'Show full history' : `Select ${p.label} floating window (drag to slide)`"
+          :title="
+            !isWindowPresetApplicable(p)
+              ? `Chart range is shorter than ${p.label}`
+              : p.key === 'ALL'
+              ? 'Show full history'
+              : `Select ${p.label} floating window (drag to slide)`
+          "
         >{{ p.label }}</button>
       </div>
 
@@ -1795,7 +1806,7 @@ export default defineComponent({
                   const leftPct = rect.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) : 0.5;
                   const xAnchor = scMin + leftPct * curSpan;
                   const factor = e.deltaY < 0 ? 0.8 : 1.25;
-                  const minSpan = Math.min(span, 3 * 86400);
+                  const minSpan = self.getMinWindowDuration(span);
                   const newSpan = Math.max(minSpan, Math.min(span, curSpan * factor));
                   let nMin = xAnchor - leftPct * newSpan;
                   let nMax = nMin + newSpan;
@@ -3033,7 +3044,7 @@ export default defineComponent({
       const to = prevTo !== undefined ? prevTo : this.winTo;
       const { min, max, span } = this.timelineBounds;
       if (preset !== "ALL" && span > 0 && from > 0 && to > from) {
-        const minDur = Math.min(span, 3 * 86400);
+        const minDur = this.getMinWindowDuration(span);
         const f = Math.max(min, Math.min(max - minDur, from));
         const t = Math.max(f + minDur, Math.min(max, to));
         if (t - f < span * 0.995) {
@@ -3135,10 +3146,22 @@ export default defineComponent({
       }
     },
 
+    getMinWindowDuration(span: number): number {
+      if (span <= 0) return 0;
+      if (span > 14 * 86400) return 3 * 86400;
+      return Math.min(span, Math.max(4 * 3600, Math.floor(span * 0.1)));
+    },
+
+    isWindowPresetApplicable(preset: { key: string; days: number }): boolean {
+      if (preset.key === "ALL" || !preset.days) return true;
+      const { span } = this.timelineBounds;
+      return span > preset.days * 86400;
+    },
+
     applyTimelineRange(fromSec: number, toSec: number, directOnly = false): void {
       const { min, max, span } = this.timelineBounds;
       if (!uChart || span <= 0) return;
-      const minDur = Math.min(span, 3 * 86400);
+      const minDur = this.getMinWindowDuration(span);
       let f = Math.max(min, Math.min(max - minDur, fromSec));
       let t = Math.max(f + minDur, Math.min(max, toSec));
       if (t - f < minDur) f = Math.max(min, t - minDur);
@@ -3166,12 +3189,8 @@ export default defineComponent({
         return;
       }
       const preset = this.windowPresets.find((p) => p.key === key);
-      if (!preset || !preset.days) return;
+      if (!preset || !preset.days || !this.isWindowPresetApplicable(preset)) return;
       const dur = preset.days * 86400;
-      if (dur >= span) {
-        this.applyLongestScale();
-        return;
-      }
       // Keep right edge where user currently is (or latest bar if currently viewing ALL)
       const anchorRight =
         this.activeWindowPreset === "ALL" || this.winTo <= 0
@@ -3237,7 +3256,7 @@ export default defineComponent({
 
       const dx = e.clientX - this.timelineDragStartX;
       const dt = (dx / rect.width) * span;
-      const minDur = Math.min(span, 3 * 86400);
+      const minDur = this.getMinWindowDuration(span);
 
       if (this.timelineDragMode === "move") {
         const dur = this.timelineDragInitTo - this.timelineDragInitFrom;
@@ -4411,7 +4430,7 @@ export default defineComponent({
   border-radius: 0;
   transition: background-color 0.12s ease, color 0.12s ease;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: rgba(105, 105, 105, 0.24);
     color: #1f2937;
   }
@@ -4420,10 +4439,18 @@ export default defineComponent({
     background: dimgray;
     color: antiquewhite;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: #4b5563;
       color: antiquewhite;
     }
+  }
+
+  &--disabled,
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    background: rgba(105, 105, 105, 0.08);
+    color: rgba(105, 105, 105, 0.65);
   }
 }
 
