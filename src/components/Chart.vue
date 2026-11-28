@@ -3662,8 +3662,8 @@ export default defineComponent({
         .toLowerCase();
       const labels: Record<string, string> = {
         "trend-mtf-v2": "SUPERTREND + MOMENTUM - LIVE",
-        "trend-mtf": "SUPERTREND + MOMENTUM - LIVE",
-        "trend-mtf-live": "SUPERTREND + MOMENTUM - LIVE",
+        "trend-mtf-live": "SUPERTREND + MOMENTUM — REAL",
+        "trend-mtf": "SUPERTREND + MOMENTUM — MODEL (1x)",
         "lsma-mtf": "LINEAR REGRESSION",
         "vrev-mtf": "RANGE REVERSAL",
         "trend-mtf-smartlab": "SMARTLAB TREND",
@@ -3680,8 +3680,8 @@ export default defineComponent({
         .toLowerCase();
       const desc: Record<string, string> = {
         "trend-mtf-v2": "SuperTrend (4h/8h/12h/1d) + Cross-Sectional Momentum + Contrarian 14d Sizer",
-        "trend-mtf": "SuperTrend (4h/8h/12h/1d) + Cross-Sectional Momentum + Contrarian 14d Sizer",
-        "trend-mtf-live": "SuperTrend (4h/8h/12h/1d) + Cross-Sectional Momentum + Contrarian 14d Sizer",
+        "trend-mtf-live": "Real Binance Futures Account Equity (actual fills, fees & funding)",
+        "trend-mtf": "Internal 1x Strategy Model (SuperTrend 4h/8h/12h/1d + XSM + Contrarian 14d Sizer)",
         "lsma-mtf": "Dual Linear Regression 14/50 Crossover (4h/8h/12h/1d)",
         "vrev-mtf": "2-Line Sequential Regression V-Reversal in Range, ADX <= 22 (4h/8h/12h/1d)",
         "trend-mtf-smartlab": "SmartLab Multi-Timeframe Trend",
